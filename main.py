@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+import re
 
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -34,6 +35,7 @@ def get_user_session(user_id):
             "last_prompt": None,
             "last_response": None,
             "started": False,
+            "awaiting_email": False,
         }
     return sessions[user_id]
 
@@ -51,18 +53,13 @@ def call_gemini(prompt):
         model_name="gemini-2.5-flash-preview-04-17",
         system_instruction="""
 You are a medical education assistant. Always respond in plain text only.
-
-Do not use markdown formatting such as *, **, `, or numbered lists like 1., 2., etc.
-
-Use plain headings and dashes for structure:
-
+Do not use markdown formatting such as *, **, or `.
+Use:
 # Section Title
- - Bullet point 1
- - Bullet point 2
-
-First respond in clear English.
-Then repeat the same in the requested translation language.
-Do not reference any websites.
+ - Bullet 1
+ - Bullet 2
+First respond in English, then in the specified translation language.
+Do not reference websites.
 """
     )
     response = model.generate_content(prompt)
@@ -72,27 +69,43 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
     text = text.strip()
     text_lower = text.lower()
 
-    # Require new to start
-    if not session["started"]:
-        if text_lower == "new":
-            for k in session: session[k] = None
-            session["started"] = True
-            return (
-                "🆕 已開始新的對話。\n\n請輸入您希望翻譯的語言（例如：泰文、越南文），最終內容會以英文和該語言雙語呈現。",
-                False,
-            )
+    # 🔁 NEW command resets everything at any time
+    if text_lower == "new":
+        for key in session:
+            session[key] = None
+        session["started"] = True
+        session["awaiting_email"] = False
+        return (
+            "🆕 已開始新的對話。\n\n請輸入您希望翻譯的語言（例如：泰文、越南文），最終內容會以英文和該語言雙語呈現。",
+            False,
+        )
+
+    # 📧 Handle mailing phase
+    if session.get("awaiting_email"):
+        email_pattern = r"[^@]+@[^@]+\.[^@]+"
+        if re.fullmatch(email_pattern, text):
+            session["awaiting_email"] = False
+            return f"✅ 已收到 email：{text}\n目前寄送功能尚在開發中。", False
         else:
-            return "❗請輸入 'new' 開始新的衛教對話。", False
+            return "⚠️ 請輸入有效的 email 地址，例如 example@gmail.com", False
 
-    if "mail" in text_lower:
-        return "📧 mail 功能即將推出。", False
+    # ❗ Require new to begin first
+    if not session["started"]:
+        return "❗請輸入 'new' 開始新的衛教對話。", False
 
+    # ✉️ Trigger mailing flow
+    if "mail" in text_lower and session["last_response"]:
+        session["awaiting_email"] = True
+        return "📧 請輸入您要寄送衛教資料的有效 email 地址：", False
+
+    # 🛠 Modify logic
     if "modify" in text_lower and session["last_response"]:
         mod_prompt = f"Please revise the following based on this request:\n\n{text}\n\nOriginal:\n{session['last_response']}"
         session["last_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
         return session["last_response"], True
 
+    # Step-by-step prompts
     if not session["language"]:
         session["language"] = text
         return "🌐 已設定語言。請輸入疾病名稱：", False
@@ -112,14 +125,11 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
 
 @app.post("/chat")
 def chat(input: UserInput):
-    # Debug-only test with mock user ID
     user_id = "test-user"
     session = get_user_session(user_id)
-    print("🧪 /chat triggered")
-    print("🔹 User input:", input.message)
     reply, remind = handle_user_message(input.message, session)
     if remind:
-        reply += "\n\n📌 衛教文章生成完畢，請輸入任何指令進行修改，\n若要生成新的衛教文章，請輸入\"New\"，\n如果要寄 email，請輸入\"Mail\"後輸入有效電子郵件。"
+        reply += "\n\n📌 若您想將衛教資料寄送 email，請輸入 \"Mail\"，我將會請您輸入有效電子郵件地址。"
     return {"reply": reply}
 
 @app.post("/webhook")
@@ -147,7 +157,7 @@ def handle_line_message(event):
     messages = [TextSendMessage(text=reply[:4000])]
     if show_reminder:
         messages.append(TextSendMessage(
-            text="📌 衛教文章生成完畢，請輸入任何指令進行修改，\n若要生成新的衛教文章，請輸入\"New\"，\n如果要寄 email，請輸入\"Mail\"後輸入有效電子郵件。"
+            text="📌 若您想將衛教資料寄送 email，請輸入 \"Mail\"，我將會請您輸入有效電子郵件地址。"
         ))
 
     line_bot_api.reply_message(event.reply_token, messages)
