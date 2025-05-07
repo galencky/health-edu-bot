@@ -8,7 +8,6 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
-# Load environment
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -20,18 +19,23 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 app = FastAPI()
 
-# Global session
-session = {
-    "language": None,
-    "disease": None,
-    "topic": None,
-    "last_prompt": None,
-    "last_response": None,
-    "started": False,
-}
+# Map of user_id → session dict
+sessions = {}
 
 class UserInput(BaseModel):
     message: str
+
+def get_user_session(user_id):
+    if user_id not in sessions:
+        sessions[user_id] = {
+            "language": None,
+            "disease": None,
+            "topic": None,
+            "last_prompt": None,
+            "last_response": None,
+            "started": False,
+        }
+    return sessions[user_id]
 
 def build_prompt(language, disease, topic):
     return (
@@ -64,58 +68,60 @@ Do not reference any websites.
     response = model.generate_content(prompt)
     return response.text
 
-def handle_user_message(message: str) -> str:
-    global session
-    text = message.strip()
-
-    if not session["started"]:
-        if text.lower() == "new":
-            session.update({key: None for key in session})
-            session["started"] = True
-            return "🆕 已開始新的對話。\n\n請輸入您希望翻譯的語言（例如：泰文、越南文），最終內容會以英文和該語言雙語呈現。"
-        else:
-            return "❗請輸入 'new' 開始新的衛教對話。"
-
+def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
+    text = text.strip()
     text_lower = text.lower()
+
+    # Require new to start
+    if not session["started"]:
+        if text_lower == "new":
+            for k in session: session[k] = None
+            session["started"] = True
+            return (
+                "🆕 已開始新的對話。\n\n請輸入您希望翻譯的語言（例如：泰文、越南文），最終內容會以英文和該語言雙語呈現。",
+                False,
+            )
+        else:
+            return "❗請輸入 'new' 開始新的衛教對話。", False
+
     if "mail" in text_lower:
-        return "📧 mail 功能即將推出。"
-    elif "modify" in text_lower and session["last_response"]:
+        return "📧 mail 功能即將推出。", False
+
+    if "modify" in text_lower and session["last_response"]:
         mod_prompt = f"Please revise the following based on this request:\n\n{text}\n\nOriginal:\n{session['last_response']}"
         session["last_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
-        return session["last_response"]
-    elif not session["language"]:
+        return session["last_response"], True
+
+    if not session["language"]:
         session["language"] = text
-        return "🌐 已設定語言。請輸入疾病名稱："
+        return "🌐 已設定語言。請輸入疾病名稱：", False
     elif not session["disease"]:
         session["disease"] = text
-        return "🩺 已設定疾病。請輸入您想要的衛教主題："
+        return "🩺 已設定疾病。請輸入您想要的衛教主題：", False
     elif not session["topic"]:
         session["topic"] = text
         session["last_prompt"] = build_prompt(session["language"], session["disease"], session["topic"])
         session["last_response"] = call_gemini(session["last_prompt"])
-        return (
-            session["last_response"]
-            + "\n\n衛教文章生成完畢，請輸入任何指令進行修改，"
-            + "若要生成新的衛教文章，請輸入\"New\"，"
-            + "如果要寄email，請輸入\"Mail\"後輸入有效電子郵件。"
-        )
+        return session["last_response"], True
     else:
         mod_prompt = f"請根據以下需求修改原始內容：\n\n{text}\n\n原始內容：\n{session['last_response']}"
         session["last_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
-        return session["last_response"]
+        return session["last_response"], True
 
-# Route for curl/Postman-style testing
 @app.post("/chat")
 def chat(input: UserInput):
+    # Debug-only test with mock user ID
+    user_id = "test-user"
+    session = get_user_session(user_id)
     print("🧪 /chat triggered")
     print("🔹 User input:", input.message)
-    reply = handle_user_message(input.message)
-    print("🔸 Bot reply:", reply[:200] + "..." if len(reply) > 200 else reply)
+    reply, remind = handle_user_message(input.message, session)
+    if remind:
+        reply += "\n\n📌 衛教文章生成完畢，請輸入任何指令進行修改，\n若要生成新的衛教文章，請輸入\"New\"，\n如果要寄 email，請輸入\"Mail\"後輸入有效電子郵件。"
     return {"reply": reply}
 
-# LINE Messaging API webhook
 @app.post("/webhook")
 async def webhook(request: Request, x_line_signature: str = Header(None)):
     body = await request.body()
@@ -131,16 +137,21 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_line_message(event):
+    user_id = event.source.user_id
     user_input = event.message.text
-    print(f"💬 LINE User Input: {user_input}")
-    reply = handle_user_message(user_input)
-    print(f"🤖 LINE Bot Reply: {reply[:200]}..." if len(reply) > 200 else reply)
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=reply[:4000])  # LINE limit
-    )
+    session = get_user_session(user_id)
 
-# Health check
+    print(f"💬 LINE User Input ({user_id}): {user_input}")
+    reply, show_reminder = handle_user_message(user_input, session)
+
+    messages = [TextSendMessage(text=reply[:4000])]
+    if show_reminder:
+        messages.append(TextSendMessage(
+            text="📌 衛教文章生成完畢，請輸入任何指令進行修改，\n若要生成新的衛教文章，請輸入\"New\"，\n如果要寄 email，請輸入\"Mail\"後輸入有效電子郵件。"
+        ))
+
+    line_bot_api.reply_message(event.reply_token, messages)
+
 @app.get("/")
 def root():
     return {
