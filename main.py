@@ -4,12 +4,14 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+# Load environment variable
 load_dotenv()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
+# FastAPI app
 app = FastAPI()
 
-# Basic state (1 global session for test)
+# Global session state for simple demo
 session = {
     "language": None,
     "disease": None,
@@ -18,9 +20,11 @@ session = {
     "last_response": None,
 }
 
+# Input format for POST /chat
 class UserInput(BaseModel):
     message: str
 
+# Build prompt from session
 def build_prompt(language, disease, topic):
     return (
         f"Please create a short, clear patient education pamphlet in two parts:\n\n"
@@ -30,14 +34,16 @@ def build_prompt(language, disease, topic):
         f"The goal is to help clinicians educate patients or caregivers in their native language during a clinic visit."
     )
 
+# Call Gemini without stream
 def call_gemini(prompt):
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-preview-04-17",
         system_instruction="You are a medical education assistant. First respond in English, then translate into the requested language. Do not reference websites."
     )
-    stream = model.generate_content(prompt, stream=True)
-    return "".join(chunk.text or "" for chunk in stream)
+    response = model.generate_content(prompt)
+    return response.text
 
+# POST /chat endpoint
 @app.post("/chat")
 def chat(input: UserInput):
     global session
@@ -56,18 +62,24 @@ def chat(input: UserInput):
         return {"reply": result}
 
     elif "mail" in text:
-        return {"reply": "📧 Mail feature not yet implemented in this version."}
+        return {"reply": "📧 Mail feature not implemented yet."}
 
+    # Sequential session handling
     if not session["language"]:
-        session["language"] = text
+        session["language"] = input.message
         return {"reply": "🌐 Language set. Please enter disease:"}
     elif not session["disease"]:
-        session["disease"] = text
+        session["disease"] = input.message
         return {"reply": "🩺 Disease set. Please enter health education topic:"}
     elif not session["topic"]:
-        session["topic"] = text
+        session["topic"] = input.message
         session["last_prompt"] = build_prompt(session["language"], session["disease"], session["topic"])
         session["last_response"] = call_gemini(session["last_prompt"])
         return {"reply": session["last_response"]}
     else:
         return {"reply": "✅ Prompt complete. You can type 'modify', 'mail', or 'new'."}
+
+# Optional: Add GET /
+@app.get("/")
+def root():
+    return {"message": "✅ FastAPI is running. Try POST /chat with a message like 'thai'"}
