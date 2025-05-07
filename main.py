@@ -8,13 +8,10 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
-# Load environment variables
+# Load environment
 load_dotenv()
 
-# Gemini API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-# LINE bot credentials
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
@@ -23,7 +20,7 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 app = FastAPI()
 
-# Global session (not user-specific yet)
+# Global session
 session = {
     "language": None,
     "disease": None,
@@ -97,24 +94,35 @@ def handle_user_message(message: str) -> str:
         session["topic"] = text
         session["last_prompt"] = build_prompt(session["language"], session["disease"], session["topic"])
         session["last_response"] = call_gemini(session["last_prompt"])
-        return session["last_response"]
+        return (
+            session["last_response"]
+            + "\n\n衛教文章生成完畢，請輸入任何指令進行修改，"
+            + "若要生成新的衛教文章，請輸入\"New\"，"
+            + "如果要寄email，請輸入\"Mail\"後輸入有效電子郵件。"
+        )
     else:
-        # 所有非 'new' 'mail' 'modify' 指令的輸入一律視為修改要求
-        mod_prompt = f"please modify the content with following instructions: \n\n{text}\n\n original content: \n{session['last_response']}"
+        mod_prompt = f"請根據以下需求修改原始內容：\n\n{text}\n\n原始內容：\n{session['last_response']}"
         session["last_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
         return session["last_response"]
 
-# Manual testing endpoint
+# Route for curl/Postman-style testing
 @app.post("/chat")
 def chat(input: UserInput):
+    print("🧪 /chat triggered")
+    print("🔹 User input:", input.message)
     reply = handle_user_message(input.message)
+    print("🔸 Bot reply:", reply[:200] + "..." if len(reply) > 200 else reply)
     return {"reply": reply}
 
-# LINE Webhook
+# LINE Messaging API webhook
 @app.post("/webhook")
 async def webhook(request: Request, x_line_signature: str = Header(None)):
     body = await request.body()
+
+    print("🔔 LINE Webhook triggered")
+    print("📩 Body:", body.decode("utf-8"))
+
     try:
         handler.handle(body.decode("utf-8"), x_line_signature)
     except InvalidSignatureError:
@@ -124,13 +132,15 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
 @handler.add(MessageEvent, message=TextMessage)
 def handle_line_message(event):
     user_input = event.message.text
+    print(f"💬 LINE User Input: {user_input}")
     reply = handle_user_message(user_input)
+    print(f"🤖 LINE Bot Reply: {reply[:200]}..." if len(reply) > 200 else reply)
     line_bot_api.reply_message(
         event.reply_token,
-        TextSendMessage(text=reply[:4000])
+        TextSendMessage(text=reply[:4000])  # LINE limit
     )
 
-# Root endpoint to verify service
+# Health check
 @app.get("/")
 def root():
     return {
