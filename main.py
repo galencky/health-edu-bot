@@ -10,7 +10,9 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
-# ── Environment & Configuration ─────────────────────────────────────────────
+from log_to_sheets import log_to_sheet
+
+# ── Environment & Configuration ──────────────────────────────────────────
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -22,7 +24,7 @@ handler      = WebhookHandler(LINE_CHANNEL_SECRET)
 
 app = FastAPI()
 
-# ── Session Storage ──────────────────────────────────────────────────────────
+# ── Session Storage ───────────────────────────────────────
 sessions: dict[str, dict] = {}
 
 class UserInput(BaseModel):
@@ -254,7 +256,7 @@ def handle_line_message(event):
     if will_call_gemini(user_input, session):
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⏳ 已將您的指令用 API 傳至 Gemini，請稍等回覆（通常需 10-20 秒）...")
+            TextSendMessage(text="⏳ 已將您的指令用 API 傳至 Gemini，請等待回覆（通常需 10-20 秒）...")
         )
         def process_and_push_reply():
             reply, _ = handle_user_message(user_input, session)
@@ -262,6 +264,7 @@ def handle_line_message(event):
                 user_id,
                 TextSendMessage(text=reply[:4000])
             )
+            log_to_sheet(user_id, user_input, reply, session, action_type="Gemini reply", gemini_call="yes")
         threading.Thread(target=process_and_push_reply).start()
     else:
         reply, _ = handle_user_message(user_input, session)
@@ -269,6 +272,8 @@ def handle_line_message(event):
             event.reply_token,
             TextSendMessage(text=reply[:4000])
         )
+        log_to_sheet(user_id, user_input, reply, session, action_type="sync reply", gemini_call="no")
+
 
 @app.get("/")
 def root():

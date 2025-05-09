@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
-pydantic
 python-dotenv
-google-generativeai
 line-bot-sdk
+google-generativeai
+gspread
+oauth2client
