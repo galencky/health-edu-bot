@@ -31,7 +31,8 @@ def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call
         reply[:200],  # Shorten to avoid overflow
         action_type,
         gemini_call,
-        session.get("zh_output", "")[:200],
-        session.get("translated_output", "")[:200]
+        (str(session.get("zh_output") or ""))[:200],
+        (str(session.get("translated_output") or ""))[:200]
+
     ]
     sheet.append_row(row)
