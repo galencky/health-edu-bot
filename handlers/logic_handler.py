@@ -12,7 +12,7 @@ def has_mx_record(domain: str) -> bool:
         return False
 
 
-def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
+def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bool]:
     raw = text.strip()
     text_lower = raw.lower()
 
