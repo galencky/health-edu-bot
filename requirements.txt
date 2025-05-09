@@ -5,3 +5,7 @@ line-bot-sdk
 google-generativeai
 gspread
 oauth2client
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
