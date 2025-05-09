@@ -40,7 +40,7 @@ def handle_line_message(event):
         )
 
         def process():
-            reply, _ = handle_user_message(user_input, session)
+            reply, _ = handle_user_message(user_id, user_input, session)
             log_to_sheet(user_id, user_input, reply, session, action_type="Gemini reply", gemini_call="yes")
 
             if session.get("translated") and session.get("zh_output") and session.get("translated_output"):
@@ -79,7 +79,7 @@ def handle_line_message(event):
         threading.Thread(target=process).start()
 
     else:
-        reply, _ = handle_user_message(user_input, session)
+        reply, _ = handle_user_message(user_id, user_input, session)
         for chunk in split_text(reply):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))
         log_to_sheet(user_id, user_input, reply, session, action_type="sync reply", gemini_call="no")
