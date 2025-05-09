@@ -26,15 +26,14 @@ def get_sheet():
 # Log to sheet
 def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call=None):
     if gemini_call == "yes":
-        # Upload Gemini result to Drive
         drive_url, filename = upload_gemini_log(user_id, session, message)
         zh_output = f'=HYPERLINK("{drive_url}", "{filename}")'
+        translated_output = zh_output  # hyperlink also shown here
         gemini_call_val = "yes"
     else:
         zh_output = ""
+        translated_output = str(session.get("translated_output") or "")[:200]
         gemini_call_val = ""
-
-    translated_output = str(session.get("translated_output") or "")[:200]
 
     row = [
         datetime.now().isoformat(),
@@ -48,4 +47,4 @@ def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call
     ]
 
     sheet = get_sheet()
-    sheet.append_row(row)
+    sheet.append_row(row, value_input_option='USER_ENTERED')  # ✅ interprets formulas
