@@ -29,7 +29,7 @@ class UserInput(BaseModel):
 def get_user_session(user_id):
     if user_id not in sessions:
         sessions[user_id] = {
-            "last_prompt": None,
+            "original_prompt": None,
             "last_response": None,
             "started": False,
             "awaiting_email": False,
@@ -47,10 +47,11 @@ Use:
  - Bullet 1
  - Bullet 2
 First respond in English, then in the specified translation language if applicable.
+Please retain the translated language used in the prompt unless the user requests a different language.
 Do not reference websites.
 """
     )
-    response = model.generate_content(prompt)
+    response = model.generate_content(prompt, generation_config={"temperature": 0.25})
     return response.text
 
 def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
@@ -59,7 +60,7 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
 
     # Start new conversation
     if text_lower == "new":
-        session["last_prompt"] = None
+        session["original_prompt"] = None
         session["last_response"] = None
         session["started"] = True
         session["awaiting_email"] = False
@@ -87,19 +88,19 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
         return "📧 請輸入您要寄送衛教資料的有效 email 地址：", False
 
     # Modify existing output
-    if "modify" in text_lower and session["last_response"] and session["last_prompt"]:
+    if "modify" in text_lower and session["last_response"] and session["original_prompt"]:
         mod_prompt = (
             f"Please revise the educational material based on the following user instruction:\n\n"
             f"{text}\n\n"
-            f"Original prompt:\n{session['last_prompt']}\n\n"
+            f"Original prompt:\n{session['original_prompt']}\n\n"
             f"Original response:\n{session['last_response']}"
         )
-        session["last_prompt"] = mod_prompt
+        session["original_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
         return session["last_response"], True
 
     # New prompt: treat as main request
-    session["last_prompt"] = text
+    session["original_prompt"] = text
     session["last_response"] = call_gemini(text)
     return session["last_response"], True
 
