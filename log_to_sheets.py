@@ -24,15 +24,24 @@ sheet = client.open("ChatbotLogs").sheet1  # Make sure this name matches your sh
 
 # ── Append a row of interaction log ─────────────────────────────────────────
 def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call=None):
+    # Conditionally log zh_output and gemini_call only if Gemini was used
+    if gemini_call == "no":
+        zh_output = ""
+        gemini_call_val = ""
+    else:
+        zh_output = str(session.get("zh_output") or "")[:200]
+        gemini_call_val = gemini_call
+
+    translated_output = str(session.get("translated_output") or "")[:200]
+
     row = [
         datetime.now().isoformat(),
         user_id,
         message,
-        reply[:200],  # Shorten to avoid overflow
+        reply[:200],
         action_type,
-        gemini_call,
-        (str(session.get("zh_output") or ""))[:200],
-        (str(session.get("translated_output") or ""))[:200]
-
+        gemini_call_val,
+        zh_output,
+        translated_output
     ]
     sheet.append_row(row)
