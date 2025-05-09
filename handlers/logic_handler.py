@@ -1,6 +1,16 @@
 import re
+import dns.resolver
 from services.gemini_service import call_zh, call_translate
 from utils.command_sets import new_commands, modify_commands, translate_commands, mail_commands
+from handlers.mail_handler import send_last_txt_email
+
+def has_mx_record(domain: str) -> bool:
+    try:
+        records = dns.resolver.resolve(domain, "MX")
+        return len(records) > 0
+    except:
+        return False
+
 
 def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
     raw = text.strip()
@@ -24,11 +34,11 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
         else:
             return (
                 "📖 請先讀我: 此聊天室的運作方式:\n\n"
+                "⚠️ 請先輸入「new」或「開始」以啟動對話。\n\n"
                 "Step 1: 輸入疾病與衛教主題（將產出中文版衛教內容）\n"
                 "Step 2: 修改中文版內容（輸入「modify」或「修改」）\n"
                 "Step 3: 輸入「翻譯」或「translate」或「trans」將其翻譯\n"
-                "Step 4: 輸入「mail」或「寄送」寄出中文版與翻譯版\n\n"
-                "⚠️ 請先輸入「new」或「開始」以啟動對話。",
+                "Step 4: 輸入「mail」或「寄送」寄出中文版與翻譯版",
                 False,
             )
 
@@ -49,7 +59,11 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
             "awaiting_translate_language": False,
             "awaiting_email": False,
             "awaiting_modify": False,
+            "last_topic": None,               # ✅ Clear previous topic
+            "last_translation_lang": None,    # ✅ Clear previous language
+            "last_uploaded_filename": None    # ✅ Clear old file ref
         })
+
         return (
             "🆕 已重新開始。\n請輸入：疾病名稱 + 衛教主題。",
             False,
@@ -89,13 +103,16 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
 
     if session["awaiting_translate_language"]:
         target_lang = raw
-        zh_text     = session["zh_output"]
-        translated  = call_translate(zh_text, target_lang)
+        zh_text = session["zh_output"]
+        translated = call_translate(zh_text, target_lang)
         session.update({
             "translated_output": translated,
             "translated": True,
             "awaiting_translate_language": False,
+            "last_translation_lang": target_lang,
+            "last_topic": zh_text.split("\n")[0][:20]  # crude topic name
         })
+
         return (
             f"🌐 翻譯完成（目標語言：{target_lang}）：\n\n"
             f"原文：\n{zh_text}\n\n"
@@ -116,17 +133,28 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
     if session["awaiting_email"]:
         email_pattern = r"^[^@]+@[^@]+\.[^@]+$"
         if re.fullmatch(email_pattern, raw):
+            domain = raw.split('@')[1]
+            if not has_mx_record(domain):
+                return "⚠️ 此 email 的網域無法接收郵件（無 MX 紀錄），請確認或換一個。", False
+
             session["awaiting_email"] = False
-            return (
-                f"✅ 已收到 email：{raw}\n目前寄送功能尚在開發中。", 
-                False,
-            )
+            session["recipient_email"] = raw
+
+            success = send_last_txt_email(user_id, raw, session)
+            if success:
+                return f"✅ 已成功寄出衛教內容至 {raw}", False
+            else:
+                return f"⚠️ 嘗試寄送失敗，請稍後再試或確認檔案存在。", False
         else:
-            return ("⚠️ 無效 email，請重新輸入，例如：example@gmail.com", False)
+            return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", False
+
 
     if not session["zh_output"]:
         zh = call_zh(raw)
-        session["zh_output"] = zh
+        session.update({
+            "zh_output": zh,
+            "last_topic": raw.strip()[:30]  # store user-entered topic (truncated for safety)
+        })
         return (
             f"✅ 中文版衛教內容已生成：\n\n{zh}\n\n"
             "📌 您目前可：\n"
@@ -137,11 +165,12 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
             False,
         )
 
+
     return (
         "⚠️ 指令不明，請依照下列操作：\n"
-        "• new/開始 → 重新開始\n"
-        "• modify/修改 → 進入修改模式\n"
-        "• translate/翻譯/trans → 進行翻譯\n"
-        "• mail/寄送 → 寄出內容\n",
+        "輸入: new/開始 → 重新開始\n"
+        "輸入: modify/修改 → 進入修改模式\n"
+        "輸入: translate/翻譯/trans → 進行翻譯\n"
+        "輸入: mail/寄送 → 寄出內容\n",
         False,
     )
