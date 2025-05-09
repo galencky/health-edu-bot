@@ -37,7 +37,7 @@ def get_user_session(user_id: str) -> dict:
             "translated": False,               # whether translation has occurred
             "awaiting_translate_language": False,
             "awaiting_email": False,
-            "awaiting_modify": False,          # NEW: waiting for modify instructions
+            "awaiting_modify": False,          # waiting for modify instructions
         }
     return sessions[user_id]
 
@@ -77,7 +77,7 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
     """
     Returns (reply_text, needs_reminder_footer)
     """
-    raw       = text.strip()
+    raw        = text.strip()
     text_lower = raw.lower()
 
     # 1) Pre-start: require "new"/"開始"
@@ -99,24 +99,24 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
             )
         else:
             return (
-                "📖 READ ME: how this AI bot works:\n\n"
+                "📖 請先讀我: 此聊天室的運作方式:\n\n"
                 "Step 1: 輸入疾病與衛教主題（將產出中文版衛教內容）\n"
                 "Step 2: 修改中文版內容（輸入「modify」或「修改」）\n"
-                "Step 3: 輸入「翻譯」/\"translate\"/\"trans\" 將其翻譯\n"
-                "Step 4: 輸入「mail」/\"寄送\" + email，寄出中文版與翻譯版\n\n"
-                "⚠️ 請先輸入 new 或 開始 開始對話。",
+                "Step 3: 輸入「翻譯」或「translate」或「trans」將其翻譯\n"
+                "Step 4: 輸入「mail」或「寄送」寄出中文版與翻譯版\n\n"
+                "⚠️ 請先輸入「new」或「開始」以啟動對話。",
                 False,
             )
 
-    # 2) Mutual‐exclusion: detect commands
-    is_new       = text_lower in new_commands
-    is_translate = text_lower in translate_commands
-    is_mail      = text_lower in mail_commands
+    # 2) Mutual‐exclusion: detect primary commands
+    is_new        = text_lower in new_commands
+    is_translate  = text_lower in translate_commands
+    is_mail       = text_lower in mail_commands
     is_modify_cmd = text_lower in modify_commands
 
     # If more than one primary command in one input → reject
     if sum([is_new, is_translate, is_mail, is_modify_cmd]) > 1:
-        return ("⚠️ 同時偵測到多個指令，請一次只執行一項：new／modify／translate／mail。", False)
+        return ("⚠️ 同時偵測到多個指令，請一次只執行一項：new/modify/translate/mail。", False)
 
     # 3) Handle "new" anytime
     if is_new:
@@ -136,22 +136,23 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
 
     # 4) Awaiting modify instructions?
     if session["awaiting_modify"]:
-        # raw is the modify instruction
         prompt = (
             f"請根據以下指示修改中文版衛教內容：\n\n"
             f"{raw}\n\n"
             f"原始內容：\n{session['zh_output']}"
         )
+        # notify user then call Gemini
         new_zh = call_zh(prompt)
         session.update({
             "zh_output": new_zh,
             "awaiting_modify": False
         })
         return (
+            "已將您的指令用api傳至Gemini，請稍等回覆(通常需10-20秒)。\n\n"
             f"✅ 已修改中文版內容：\n\n{new_zh}\n\n"
             "📌 您目前可：\n"
-            "1️⃣ 輸入「翻譯」/\"translate\"/\"trans\" 進行翻譯\n"
-            "2️⃣ 輸入「mail」/\"寄送\" 寄出內容\n"
+            "1️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
+            "2️⃣ 輸入: mail/寄送，寄出內容\n"
             "3️⃣ 輸入 new 重新開始\n",
             False,
         )
@@ -176,12 +177,13 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
             "awaiting_translate_language": False,
         })
         return (
+            "已將您的指令用api傳至Gemini，請稍等回覆(通常需10-20秒)。\n\n"
             f"🌐 翻譯完成（目標語言：{target_lang}）：\n\n"
             f"原文：\n{zh_text}\n\n"
             f"譯文：\n{translated}\n\n"
             "您目前可：\n"
-            "1️⃣ 再次輸入「翻譯」/\"translate\"/\"trans\" 進行再翻譯\n"
-            "2️⃣ 輸入「mail」/\"寄送\" 寄出內容\n",
+            "1️⃣ 再次輸入: 翻譯/translate/trans 進行再翻譯\n"
+            "2️⃣ 輸入: mail/寄送，寄出內容\n",
             False,
         )
 
@@ -219,11 +221,12 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
         zh = call_zh(raw)
         session["zh_output"] = zh
         return (
+            "已將您的指令用api傳至Gemini，請稍等回覆(通常需10-20秒)。\n\n"
             f"✅ 中文版衛教內容已生成：\n\n{zh}\n\n"
             "📌 您目前可：\n"
-            "1️⃣ 輸入「修改」/\"modify\" 調整內容\n"
-            "2️⃣ 輸入「翻譯」/\"translate\"/\"trans\" 進行翻譯\n"
-            "3️⃣ 輸入「mail」/\"寄送\" 寄出內容\n"
+            "1️⃣ 輸入: 修改/modify 調整內容\n"
+            "2️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
+            "3️⃣ 輸入: mail/寄送，寄出內容\n"
             "4️⃣ 輸入 new 重新開始\n",
             False,
         )
