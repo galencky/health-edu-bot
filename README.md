@@ -1,191 +1,135 @@
-Here’s a complete and well-documented `README.md` file for your GitHub repository. It explains how to deploy, use, and understand each part of your **FastAPI + Gemini + LINE chatbot**, including how user sessions and the placeholder email logic work.
+# Mededbot-多語言衛教AI 🤖🇹🇼
 
----
-
-## 📘 README: Health Education Chatbot using Gemini + LINE
-
-### 💡 Overview
-
-This project is a bilingual health education chatbot powered by **Gemini API**, served via **FastAPI**, and integrated with **LINE Messaging API**.
-
-It enables medical staff or clinics to:
-
-* Generate plain-text health education materials in **English + translated language**
-* Receive structured responses on topics like hypertension, wound care, and more
-* Interact with users via LINE using commands like `"new"` and `"modify"`
-* (Future) Send results to patient emails
+A FastAPI-powered LINE chatbot that generates and translates medical education content using the Gemini API. It supports multilingual output, email delivery, Google Sheets logging, and Google Drive backup — tailored for health professionals in Taiwan and beyond.
 
 ---
 
 ## 🚀 Features
 
-* ✅ Gemini API (2.5 Flash Preview) for multilingual content generation
-* ✅ LINE Messaging API integration with FastAPI webhook
-* ✅ Per-user session tracking (isolated chatbot flow for each LINE user)
-* ✅ Handles `"new"`, `"modify"`, and `"mail"` commands
-* 🔒 Email functionality is **stubbed** and not active (for future release)
+- 🧠 Gemini API integration for zh-TW health education generation
+- 🌐 Multilingual translation support (user-defined target language)
+- 📩 Gmail SMTP support to email translated leaflets
+- 📊 Google Sheets logging for audit and analysis
+- ☁️ Google Drive backups for Gemini-generated content
+- 💬 LINE Messaging API integration with real-time response
+- ✅ Supports multiple concurrent users with session isolation
 
 ---
 
-## 🛠️ Setup & Deployment
+## 🧰 Tech Stack
 
-### 1. Clone Repository
+- Python 3.10+
+- FastAPI
+- LINE Messaging API SDK
+- Google Generative AI (`google.generativeai`)
+- Google Drive + Sheets API via `gspread` + `google-api-python-client`
+- SMTP (`smtplib`) with Gmail App Password
+- Render (for deployment)
 
-```bash
-git clone https://github.com/your-username/health-edu-bot.git
-cd health-edu-bot
+---
+
+## 🗂️ Project Structure
+
 ```
 
-### 2. Create `.env`
+health-edu-bot/
+├── main.py                     # FastAPI app entrypoint
+├── handlers/
+│   ├── line_handler.py         # Handles LINE messaging events
+│   ├── logic_handler.py        # Handles session + command logic
+│   └── mail_handler.py         # Handles email composition and sending
+├── services/
+│   └── gemini_service.py       # Gemini API logic (generation, translation)
+├── utils/
+│   ├── email_service.py        # SMTP email utility
+│   ├── log_to_sheets.py        # Google Sheets + Drive logging
+│   └── google_drive_service.py # Google Drive uploader
+├── .env.example                # Sample environment config
+├── requirements.txt            # Python dependencies
+└── README.md                   # You're reading it!
+
+````
+
+---
+
+## 🛠️ Setup & Configuration
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/galencky/health-edu-bot.git
+cd health-edu-bot
+````
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Set up `.env` file
+
+Copy `.env.example` to `.env` and fill in your credentials:
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_CHANNEL_SECRET=your_line_channel_secret
+LINE_CHANNEL_ACCESS_TOKEN=...
+LINE_CHANNEL_SECRET=...
+GEMINI_API_KEY=...
+
+GMAIL_ADDRESS=youraddress@gmail.com
+GMAIL_APP_PASSWORD=your16charapppassword
+
+GOOGLE_CREDS_B64=...  # Base64-encoded Google service account key
+GDRIVE_FOLDER_ID=...  # Folder ID to upload .txt files
 ```
 
-### 3. Install Dependencies
+> 💡 Use [Google App Passwords](https://myaccount.google.com/apppasswords) and remove spaces before placing in `.env`
+
+---
+
+## 🧪 Local Testing
 
 ```bash
-pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 
-### 4. Run Locally
-
-```bash
-uvicorn main:app --reload --port 8000
-```
-
-### 5. Deploy to Render
-
-* Create a new **Web Service** on [https://render.com](https://render.com)
-* Use your GitHub repo and set `main.py` as the entrypoint
-* Add the environment variables from `.env` in Render's "Environment" settings
+Use tools like `ngrok` to tunnel `POST /webhook` to your local FastAPI app for LINE callback testing.
 
 ---
 
-## 📡 Endpoints
+## 🚀 Deployment to Render
 
-| Method | Path       | Description                         |
-| ------ | ---------- | ----------------------------------- |
-| POST   | `/chat`    | Manual testing endpoint for chatbot |
-| POST   | `/webhook` | LINE webhook target                 |
-| GET    | `/`        | Health check + service info         |
-
----
-
-## 💬 How the Bot Works (Code Logic)
-
-### 🔄 Session Management
-
-* Each LINE user has a unique session using their `user_id`
-* Stored in memory via a `sessions = {}` dictionary
-* This allows **multiple users** to chat at once without conflict
-
-### 🤖 `handle_user_message(text, session)`
-
-Central handler that interprets user input. Logic order:
-
-1. **"new"**
-
-   * Resets all session fields
-   * Prompts user to enter language
-
-2. **awaiting\_email**
-
-   * If set, only accepts valid email
-   * Returns a placeholder "email feature in development" message
-
-3. **"mail"**
-
-   * If a Gemini response exists, prompt user for their email
-
-4. **"modify"**
-
-   * Sends the `last_response` + new instruction back to Gemini
-
-5. **language → disease → topic**
-
-   * Step-by-step prompt collection
-   * Triggers Gemini generation when all fields are filled
-
-6. **Default: modification**
-
-   * If no keywords match, any message after generation is treated as a revision
+1. Push your code to GitHub
+2. Create a new **Web Service** on [Render](https://render.com/)
+3. Set build command: `pip install -r requirements.txt`
+4. Set start command: `uvicorn main:app --host 0.0.0.0 --port 10000`
+5. Add environment variables via the Render dashboard
+6. Deploy and connect to your LINE webhook
 
 ---
 
-### 🧠 Gemini Prompt Strategy
+## 📷 User Flow
 
-* System prompt instructs Gemini to:
+1. User types: `new` to start
+2. Enters `疾病名稱 + 衛教主題`
+3. Bot generates Gemini-based zh-TW content
+4. User can:
 
-  * Output in plain text (no Markdown)
-  * Use simple structure:
-
-    ```
-    # Section
-     - Point
-     - Point
-    ```
-  * First in English, then in the chosen language
-  * Avoid external references or URLs
+   * `modify` → provide zh-TW modification instructions
+   * `translate` → specify translation language
+   * `mail` → provide email address to send the final content
+5. The system logs interactions to Google Sheets and backs up the output to Google Drive
 
 ---
 
-### 📧 Email Logic
+## 📄 License
 
-* If user types `"mail"`, they're prompted for a valid email address
-* Regex validates the email
-* Feature is **disabled** — reply confirms email was received but sending is not implemented
+MIT License. See `LICENSE` file for details.
 
 ---
 
-## ✏️ Example Usage Flow (LINE)
+## 🙌 Maintainer
 
-```
-User: new
-Bot: 🆕 已開始新的對話。請輸入您希望翻譯的語言（例如：泰文、越南文）...
-User: Thai
-Bot: 🌐 已設定語言。請輸入疾病名稱：
-User: Hypertension
-Bot: 🩺 已設定疾病。請輸入您想要的衛教主題：
-User: Blood pressure monitoring
-Bot: (Gemini returns bilingual explanation)
-Bot: 📌 若您想將衛教資料寄送 email，請輸入 "Mail"...
-```
+Developed by [陳冠元 Galen Chen, M.D.](mailto:galen147258369@gmail.com)
 
----
-
-## 📎 Requirements
-
-```txt
-fastapi
-uvicorn[standard]
-pydantic
-python-dotenv
-google-generativeai
-line-bot-sdk
-```
-
-Install with:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 📌 Future Plans
-
-* [ ] Add Gmail API to send real email to users
-* [ ] Host session data in Redis or database
-* [ ] Use Quick Reply or Flex Messages on LINE
-* [ ] Export response as PDF for printing or sharing
-
----
-
-## 📮 Questions or Contributions
-
-Feel free to open an issue or submit a pull request.
-
----
+If you found this project helpful, feel free to ⭐️ star the repo or reach out with ideas!
