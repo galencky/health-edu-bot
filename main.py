@@ -29,24 +29,12 @@ class UserInput(BaseModel):
 def get_user_session(user_id):
     if user_id not in sessions:
         sessions[user_id] = {
-            "language": None,
-            "disease": None,
-            "topic": None,
             "last_prompt": None,
             "last_response": None,
             "started": False,
             "awaiting_email": False,
         }
     return sessions[user_id]
-
-def build_prompt(language, disease, topic):
-    return (
-        f"Please create a short, clear patient education pamphlet in two parts:\n\n"
-        f"1. English version\n"
-        f"2. Translated version in {language}\n\n"
-        f"Topic: {disease} — {topic}\n\n"
-        f"The goal is to help clinicians educate patients or caregivers in their native language during a clinic visit."
-    )
 
 def call_gemini(prompt):
     model = genai.GenerativeModel(
@@ -58,7 +46,7 @@ Use:
 # Section Title
  - Bullet 1
  - Bullet 2
-First respond in English, then in the specified translation language.
+First respond in English, then in the specified translation language if applicable.
 Do not reference websites.
 """
     )
@@ -69,18 +57,18 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
     text = text.strip()
     text_lower = text.lower()
 
-    # 🔁 NEW command resets everything at any time
+    # Start new conversation
     if text_lower == "new":
-        for key in session:
-            session[key] = None
+        session["last_prompt"] = None
+        session["last_response"] = None
         session["started"] = True
         session["awaiting_email"] = False
         return (
-            "🆕 已開始新的對話。\n\n請輸入您希望翻譯的語言（例如：泰文、越南文），最終內容會以英文和該語言雙語呈現。",
+            "🆕 新對話已開始。\n\n請直接輸入您的指令，例如：\n👉 請用日文生成高血壓衛教資訊，強調血壓測量的722法則\n\n📌 系統將自動生成英文版，請選擇非英文語言以獲得翻譯版本。",
             False,
         )
 
-    # 📧 Handle mailing phase
+    # Handle email input
     if session.get("awaiting_email"):
         email_pattern = r"[^@]+@[^@]+\.[^@]+"
         if re.fullmatch(email_pattern, text):
@@ -89,39 +77,31 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
         else:
             return "⚠️ 請輸入有效的 email 地址，例如 example@gmail.com", False
 
-    # ❗ Require new to begin first
+    # Require "new" first
     if not session["started"]:
         return "❗請輸入 'new' 開始新的衛教對話。", False
 
-    # ✉️ Trigger mailing flow
+    # Start email mailing flow
     if "mail" in text_lower and session["last_response"]:
         session["awaiting_email"] = True
         return "📧 請輸入您要寄送衛教資料的有效 email 地址：", False
 
-    # 🛠 Modify logic
-    if "modify" in text_lower and session["last_response"]:
-        mod_prompt = f"Please revise the following based on this request:\n\n{text}\n\nOriginal:\n{session['last_response']}"
+    # Modify existing output
+    if "modify" in text_lower and session["last_response"] and session["last_prompt"]:
+        mod_prompt = (
+            f"Please revise the educational material based on the following user instruction:\n\n"
+            f"{text}\n\n"
+            f"Original prompt:\n{session['last_prompt']}\n\n"
+            f"Original response:\n{session['last_response']}"
+        )
         session["last_prompt"] = mod_prompt
         session["last_response"] = call_gemini(mod_prompt)
         return session["last_response"], True
 
-    # Step-by-step prompts
-    if not session["language"]:
-        session["language"] = text
-        return "🌐 已設定語言。請輸入疾病名稱：", False
-    elif not session["disease"]:
-        session["disease"] = text
-        return "🩺 已設定疾病。請輸入您想要的衛教主題：", False
-    elif not session["topic"]:
-        session["topic"] = text
-        session["last_prompt"] = build_prompt(session["language"], session["disease"], session["topic"])
-        session["last_response"] = call_gemini(session["last_prompt"])
-        return session["last_response"], True
-    else:
-        mod_prompt = f"請根據以下需求修改原始內容：\n\n{text}\n\n原始內容：\n{session['last_response']}"
-        session["last_prompt"] = mod_prompt
-        session["last_response"] = call_gemini(mod_prompt)
-        return session["last_response"], True
+    # New prompt: treat as main request
+    session["last_prompt"] = text
+    session["last_response"] = call_gemini(text)
+    return session["last_response"], True
 
 @app.post("/chat")
 def chat(input: UserInput):
