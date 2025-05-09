@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 fastapi
 uvicorn[standard]
 python-dotenv
@@ -5,3 +6,12 @@ line-bot-sdk
 google-generativeai
 gspread
 oauth2client
+=======
+fastapi
+uvicorn[standard]
+python-dotenv
+line-bot-sdk
+google-generativeai
+gspread
+oauth2client
+>>>>>>> 1cbc8910ba21437104a0d6bb00fd2307aaec7c72
