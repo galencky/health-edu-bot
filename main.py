@@ -23,7 +23,6 @@ handler      = WebhookHandler(LINE_CHANNEL_SECRET)
 app = FastAPI()
 
 # ── Session Storage ──────────────────────────────────────────────────────────
-# In-memory; for production consider Redis
 sessions: dict[str, dict] = {}
 
 class UserInput(BaseModel):
@@ -151,6 +150,12 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
         session["awaiting_modify"] = True
         return ("✏️ 請輸入您的修改指示，例如：強調飲食控制。", False)
 
+    if is_translate:
+        if not session["zh_output"]:
+            return ("⚠️ 尚未產出中文版內容，請先輸入疾病與主題。", False)
+        session["awaiting_translate_language"] = True
+        return ("🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", False)
+
     if session["awaiting_translate_language"]:
         target_lang = raw
         zh_text     = session["zh_output"]
@@ -170,14 +175,6 @@ def handle_user_message(text: str, session: dict) -> tuple[str, bool]:
             "3️⃣ 輸入 new 重新開始\n",
             False,
         )
-
-    if is_translate:
-        if not session["zh_output"]:
-            return ("⚠️ 尚未產出中文版內容，請先輸入疾病與主題。", False)
-        if session["translated"]:
-            return ("⚠️ 已完成翻譯，僅可再翻譯或寄送，或輸入 new 重新開始。", False)
-        session["awaiting_translate_language"] = True
-        return ("🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", False)
 
     if is_mail:
         if not session["zh_output"]:
