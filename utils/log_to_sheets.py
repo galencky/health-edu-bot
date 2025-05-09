@@ -27,12 +27,10 @@ def get_sheet():
 def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call=None):
     if gemini_call == "yes":
         drive_url, filename = upload_gemini_log(user_id, session, message)
-        zh_output = f'=HYPERLINK("{drive_url}", "{filename}")'
-        translated_output = zh_output  # hyperlink also shown here
+        gemini_output = f'=HYPERLINK("{drive_url}", "{filename}")'
         gemini_call_val = "yes"
     else:
-        zh_output = ""
-        translated_output = str(session.get("translated_output") or "")[:200]
+        gemini_output = ""
         gemini_call_val = ""
 
     row = [
@@ -42,9 +40,8 @@ def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call
         reply[:200],
         action_type,
         gemini_call_val,
-        zh_output,
-        translated_output
+        gemini_output  # ✅ now a single unified output column
     ]
 
     sheet = get_sheet()
-    sheet.append_row(row, value_input_option='USER_ENTERED')  # ✅ interprets formulas
+    sheet.append_row(row, value_input_option='USER_ENTERED')
