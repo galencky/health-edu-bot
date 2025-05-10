@@ -28,8 +28,12 @@ def root():
     return {
         "message": "✅ FastAPI LINE + Gemini bot is running.",
         "status": "Online",
-        "endpoints": ["/", "/chat", "/webhook"]
+        "endpoints": ["/", "/chat", "/ping", "/webhook"]
     }
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
