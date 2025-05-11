@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Request, Header, HTTPException, Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
@@ -31,9 +31,9 @@ def root():
         "endpoints": ["/", "/chat", "/ping", "/webhook"]
     }
 
-@app.get("/ping")
+@app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
-    return {"status": "ok"}
+    return Response(content='{"status": "ok"}', media_type="application/json")
 
 if __name__ == "__main__":
     import uvicorn
