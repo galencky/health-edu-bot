@@ -3,6 +3,8 @@ import dns.resolver
 from services.gemini_service import call_zh, call_translate
 from utils.command_sets import new_commands, modify_commands, translate_commands, mail_commands
 from handlers.mail_handler import send_last_txt_email
+from services.prompt_config import modify_prompt  # at the top
+
 
 def has_mx_record(domain: str) -> bool:
     try:
@@ -70,11 +72,13 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
             False,
         )
 
+    # inside handle_user_message()
     if session["awaiting_modify"]:
         prompt = (
-            f"請根據以下指示修改中文版衛教內容：\n\n{raw}\n\n原始內容：\n{session['zh_output']}"
+            f"User instruction:\n{raw}\n\n"
+            f"Original content:\n{session['zh_output']}"
         )
-        new_zh = call_zh(prompt)
+        new_zh = call_zh(prompt, system_prompt=modify_prompt)
         session.update({
             "zh_output": new_zh,
             "awaiting_modify": False

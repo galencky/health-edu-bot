@@ -5,11 +5,11 @@ from .prompt_config import zh_prompt, translate_prompt_template
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-def call_zh(prompt: str) -> str:
+def call_zh(prompt: str, system_prompt: str = zh_prompt) -> str:
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-preview-04-17",
-        system_instruction=zh_prompt,
-        # tools=[grounding.GoogleSearch()]  # Enable once paid plan allows grounding
+        system_instruction=system_prompt,
+        # tools=[grounding.GoogleSearch()]  # Enable later
     )
     resp = model.generate_content(prompt, generation_config={"temperature": 0.25})
     return resp.text
