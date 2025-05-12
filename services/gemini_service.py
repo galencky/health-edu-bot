@@ -1,12 +1,15 @@
 import os
 import google.generativeai as genai
+from .prompt_config import zh_prompt, translate_prompt_template
+# from google.generativeai import grounding  # Uncomment when you have grounding access
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def call_zh(prompt: str) -> str:
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-preview-04-17",
-        system_instruction="""You are a medical education assistant. Respond in Traditional Chinese, plain text only."""
+        system_instruction=zh_prompt,
+        # tools=[grounding.GoogleSearch()]  # Enable once paid plan allows grounding
     )
     resp = model.generate_content(prompt, generation_config={"temperature": 0.25})
     return resp.text
@@ -14,7 +17,8 @@ def call_zh(prompt: str) -> str:
 def call_translate(zh_text: str, target_lang: str) -> str:
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-preview-04-17",
-        system_instruction=f"You are a translation assistant. Translate to {target_lang}, plain text only."
+        system_instruction=translate_prompt_template.format(lang=target_lang),
+        # tools=[grounding.GoogleSearch()]  # Enable once paid plan allows grounding
     )
     resp = model.generate_content(zh_text, generation_config={"temperature": 0.25})
     return resp.text
