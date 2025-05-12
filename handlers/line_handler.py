@@ -48,18 +48,20 @@ def handle_line_message(event):
                 messages.append(TextSendMessage(text=f"🌐 譯文：\n{session['translated_output']}"))
                 messages.append(TextSendMessage(text=
                     "📌 您目前可：\n"
-                    "1️⃣ 再次輸入: 翻譯/translate/trans\n"
-                    "2️⃣ 輸入: mail/寄送\n"
-                    "3️⃣ 輸入 new 重新開始"
+                    "1️⃣ 再次輸入: 翻譯/translate/trans 進行翻譯\n"
+                    "2️⃣ 輸入: mail/寄送，寄出內容\n"
+                    "3️⃣ 輸入 new 重新開始\n"
+                    "⚠️ 請注意: 若進行翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆..."
                 ))
             elif session.get("zh_output"):
                 messages.append(TextSendMessage(text=f"📄 原文：\n{session['zh_output']}"))
                 messages.append(TextSendMessage(text=
                     "📌 您目前可：\n"
-                    "1️⃣ 修改/modify 調整內容\n"
-                    "2️⃣ 翻譯/translate/trans\n"
-                    "3️⃣ mail/寄送\n"
-                    "4️⃣ new 重新開始"
+                    "1️⃣ 輸入: 修改/modify 調整內容\n"
+                    "2️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
+                    "3️⃣ 輸入: mail/寄送，寄出內容\n"
+                    "4️⃣ 輸入 new 重新開始\n"
+                    "⚠️ 請注意: 若進行修改或翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆...",
                 ))
             else:
                 for chunk in split_text(reply):
