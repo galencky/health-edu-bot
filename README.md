@@ -1,135 +1,156 @@
-# Mededbot-多語言衛教AI 🤖🇹🇼
+# Mededbot - 多語言衛教 AI Chatbot
 
-A FastAPI-powered LINE chatbot that generates and translates medical education content using the Gemini API. It supports multilingual output, email delivery, Google Sheets logging, and Google Drive backup — tailored for health professionals in Taiwan and beyond.
+A multilingual health education chatbot built with **FastAPI**, integrated with **LINE Messaging API** and **Google Gemini API**, supporting dynamic patient education content generation, translation, email delivery, and logging to Google Sheets and Drive.
 
 ---
 
 ## 🚀 Features
 
-- 🧠 Gemini API integration for zh-TW health education generation
-- 🌐 Multilingual translation support (user-defined target language)
-- 📩 Gmail SMTP support to email translated leaflets
-- 📊 Google Sheets logging for audit and analysis
-- ☁️ Google Drive backups for Gemini-generated content
-- 💬 LINE Messaging API integration with real-time response
-- ✅ Supports multiple concurrent users with session isolation
+* ✅ LINE-compatible multilingual chatbot interface
+* ✅ Gemini API integration for generating 保健 content in Traditional Chinese (zh-TW)
+* ✅ One-click modification, translation, and emailing of content
+* ✅ Email validation with MX record checking
+* ✅ Logging interaction data to Google Sheets and Gemini output to Google Drive
+* ✅ Modular, scalable architecture
 
 ---
 
-## 🧰 Tech Stack
+## 🌐 Demo Endpoints
 
-- Python 3.10+
-- FastAPI
-- LINE Messaging API SDK
-- Google Generative AI (`google.generativeai`)
-- Google Drive + Sheets API via `gspread` + `google-api-python-client`
-- SMTP (`smtplib`) with Gmail App Password
-- Render (for deployment)
-
----
-
-## 🗂️ Project Structure
-
-```
-
-health-edu-bot/
-├── main.py                     # FastAPI app entrypoint
-├── handlers/
-│   ├── line_handler.py         # Handles LINE messaging events
-│   ├── logic_handler.py        # Handles session + command logic
-│   └── mail_handler.py         # Handles email composition and sending
-├── services/
-│   └── gemini_service.py       # Gemini API logic (generation, translation)
-├── utils/
-│   ├── email_service.py        # SMTP email utility
-│   ├── log_to_sheets.py        # Google Sheets + Drive logging
-│   └── google_drive_service.py # Google Drive uploader
-├── .env.example                # Sample environment config
-├── requirements.txt            # Python dependencies
-└── README.md                   # You're reading it!
-
-````
+| Endpoint   | Description                           |
+| ---------- | ------------------------------------- |
+| `/`        | Health check + basic endpoint info    |
+| `/chat`    | Chatbot testing without LINE frontend |
+| `/ping`    | Health check for uptime monitoring    |
+| `/webhook` | LINE webhook receiver                 |
 
 ---
 
-## 🛠️ Setup & Configuration
+## 🚪 Setup & Installation
 
-### 1. Clone the repo
+### 1. Clone and prepare environment
 
 ```bash
-git clone https://github.com/galencky/health-edu-bot.git
-cd health-edu-bot
-````
-
-### 2. Install dependencies
-
-```bash
+git clone https://github.com/YOUR_NAME/mededbot.git
+cd mededbot
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
-### 3. Set up `.env` file
+### 2. .env Configuration
 
-Copy `.env.example` to `.env` and fill in your credentials:
+Create a `.env` file with:
 
 ```env
 LINE_CHANNEL_ACCESS_TOKEN=...
 LINE_CHANNEL_SECRET=...
 GEMINI_API_KEY=...
-
-GMAIL_ADDRESS=youraddress@gmail.com
-GMAIL_APP_PASSWORD=your16charapppassword
-
-GOOGLE_CREDS_B64=...  # Base64-encoded Google service account key
-GDRIVE_FOLDER_ID=...  # Folder ID to upload .txt files
+GMAIL_ADDRESS=...
+GMAIL_APP_PASSWORD=...
+GOOGLE_CREDS_B64=...  # base64 encoded credentials.json
+GOOGLE_DRIVE_FOLDER_ID=...  # folder ID for Gemini logs
 ```
 
-> 💡 Use [Google App Passwords](https://myaccount.google.com/apppasswords) and remove spaces before placing in `.env`
+---
+
+## 🤖 How It Works
+
+### ⚡ User Flow (via LINE)
+
+1. **Start**: User enters `new` to initiate a session
+2. **Input Topic**: User enters health topic
+3. **Gemini** generates Traditional Chinese material
+4. **Modify**: Optional user adjustments via `modify`
+5. **Translate**: Optional translation via `translate`
+6. **Mail**: Sends content via `mail`
+
+### 📁 Core Modules and Their Responsibilities
+
+| File / Module                   | Responsibility                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `main.py`                       | Initializes FastAPI app, routes, `/chat` testing endpoint                      |
+| `routes/webhook.py`             | Handles LINE webhook events and binds them to `line_handler`                   |
+| `handlers/line_handler.py`      | Parses and processes LINE messages, decides if Gemini API should be used       |
+| `handlers/logic_handler.py`     | Core session logic: handles commands like `new`, `modify`, `translate`, `mail` |
+| `handlers/session_manager.py`   | In-memory session tracking per user                                            |
+| `handlers/mail_handler.py`      | Formats and sends Gemini output via Gmail SMTP                                 |
+| `services/gemini_service.py`    | Wraps Gemini API calls for content generation and translation                  |
+| `services/prompt_config.py`     | Stores Gemini system prompts for zh generation, translation, and modification  |
+| `utils/email_service.py`        | Low-level Gmail SMTP sender and disclaimer attachment                          |
+| `utils/command_sets.py`         | Contains valid command keywords sets                                           |
+| `utils/google_drive_service.py` | Uploads Gemini session logs as .txt to Google Drive                            |
+| `utils/google_sheets.py`        | Sets up gspread client for Google Sheets                                       |
+| `utils/log_to_sheets.py`        | Appends logs to Google Sheet and uploads output to Drive if Gemini used        |
 
 ---
 
-## 🧪 Local Testing
+## 📓 Gemini Prompt Engineering
 
-```bash
-uvicorn main:app --reload
+* `zh_prompt`: for initial health material generation in zh-TW
+* `modify_prompt`: revises existing zh-TW material with user instructions
+* `translate_prompt_template`: translates content to user-specified language
+
+> All prompts are formatted to be plain text and compliant with health literacy guidelines.
+
+---
+
+## 📧 Email Sending (via Gmail SMTP)
+
+* Uses `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD`
+* Adds disclaimer to each message
+* Validates email domain via MX lookup
+
+---
+
+## 📓 Google Sheets Logging
+
+* Every LINE or Gemini interaction is logged
+* Includes:
+
+  * Timestamp
+  * User ID
+  * Input
+  * Gemini response preview
+  * Action type
+  * Gemini output (with Drive link if available)
+
+---
+
+## 🌟 Sample Interaction
+
+```txt
+User: new
+Bot: 🆕 新對話已開始... 請輸入疾病名稱 + 衛教主題
+
+User: CAD with STEMI s/p POBAS care
+Bot: ✅ 中文版衛教內容已產生... (顯示內容)
+
+User: translate
+Bot: 🌐 請輸入您要翻譯成的語言...
+
+User: Thai
+Bot: 🌐 翻譯完成... (顯示原文+譯文)
+
+User: mail
+Bot: 📧 請輸入您要寄送至的 email...
+
+User: example@email.com
+Bot: ✅ 已成功寄送衛教內容
 ```
 
-Use tools like `ngrok` to tunnel `POST /webhook` to your local FastAPI app for LINE callback testing.
+---
+
+## ⚖️ License
+
+MIT License
 
 ---
 
-## 🚀 Deployment to Render
+## 📢 Credits
 
-1. Push your code to GitHub
-2. Create a new **Web Service** on [Render](https://render.com/)
-3. Set build command: `pip install -r requirements.txt`
-4. Set start command: `uvicorn main:app --host 0.0.0.0 --port 10000`
-5. Add environment variables via the Render dashboard
-6. Deploy and connect to your LINE webhook
+Developed by **Dr. Kuan-Yuan Chen (陳冠元 醫師)**
 
----
+Contact: [galen147258369@gmail.com](mailto:galen147258369@gmail.com)
 
-## 📷 User Flow
-
-1. User types: `new` to start
-2. Enters `疾病名稱 + 衛教主題`
-3. Bot generates Gemini-based zh-TW content
-4. User can:
-
-   * `modify` → provide zh-TW modification instructions
-   * `translate` → specify translation language
-   * `mail` → provide email address to send the final content
-5. The system logs interactions to Google Sheets and backs up the output to Google Drive
-
----
-
-## 📄 License
-
-MIT License. See `LICENSE` file for details.
-
----
-
-## 🙌 Maintainer
-
-Developed by [陳冠元 Galen Chen, M.D.](mailto:galen147258369@gmail.com)
-
-If you found this project helpful, feel free to ⭐️ star the repo or reach out with ideas!
+For inquiries, suggestions, or collaboration, please feel free to reach out!
