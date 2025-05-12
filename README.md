@@ -39,7 +39,7 @@ A multilingual health education chatbot built with **FastAPI**, integrated with 
 
 ---
 
-## 🚪 Setup & Installation 安裝步驟
+## 🚪 Setup & Installation 安裝步驟 (本地測試 Local Testing)
 
 ### 1. Clone and prepare environment 下載並準備執行環境
 
@@ -65,6 +65,55 @@ GMAIL_APP_PASSWORD=...
 GOOGLE_CREDS_B64=...  # base64 格式的 Google credentials.json
 GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 ```
+
+---
+## ☁️ Deployment on Render + UptimeRobot 保持伺服器在線
+
+### 🛠️ How to Deploy on Render (Free Tier) 如何部署到 Render（免費方案）
+
+1. Push your project to a **GitHub repository**.  
+   將你的專案上傳到 **GitHub 儲存庫**。
+
+2. Go to [https://render.com](https://render.com), log in with GitHub, and click **"New Web Service"**.  
+   前往 [https://render.com](https://render.com)，使用 GitHub 登入，然後點選 **"New Web Service"**。
+
+3. Connect your GitHub repo and configure the following:  
+   連接你的 GitHub 專案並設定以下項目：
+
+   - Runtime: **Python 3.x**  
+     執行環境：**Python 3.x**
+   - Build command: `pip install -r requirements.txt`  
+     建置指令：`pip install -r requirements.txt`
+   - Start command: `uvicorn main:app --host 0.0.0.0 --port 10000`  
+     啟動指令：`uvicorn main:app --host 0.0.0.0 --port 10000`
+
+4. In the **"Environment"** section, set your environment variables using your `.env` values.  
+   在 **"Environment"** 區域中，輸入你的 `.env` 環境變數。
+
+5. Choose the **Free Web Service** tier (limits: auto-sleeps after 15 min idle, ~750 hrs/month).  
+   選擇 **免費服務等級**（限制：閒置 15 分鐘後自動休眠，每月上限約 750 小時）。
+
+---
+
+### 🔄 Keep It Alive with UptimeRobot 使用 UptimeRobot 保持服務在線
+
+Render’s free tier will enter sleep mode when idle.  
+Render 免費方案會在閒置時進入睡眠模式。
+
+You can use [UptimeRobot](https://uptimerobot.com/) to ping it every 5 minutes and prevent sleep.  
+你可以使用 [UptimeRobot](https://uptimerobot.com/) 每 5 分鐘 ping 一次來防止它睡眠。
+
+1. Sign up at UptimeRobot and create a **new HTTP(s) monitor**.  
+   在 UptimeRobot 註冊帳號，並新增一個 **HTTP(s) 監控器**。
+
+2. Set the monitor URL to your Render health check endpoint, e.g. `https://your-app-name.onrender.com/ping`  
+   將監控網址設為你 Render 網站的健康檢查端點，例如 `https://your-app-name.onrender.com/ping`
+
+3. Set the check interval to **every 5 minutes** (free plan minimum).  
+   將檢查間隔設定為 **每 5 分鐘一次**（免費帳號的最小間隔）。
+
+4. UptimeRobot will continuously ping your service, keeping it online and responsive.  
+   UptimeRobot 將持續 ping 你的服務，保持其在線與可用狀態。
 
 ---
 
