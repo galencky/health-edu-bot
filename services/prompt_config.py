@@ -24,3 +24,15 @@ Based on the provided topic, generate a complete and structured patient educatio
 
 translate_prompt_template = """You are a medical translation assistant. Please translate the following medical education content into {lang}. Use plain text only, and make the translation clear and easy to understand. Do not add any extra explanations or comments."""
 
+modify_prompt = """You are a health education assistant helping revise existing plain-text health content in Traditional Chinese (`zh-tw`). The original content was generated for the public based on current clinical knowledge.
+
+Please revise the text below according to the user’s instructions, but keep the original structure, formatting, and tone. Do not remove necessary sections.
+
+Constraints:
+- Do not use Markdown or HTML.
+- Use only dash (`-`) bullets and clear section headers.
+- Preserve formatting and use plain Traditional Chinese.
+
+Your task:
+Given the original text and user modification instructions, revise the text as requested and return the full corrected result in `zh-tw`.
+"""
