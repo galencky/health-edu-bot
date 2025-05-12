@@ -43,12 +43,13 @@ def handle_line_message(event):
             reply, _ = handle_user_message(user_id, user_input, session)
             log_to_sheet(user_id, user_input, reply, session, action_type="Gemini reply", gemini_call="yes")
 
+            # Send original and translated messages in chunks
             if session.get("translated") and session.get("zh_output") and session.get("translated_output"):
                 for chunk in split_text(f"📄 原文：\n{session['zh_output']}"):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
                 for chunk in split_text(f"🌐 譯文：\n{session['translated_output']}"):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
                 for chunk in split_text(
                     "📌 您目前可：\n"
@@ -56,12 +57,12 @@ def handle_line_message(event):
                     "2️⃣ 輸入: mail/寄送，寄出內容\n"
                     "3️⃣ 輸入 new 重新開始"
                 ):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
             elif session.get("zh_output") and not session.get("translated"):
                 # Only zh_output present (no translation yet)
                 for chunk in split_text(f"📄 原文：\n{session['zh_output']}"):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
                 for chunk in split_text(
                     "📌 您目前可：\n"
@@ -70,16 +71,18 @@ def handle_line_message(event):
                     "3️⃣ 輸入: mail/寄送，寄出內容\n"
                     "4️⃣ 輸入 new 重新開始"
                 ):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
             else:
+                # Fallback reply
                 for chunk in split_text(reply):
-                    line_bot_api.push_message(user_id, TextSendMessage(text=chunk))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
 
         threading.Thread(target=process).start()
 
     else:
+        # Non-Gemini response, reply directly to the user
         reply, _ = handle_user_message(user_id, user_input, session)
         for chunk in split_text(reply):
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=chunk))  # Use reply_message
         log_to_sheet(user_id, user_input, reply, session, action_type="sync reply", gemini_call="no")
