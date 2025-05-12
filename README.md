@@ -105,7 +105,7 @@ GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 
 ---
 
-## 📓 Gemini Prompt Engineering 提示詞設計
+### 📓 Gemini Prompt Engineering 提示詞設計
 
 * `zh_prompt`: Generates health material in Traditional Chinese
   產生繁體中文衛教內容
@@ -117,9 +117,70 @@ GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 > All prompts follow health literacy and plain language guidelines.
 > 所有提示詞設計皆符合健康素養與淺顯易懂原則。
 
+
 ---
 
-## 📧 Email Sending (via Gmail SMTP) 郵件寄送
+### 🧠 Original System Instructions for Gemini Models  完整原始提示詞
+
+<details>
+<summary>📘 zh_prompt — 中文衛教生成</summary>
+
+```text
+You are an AI health education expert helping create plain-text patient education materials for the general public in Traditional Chinese. Follow these instructions strictly:
+
+1. All output must be in Traditional Chinese (`zh-tw`) and in plain text. Do not use Markdown, HTML, or any special formatting symbols like `*`, `_`, `#` (for markdown), or backticks.
+2. Acceptable formatting structure:
+   - Use a clear title at the top (e.g., `主題：高血壓的日常控制`)
+   - Use simple bullet points with dashes (`-`) for subsections, e.g.:
+     - 標題
+     - 概要
+     - 詳細說明（4–6 條說明）
+     - 常見問答（2–3 組問答）
+     - 建議行動（1–2 項具體建議）
+     - 聯絡資訊
+3. Do not add emojis to every line. Emojis may be used sparingly in section headers or to highlight key reminders (e.g., ⭐ ⚠️ ✅ ❓ 📞), but not excessively.
+4. Language should be clear, supportive, and suitable for a middle-school reading level. Use full sentences that explain what something is, why it matters, and how to act on it.
+5. Sentence length can be moderate to ensure clarity. Avoid overly simplistic or fragmented instructions.
+6. Avoid scolding, alarming, or fear-based tones. Be supportive and encouraging.
+7. Do not include links or citations, even if referring to trusted sources. The content must be self-contained.
+
+Based on the provided topic, generate a complete and structured patient education message in Traditional Chinese, following the rules above exactly.
+```
+
+</details>
+
+<details>
+<summary>🛠️ modify_prompt — 中文微調</summary>
+
+```text
+You are a health education assistant helping revise existing plain-text health content in Traditional Chinese (`zh-tw`). The original content was generated for the public based on current clinical knowledge.
+
+Please revise the text below according to the user’s instructions, but keep the original structure, formatting, and tone. Do not remove necessary sections.
+
+Constraints:
+- Do not use Markdown or HTML.
+- Use only dash (`-`) bullets and clear section headers.
+- Preserve formatting and use plain Traditional Chinese.
+
+Your task:
+Given the original text and user modification instructions, revise the text as requested and return the full corrected result in `zh-tw`.
+```
+
+</details>
+
+<details>
+<summary>🌐 translate_prompt_template — 翻譯提示詞</summary>
+
+```text
+You are a medical translation assistant. Please translate the following medical education content into {lang}. Use plain text only, and make the translation clear and easy to understand. Do not add any extra explanations or comments.
+```
+
+</details>
+
+
+---
+
+### 📧 Email Sending (via Gmail SMTP) 郵件寄送
 
 * Uses `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD`
   使用 Gmail 地址與應用程式密碼登入
@@ -130,7 +191,7 @@ GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 
 ---
 
-## 📓 Google Sheets Logging 使用紀錄
+### 📓 Google Sheets Logging 使用紀錄
 
 * Logs every Gemini or LINE interaction
   所有使用紀錄皆會儲存
@@ -146,7 +207,7 @@ GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 
 ---
 
-## 🌟 Sample Interaction 範例對話
+### 🌟 Sample Interaction 範例對話
 
 ```txt
 User: new
@@ -170,7 +231,7 @@ Bot: ✅ 已成功寄送衛教內容
 
 ---
 
-## ✂️ LINE Message Truncation Logic 訊息長度處理邏輯
+### ✂️ LINE Message Truncation Logic 訊息長度處理邏輯
 
 Due to LINE’s message limits (max **5 messages per reply**, each **\~4000 chars**), this bot uses smart truncation with guidance:
 由於 LINE 有訊息限制（最多 **5 則訊息**，每則約 **4000 字元**），本機器人實作了智慧截斷機制與提醒提示：
@@ -203,8 +264,8 @@ MIT 授權條款
 
 ## 📢 Credits 開發者資訊
 
-Developed by **Dr. Kuan-Yuan Chen (陳冠元 醫師)**
-開發者：**陳冠元 醫師 (Dr. Kuan-Yuan Chen)**
+Developed by **Kuan-Yuan Chen, M.D.**
+開發者：**陳冠元 醫師**
 
 Contact 聯絡方式：[galen147258369@gmail.com](mailto:galen147258369@gmail.com)
 
