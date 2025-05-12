@@ -9,17 +9,22 @@ A multilingual health education chatbot built with **FastAPI**, integrated with 
 ## 🚀 Features 功能特色
 
 * ✅ LINE-compatible multilingual chatbot interface  
-  ✅ 支援 LINE 的多語言聊天介面  
+      支援 LINE 的多語言聊天介面  
+
 * ✅ Gemini API integration for generating 保健 content in Traditional Chinese (zh-TW)  
-  ✅ 整合 Gemini API，自動生成繁體中文健康衛教內容  
+      整合 Gemini API，自動生成繁體中文健康衛教內容  
+
 * ✅ One-click modification, translation, and emailing of content  
-  ✅ 一鍵修改、翻譯與寄送衛教資料  
+      一鍵修改、翻譯與寄送衛教資料  
+
 * ✅ Email validation with MX record checking  
-  ✅ 電子郵件格式與 MX 記錄驗證功能  
+      電子郵件格式與 MX 記錄驗證功能  
+
 * ✅ Logging interaction data to Google Sheets and Gemini output to Google Drive  
-  ✅ 將對話與 Gemini 回應記錄至 Google Sheets 與 Google Drive  
+      將對話與 Gemini 回應記錄至 Google Sheets 與 Google Drive  
+      
 * ✅ Modular, scalable architecture  
-  ✅ 模組化架構，便於擴充與維護
+      模組化架構，便於擴充與維護
 
 ---
 
