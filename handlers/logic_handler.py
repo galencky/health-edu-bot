@@ -102,7 +102,8 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
         if not session["zh_output"]:
             return ("⚠️ 尚未產出中文版內容，請先輸入疾病與主題。", False)
         session["awaiting_translate_language"] = True
-        return ("🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", False)
+        return ("🌐 請輸入您要翻譯成的語言，例如：日文、泰文…"
+                "⚠️ 藉由 Gemini API 翻譯內容通常需 20 秒左右，請耐心等候回覆...", False)
 
     if session["awaiting_translate_language"]:
         target_lang = raw
