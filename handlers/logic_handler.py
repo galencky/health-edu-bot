@@ -28,7 +28,8 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
                 "awaiting_modify": False,
             })
             return (
-                "🆕 新對話已開始。\n\n請直接輸入：疾病名稱 + 衛教主題（會產出中文版衛教內容）。",
+                "🆕 新對話已開始。\n\n請直接輸入：疾病名稱 + 衛教主題（會產出中文版衛教內容）。\n"
+                "⚠️ 藉由 Gemini API 生成內容通常需 20 秒左右，請耐心等候回覆...",
                 False,
             )
         else:
@@ -81,9 +82,11 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
         return (
             f"✅ 已修改中文版內容：\n\n{new_zh}\n\n"
             "📌 您目前可：\n"
-            "1️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
-            "2️⃣ 輸入: mail/寄送，寄出內容\n"
-            "3️⃣ 輸入 new 重新開始\n",
+            "1️⃣ 輸入: 修改/modify 再次調整內容\n"
+            "2️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
+            "3️⃣ 輸入: mail/寄送，寄出內容\n"
+            "4️⃣ 輸入 new 重新開始\n"
+            "⚠️ 請注意: 若進行修改或翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆...",
             False,
         )
 
@@ -120,7 +123,8 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
             "您目前可：\n"
             "1️⃣ 再次輸入: 翻譯/translate/trans 進行翻譯\n"
             "2️⃣ 輸入: mail/寄送，寄出內容\n"
-            "3️⃣ 輸入 new 重新開始\n",
+            "3️⃣ 輸入 new 重新開始\n"
+            "⚠️ 請注意: 若進行翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆...",
             False,
         )
 
@@ -161,7 +165,8 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
             "1️⃣ 輸入: 修改/modify 調整內容\n"
             "2️⃣ 輸入: 翻譯/translate/trans 進行翻譯\n"
             "3️⃣ 輸入: mail/寄送，寄出內容\n"
-            "4️⃣ 輸入 new 重新開始\n",
+            "4️⃣ 輸入 new 重新開始\n"
+            "⚠️ 請注意: 若進行修改或翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆...",
             False,
         )
 
@@ -171,6 +176,7 @@ def handle_user_message(user_id: str, text: str, session: dict) -> tuple[str, bo
         "輸入: new/開始 → 重新開始\n"
         "輸入: modify/修改 → 進入修改模式\n"
         "輸入: translate/翻譯/trans → 進行翻譯\n"
-        "輸入: mail/寄送 → 寄出內容\n",
+        "輸入: mail/寄送 → 寄出內容\n"
+        "⚠️ 請注意: 若進行修改或翻譯需在輸入指令後等待 20 秒左右，請耐心等候回覆...",
         False,
     )
