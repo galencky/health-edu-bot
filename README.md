@@ -2,45 +2,54 @@
 
 A multilingual health education chatbot built with **FastAPI**, integrated with **LINE Messaging API** and **Google Gemini API**, supporting dynamic patient education content generation, translation, email delivery, and logging to Google Sheets and Drive.
 
----
-
-## 🚀 Features
-
-* ✅ LINE-compatible multilingual chatbot interface
-* ✅ Gemini API integration for generating 保健 content in Traditional Chinese (zh-TW)
-* ✅ One-click modification, translation, and emailing of content
-* ✅ Email validation with MX record checking
-* ✅ Logging interaction data to Google Sheets and Gemini output to Google Drive
-* ✅ Modular, scalable architecture
+一個以 **FastAPI** 建構的多語言健康衛教聊天機器人，整合 **LINE Messaging API** 與 **Google Gemini API**，支援動態生成衛教內容、自動翻譯、寄送電子郵件，以及紀錄資料至 Google Sheets 和 Google Drive。
 
 ---
 
-## 🌐 Demo Endpoints
+## 🚀 Features 功能特色
 
-| Endpoint   | Description                           |
-| ---------- | ------------------------------------- |
-| `/`        | Health check + basic endpoint info    |
-| `/chat`    | Chatbot testing without LINE frontend |
-| `/ping`    | Health check for uptime monitoring    |
-| `/webhook` | LINE webhook receiver                 |
+* ✅ LINE-compatible multilingual chatbot interface  
+  ✅ 支援 LINE 的多語言聊天介面  
+* ✅ Gemini API integration for generating 保健 content in Traditional Chinese (zh-TW)  
+  ✅ 整合 Gemini API，自動生成繁體中文健康衛教內容  
+* ✅ One-click modification, translation, and emailing of content  
+  ✅ 一鍵修改、翻譯與寄送衛教資料  
+* ✅ Email validation with MX record checking  
+  ✅ 電子郵件格式與 MX 記錄驗證功能  
+* ✅ Logging interaction data to Google Sheets and Gemini output to Google Drive  
+  ✅ 將對話與 Gemini 回應記錄至 Google Sheets 與 Google Drive  
+* ✅ Modular, scalable architecture  
+  ✅ 模組化架構，便於擴充與維護
 
 ---
 
-## 🚪 Setup & Installation
+## 🌐 Demo Endpoints 示範端點
 
-### 1. Clone and prepare environment
+| Endpoint   | Description (EN)                     | 描述（中文）                       |
+| ---------- | ------------------------------------ | ---------------------------------- |
+| `/`        | Health check + basic endpoint info  | 健康檢查與基本端點資訊               |
+| `/chat`    | Chatbot testing without LINE frontend | 測試聊天功能（不經由 LINE 前端）     |
+| `/ping`    | Health check for uptime monitoring  | 運作狀態監控                        |
+| `/webhook` | LINE webhook receiver               | 接收 LINE webhook 事件             |
 
-```bash
+---
+
+## 🚪 Setup & Installation 安裝步驟
+
+### 1. Clone and prepare environment 下載並準備執行環境
+
+```
 git clone https://github.com/YOUR_NAME/mededbot.git
 cd mededbot
 python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+source venv/bin/activate  # Windows 請改用 venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. .env Configuration
+### 2. env Configuration 設定 .env 檔案
 
 Create a `.env` file with:
+請建立一個 `.env` 檔案並填入以下內容：
 
 ```env
 LINE_CHANNEL_ACCESS_TOKEN=...
@@ -48,76 +57,91 @@ LINE_CHANNEL_SECRET=...
 GEMINI_API_KEY=...
 GMAIL_ADDRESS=...
 GMAIL_APP_PASSWORD=...
-GOOGLE_CREDS_B64=...  # base64 encoded credentials.json
-GOOGLE_DRIVE_FOLDER_ID=...  # folder ID for Gemini logs
+GOOGLE_CREDS_B64=...  # base64 格式的 Google credentials.json
+GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
 ```
 
 ---
 
-## 🤖 How It Works
+## 🤖 How It Works 使用流程
 
-### ⚡ User Flow (via LINE)
+### ⚡ User Flow (via LINE) 使用者流程（透過 LINE）
 
 1. **Start**: User enters `new` to initiate a session
+   **開始**：輸入 `new` 開始新對話
 2. **Input Topic**: User enters health topic
+   **輸入主題**：使用者輸入衛教主題
 3. **Gemini** generates Traditional Chinese material
+   **Gemini 生成**：產生繁體中文內容
 4. **Modify**: Optional user adjustments via `modify`
+   **修改內容**：可選擇輸入 `modify` 進行微調
 5. **Translate**: Optional translation via `translate`
+   **翻譯**：輸入 `translate` 進行語言翻譯
 6. **Mail**: Sends content via `mail`
+   **寄送**：輸入 `mail` 將內容寄出
 
-### 📁 Core Modules and Their Responsibilities
+### 📁 Core Modules and Their Responsibilities 核心模組與職責
 
-| File / Module                   | Responsibility                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------ |
-| `main.py`                       | Initializes FastAPI app, routes, `/chat` testing endpoint                      |
-| `routes/webhook.py`             | Handles LINE webhook events and binds them to `line_handler`                   |
-| `handlers/line_handler.py`      | Parses and processes LINE messages, decides if Gemini API should be used       |
-| `handlers/logic_handler.py`     | Core session logic: handles commands like `new`, `modify`, `translate`, `mail` |
-| `handlers/session_manager.py`   | In-memory session tracking per user                                            |
-| `handlers/mail_handler.py`      | Formats and sends Gemini output via Gmail SMTP                                 |
-| `services/gemini_service.py`    | Wraps Gemini API calls for content generation and translation                  |
-| `services/prompt_config.py`     | Stores Gemini system prompts for zh generation, translation, and modification  |
-| `utils/email_service.py`        | Low-level Gmail SMTP sender and disclaimer attachment                          |
-| `utils/command_sets.py`         | Contains valid command keywords sets                                           |
-| `utils/google_drive_service.py` | Uploads Gemini session logs as .txt to Google Drive                            |
-| `utils/google_sheets.py`        | Sets up gspread client for Google Sheets                                       |
-| `utils/log_to_sheets.py`        | Appends logs to Google Sheet and uploads output to Drive if Gemini used        |
-
----
-
-## 📓 Gemini Prompt Engineering
-
-* `zh_prompt`: for initial health material generation in zh-TW
-* `modify_prompt`: revises existing zh-TW material with user instructions
-* `translate_prompt_template`: translates content to user-specified language
-
-> All prompts are formatted to be plain text and compliant with health literacy guidelines.
+| File / Module                   | Description (EN)                             | 中文說明                                      |
+| ------------------------------- | -------------------------------------------- | ----------------------------------------- |
+| `main.py`                       | Starts app, routes `/chat`                   | 啟動主應用與測試端點設定                              |
+| `routes/webhook.py`             | Handles incoming LINE webhook events         | 接收與處理 LINE webhook 事件                     |
+| `handlers/line_handler.py`      | Parses messages, triggers Gemini if needed   | 處理 LINE 訊息並判斷是否觸發 Gemini                  |
+| `handlers/logic_handler.py`     | Manages main user session logic              | 處理 `new`、`modify`、`translate`、`mail` 指令邏輯 |
+| `handlers/session_manager.py`   | Tracks per-user sessions                     | 使用者會話追蹤（記憶上下文）                            |
+| `handlers/mail_handler.py`      | Sends email via Gmail SMTP                   | 使用 Gmail SMTP 寄送郵件                        |
+| `services/gemini_service.py`    | Calls Gemini API for content and translation | 呼叫 Gemini API 生成或翻譯內容                     |
+| `services/prompt_config.py`     | Stores prompt templates                      | 儲存 Gemini 指令提示模版                          |
+| `utils/email_service.py`        | Low-level SMTP operations with disclaimer    | 處理 SMTP 寄信與加註免責聲明                         |
+| `utils/command_sets.py`         | Valid command keywords                       | 合法指令關鍵字集                                  |
+| `utils/google_drive_service.py` | Uploads logs as `.txt` to Drive              | 將內容上傳為 .txt 至 Google Drive                |
+| `utils/google_sheets.py`        | gspread client setup                         | 建立 Google Sheets 連線                       |
+| `utils/log_to_sheets.py`        | Logs chat and uploads to Drive               | 記錄對話並上傳 Gemini 內容至雲端                      |
 
 ---
 
-## 📧 Email Sending (via Gmail SMTP)
+## 📓 Gemini Prompt Engineering 提示詞設計
+
+* `zh_prompt`: Generates health material in Traditional Chinese
+  產生繁體中文衛教內容
+* `modify_prompt`: Applies user modifications to zh content
+  根據使用者需求修改原始內容
+* `translate_prompt_template`: Translates into user-selected language
+  翻譯為指定語言
+
+> All prompts follow health literacy and plain language guidelines.
+> 所有提示詞設計皆符合健康素養與淺顯易懂原則。
+
+---
+
+## 📧 Email Sending (via Gmail SMTP) 郵件寄送
 
 * Uses `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD`
-* Adds disclaimer to each message
-* Validates email domain via MX lookup
+  使用 Gmail 地址與應用程式密碼登入
+* Adds disclaimer to all messages
+  所有信件均附加免責聲明
+* Validates email domains using MX lookup
+  驗證收件人信箱網域是否有效
 
 ---
 
-## 📓 Google Sheets Logging
+## 📓 Google Sheets Logging 使用紀錄
 
-* Every LINE or Gemini interaction is logged
-* Includes:
+* Logs every Gemini or LINE interaction
+  所有使用紀錄皆會儲存
+* Details include:
+  包含以下資訊：
 
-  * Timestamp
-  * User ID
-  * Input
-  * Gemini response preview
-  * Action type
-  * Gemini output (with Drive link if available)
+  * Timestamp 時間戳記
+  * User ID 使用者 ID
+  * Input 輸入內容
+  * Gemini preview Gemini 回應摘要
+  * Action type 操作類型
+  * Gemini output (Drive link if available) Gemini 產出（含雲端連結）
 
 ---
 
-## 🌟 Sample Interaction
+## 🌟 Sample Interaction 範例對話
 
 ```txt
 User: new
@@ -141,16 +165,43 @@ Bot: ✅ 已成功寄送衛教內容
 
 ---
 
-## ⚖️ License
+## ✂️ LINE Message Truncation Logic 訊息長度處理邏輯
 
-MIT License
+Due to LINE’s message limits (max **5 messages per reply**, each **\~4000 chars**), this bot uses smart truncation with guidance:
+由於 LINE 有訊息限制（最多 **5 則訊息**，每則約 **4000 字元**），本機器人實作了智慧截斷機制與提醒提示：
+
+* `zh_output` limited to 2 messages
+  中文內容最多顯示 2 則
+* `translated_output` limited to 1 message
+  翻譯內容最多顯示 1 則
+* 4th message gives follow-up options
+  第四則為操作選項提示
+* If too long, 5th message says:
+  如超出限制，第五則提示如下：
+
+```
+⚠️ Due to LINE message length limits, some content is not shown.
+Type "mail" or "寄送" to receive the full material by email.
+
+⚠️ 因 LINE 訊息長度限制，部分內容未顯示。
+請輸入 "mail" 或 "寄送" 以透過電子郵件取得完整內容。
+```
 
 ---
 
-## 📢 Credits
+## ⚖️ License 授權條款
+
+MIT License
+MIT 授權條款
+
+---
+
+## 📢 Credits 開發者資訊
 
 Developed by **Dr. Kuan-Yuan Chen (陳冠元 醫師)**
+開發者：**陳冠元 醫師 (Dr. Kuan-Yuan Chen)**
 
-Contact: [galen147258369@gmail.com](mailto:galen147258369@gmail.com)
+Contact 聯絡方式：[galen147258369@gmail.com](mailto:galen147258369@gmail.com)
 
-For inquiries, suggestions, or collaboration, please feel free to reach out!
+歡迎提供建議、合作邀約或回饋意見！
+For suggestions, collaboration, or feedback — feel free to reach out!
