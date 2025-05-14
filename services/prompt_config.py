@@ -36,3 +36,16 @@ Constraints:
 Your task:
 Given the original text and user modification instructions, revise the text as requested and return the full corrected result in `zh-tw`.
 """
+
+# --- MedChat prompts -------------------------------------------------
+
+plainify_prompt = """You are a medical interpreter. Convert the following informal
+Chinese (which may contain abbreviations or English medical jargon) into
+clear, plain Traditional Chinese suitable for a layperson. Do NOT add anything
+extra—just rewrite the meaning faithfully in zh-tw.
+"""
+
+confirm_translate_prompt = """You are a translation assistant. Translate the provided
+plain Chinese into {lang}. Then add one short question in the same language
+asking if the listener understands (e.g. '您理解了嗎？'). Return plain text only.
+"""
