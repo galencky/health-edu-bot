@@ -1,40 +1,42 @@
-from fastapi import FastAPI, Request, Header, HTTPException, Response
+from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 
-from linebot import WebhookHandler
-from linebot.exceptions import InvalidSignatureError
 from routes.webhook import webhook_router
 from handlers.session_manager import get_user_session
+from handlers.logic_handler import handle_user_message
 
 load_dotenv()
 
 app = FastAPI()
 app.include_router(webhook_router)
 
+# ── simple test endpoint ----------------------------------------------
 class UserInput(BaseModel):
     message: str
 
 @app.post("/chat")
 def chat(input: UserInput):
-    from handlers.logic_handler import handle_user_message
-    session = get_user_session("test-user")
-    reply, _ = handle_user_message(input.message, session)
+    user_id = "test-user"                     # stub ID for this endpoint
+    session = get_user_session(user_id)
+    reply, _ = handle_user_message(user_id, input.message, session)
     return {"reply": reply}
 
+# ── misc endpoints -----------------------------------------------------
 @app.get("/")
 def root():
     return {
         "message": "✅ FastAPI LINE + Gemini bot is running.",
         "status": "Online",
-        "endpoints": ["/", "/chat", "/ping", "/webhook"]
+        "endpoints": ["/", "/chat", "/ping", "/webhook"],
     }
 
 @app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return Response(content='{"status": "ok"}', media_type="application/json")
 
+# ── local dev ----------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=10000)
