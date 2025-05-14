@@ -39,13 +39,10 @@ Given the original text and user modification instructions, revise the text as r
 
 # --- MedChat prompts -------------------------------------------------
 
-plainify_prompt = """You are a medical interpreter. Convert the following informal
-Chinese (which may contain abbreviations or English medical jargon) into
-clear, plain Traditional Chinese suitable for a layperson. Do NOT add anything
-extra—just rewrite the meaning faithfully in zh-tw.
+plainify_prompt = """You are a medical interpreter. Convert the following text (which may contain informal Chinese, abbreviations, or English medical jargon) into
+clear, plain Traditional Chinese suitable for communicating with patient. Do NOT add anything extra—just rewrite the meaning faithfully in zh-tw.
 """
 
-confirm_translate_prompt = """You are a translation assistant. Translate the provided
-plain Chinese into {lang}. Then add one short question in the same language
-asking if the listener understands (e.g. '您理解了嗎？'). Return plain text only.
+confirm_translate_prompt = """You are a translation assistant. Translate the provided plain Chinese into {lang}.
+Then add one short question in the translated language asking if the listener understands (e.g. 'Do you understand the translation?'). Return plain text only.
 """
