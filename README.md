@@ -1,322 +1,240 @@
-# Mededbot - 多語言衛教 AI Chatbot
+# Mededbot – 多語言衛教 AI 聊天機器人
 
-A multilingual health education chatbot built with **FastAPI**, integrated with **LINE Messaging API** and **Google Gemini API**, supporting dynamic patient education content generation, translation, email delivery, and logging to Google Sheets and Drive.
-
-一個以 **FastAPI** 建構的多語言健康衛教聊天機器人，整合 **LINE Messaging API** 與 **Google Gemini API**，支援動態生成衛教內容、自動翻譯、寄送電子郵件，以及紀錄資料至 Google Sheets 和 Google Drive。
+> 以 **FastAPI + LINE Messaging API + Google Gemini API** 打造的衛教內容生成與即時醫療翻譯服務，部署於 **Render** 免費 Web Service，並透過 **UptimeRobot** 每 5 分鐘喚醒，確保 24 × 7 線上服務。
 
 ---
 
-## 🚀 Features 功能特色
+## 內容快速導覽
 
-* ✅ LINE-compatible multilingual chatbot interface  
-      支援 LINE 的多語言聊天介面  
-
-* ✅ Gemini API integration for generating 保健 content in Traditional Chinese (zh-TW)  
-      整合 Gemini API，自動生成繁體中文健康衛教內容  
-
-* ✅ One-click modification, translation, and emailing of content  
-      一鍵修改、翻譯與寄送衛教資料  
-
-* ✅ Email validation with MX record checking  
-      電子郵件格式與 MX 記錄驗證功能  
-
-* ✅ Logging interaction data to Google Sheets and Gemini output to Google Drive  
-      將對話與 Gemini 回應記錄至 Google Sheets 與 Google Drive  
-      
-* ✅ Modular, scalable architecture  
-      模組化架構，便於擴充與維護
+1. [專案簡介](#專案簡介)
+2. [功能特色](#功能特色)
+3. [系統架構](#系統架構)
+4. [快速開始](#快速開始)
+5. [Render 部署指南](#render-部署指南)
+6. [LINE Webhook 設定](#line-webhook-設定)
+7. [環境變數說明](#環境變數說明)
+8. [指令與操作流程](#指令與操作流程)
+9. [常見問題 FAQ](#常見問題-faq)
+10. [授權與聯絡方式](#授權與聯絡方式)
 
 ---
 
-## 🌐 Demo Endpoints 示範端點
+## 專案簡介
 
-| Endpoint   | Description (EN)                     | 描述（中文）                       |
-| ---------- | ------------------------------------ | ---------------------------------- |
-| `/`        | Health check + basic endpoint info  | 健康檢查與基本端點資訊               |
-| `/chat`    | Chatbot testing without LINE frontend | 測試聊天功能（不經由 LINE 前端）     |
-| `/ping`    | Health check for uptime monitoring  | 運作狀態監控                        |
-| `/webhook` | LINE webhook receiver               | 接收 LINE webhook 事件             |
+Mededbot 旨在協助醫療人員以繁體中文撰寫結構化衛教單張，並可一鍵翻譯、修改與寄送 Email。另提供 **MedChat** 模式，支援中文→任意語言之即時醫療對話翻譯，加速與外國患者溝通。
+
+此專案使用：
+
+* **FastAPI**：非同步 Python Web Framework。
+* **LINE Messaging API**：聊天介面與 Webhook。
+* **Google Gemini API**：生成與翻譯大型語言模型（LLM）。
+* **Google Drive / Sheets**：日誌與檔案備份。
+* **Render Free Web Service**：零成本雲端部署。
+* **UptimeRobot**：定時 `/ping` 監測，避免 Render 服務休眠。
 
 ---
 
-## 🚪 Setup & Installation 安裝步驟 (本地測試 Local Testing)
+## 功能特色
 
-### 1. Clone and prepare environment 下載並準備執行環境
+| 模組                    | 功能概要                                                                 |
+| --------------------- | -------------------------------------------------------------------- |
+| **Education 模式**      | 依「疾病名稱 + 衛教主題」產生條列式衛教單張 → 可 `modify` 調整 → `translate` 翻譯 → `mail` 寄送 |
+| **MedChat 模式**        | 將口語中文平易化後翻譯至指定語言，並附 "Do you understand?" 確認句                         |
+| **Google Sheets Log** | 將用戶輸入、Gemini 結果、動作類型寫入試算表                                            |
+| **Google Drive 備份**   | 生成之全文 .txt 以 HYPERLINK 形式儲存雲端                                        |
+| **Email 寄送**          | 透過 Gmail SMTP，附免責聲明郵寄衛教內容                                            |
+| **Session 管理**        | 以 in‑memory dict 追蹤對話狀態、模式、產出                                        |
+
+---
+
+## 系統架構
+
+### 流程概述
 
 ```
-git clone https://github.com/YOUR_NAME/mededbot.git
-cd mededbot
-python -m venv venv
-source venv/bin/activate  # Windows 請改用 venv\Scripts\activate
-pip install -r requirements.txt
+LINE User → LINE Webhook → FastAPI /webhook → handlers.line_handler
+              │                                 │
+              │                                 └─> handlers.logic_handler ↔ Gemini API
+              │                                                     │
+              │                                   Google Drive / Google Sheets
+              └── /ping (UptimeRobot)
 ```
 
-### 2. env Configuration 設定 .env 檔案
+### 專案目錄結構
 
-Create a `.env` file with:
-請建立一個 `.env` 檔案並填入以下內容：
+```
+.
+├── main.py                # 入口點 + /ping /chat 測試端點
+├── routes/
+│   └── webhook.py         # 綁定 LINE WebhookHandler
+├── handlers/
+│   ├── line_handler.py    # LINE 訊息分段、回覆
+│   ├── logic_handler.py   # 核心指令解析
+│   ├── medchat_handler.py # 即時翻譯流程
+│   ├── mail_handler.py    # Gmail 寄送
+│   └── session_manager.py # 使用者 Session
+├── services/
+│   ├── gemini_service.py  # Gemini 呼叫封裝
+│   └── prompt_config.py   # 系統 / 修改 / 翻譯 Prompt
+└── utils/
+    ├── command_sets.py    # 指令字集合
+    ├── email_service.py   # SMTP 寄信
+    ├── google_drive_service.py
+    ├── google_sheets.py
+    └── log_to_sheets.py   # 寫入試算表 + 上傳 Drive
+```
 
-```env
-LINE_CHANNEL_ACCESS_TOKEN=...
+---
+
+## 快速開始
+
+### 系統需求
+
+* Python ≥ 3.11
+* pip / venv / poetry (擇一)
+
+### 1. 下載與安裝
+
+```bash
+# 取得程式碼
+$ git clone https://github.com/<your‑repo>/mededbot.git
+$ cd mededbot
+
+# 安裝依賴
+$ pip install -r requirements.txt
+```
+
+### 2. 設定環境變數
+
+> 詳細定義請見下節「[環境變數說明](#環境變數說明)」。在本機可於根目錄建立 **.env** 檔：
+
+```dotenv
+LINE_CHANNEL_ACCESS_TOKEN=...  # LINE Bot Token
 LINE_CHANNEL_SECRET=...
 GEMINI_API_KEY=...
-GMAIL_ADDRESS=...
-GMAIL_APP_PASSWORD=...
-GOOGLE_CREDS_B64=...  # base64 格式的 Google credentials.json
-GOOGLE_DRIVE_FOLDER_ID=...  # 存放 Gemini 記錄的 Google Drive 資料夾 ID
+GMAIL_ADDRESS=your@gmail.com
+GMAIL_APP_PASSWORD=your_app_pass
+GOOGLE_CREDS_B64=<base64_JSON>
+GOOGLE_DRIVE_FOLDER_ID=...
 ```
 
----
-## ☁️ Deployment on Render + UptimeRobot 保持伺服器在線
+### 3. 啟動開發伺服器
 
-### 🛠️ How to Deploy on Render (Free Tier) 如何部署到 Render（免費方案）
-
-1. Push your project to a **GitHub repository**.  
-   將你的專案上傳到 **GitHub 儲存庫**。
-
-2. Go to [https://render.com](https://render.com), log in with GitHub, and click **"New Web Service"**.  
-   前往 [https://render.com](https://render.com)，使用 GitHub 登入，然後點選 **"New Web Service"**。
-
-3. Connect your GitHub repo and configure the following:  
-   連接你的 GitHub 專案並設定以下項目：
-
-   - Runtime: **Python 3.x**  
-     執行環境：**Python 3.x**
-   - Build command: `pip install -r requirements.txt`  
-     建置指令：`pip install -r requirements.txt`
-   - Start command: `uvicorn main:app --host 0.0.0.0 --port 10000`  
-     啟動指令：`uvicorn main:app --host 0.0.0.0 --port 10000`
-
-4. In the **"Environment"** section, set your environment variables using your `.env` values.  
-   在 **"Environment"** 區域中，輸入你的 `.env` 環境變數。
-
-5. Choose the **Free Web Service** tier (limits: auto-sleeps after 15 min idle, ~750 hrs/month).  
-   選擇 **免費服務等級**（限制：閒置 15 分鐘後自動休眠，每月上限約 750 小時）。
-
----
-
-### 🔄 Keep It Alive with UptimeRobot 使用 UptimeRobot 保持服務在線
-
-Render’s free tier will enter sleep mode when idle.  
-Render 免費方案會在閒置時進入睡眠模式。
-
-You can use [UptimeRobot](https://uptimerobot.com/) to ping it every 5 minutes and prevent sleep.  
-你可以使用 [UptimeRobot](https://uptimerobot.com/) 每 5 分鐘 ping 一次來防止它睡眠。
-
-1. Sign up at UptimeRobot and create a **new HTTP(s) monitor**.  
-   在 UptimeRobot 註冊帳號，並新增一個 **HTTP(s) 監控器**。
-
-2. Set the monitor URL to your Render health check endpoint, e.g. `https://your-app-name.onrender.com/ping`  
-   將監控網址設為你 Render 網站的健康檢查端點，例如 `https://your-app-name.onrender.com/ping`
-
-3. Set the check interval to **every 5 minutes** (free plan minimum).  
-   將檢查間隔設定為 **每 5 分鐘一次**（免費帳號的最小間隔）。
-
-4. UptimeRobot will continuously ping your service, keeping it online and responsive.  
-   UptimeRobot 將持續 ping 你的服務，保持其在線與可用狀態。
-
----
-
-## 🤖 How It Works 使用流程
-
-### ⚡ User Flow (via LINE) 使用者流程（透過 LINE）
-
-1. **Start**: User enters `new` to initiate a session
-   **開始**：輸入 `new` 開始新對話
-2. **Input Topic**: User enters health topic
-   **輸入主題**：使用者輸入衛教主題
-3. **Gemini** generates Traditional Chinese material
-   **Gemini 生成**：產生繁體中文內容
-4. **Modify**: Optional user adjustments via `modify`
-   **修改內容**：可選擇輸入 `modify` 進行微調
-5. **Translate**: Optional translation via `translate`
-   **翻譯**：輸入 `translate` 進行語言翻譯
-6. **Mail**: Sends content via `mail`
-   **寄送**：輸入 `mail` 將內容寄出
-
-### 📁 Core Modules and Their Responsibilities 核心模組與職責
-
-| File / Module                   | Description (EN)                             | 中文說明                                      |
-| ------------------------------- | -------------------------------------------- | ----------------------------------------- |
-| `main.py`                       | Starts app, routes `/chat`                   | 啟動主應用與測試端點設定                              |
-| `routes/webhook.py`             | Handles incoming LINE webhook events         | 接收與處理 LINE webhook 事件                     |
-| `handlers/line_handler.py`      | Parses messages, triggers Gemini if needed   | 處理 LINE 訊息並判斷是否觸發 Gemini                  |
-| `handlers/logic_handler.py`     | Manages main user session logic              | 處理 `new`、`modify`、`translate`、`mail` 指令邏輯 |
-| `handlers/session_manager.py`   | Tracks per-user sessions                     | 使用者會話追蹤（記憶上下文）                            |
-| `handlers/mail_handler.py`      | Sends email via Gmail SMTP                   | 使用 Gmail SMTP 寄送郵件                        |
-| `services/gemini_service.py`    | Calls Gemini API for content and translation | 呼叫 Gemini API 生成或翻譯內容                     |
-| `services/prompt_config.py`     | Stores prompt templates                      | 儲存 Gemini 指令提示模版                          |
-| `utils/email_service.py`        | Low-level SMTP operations with disclaimer    | 處理 SMTP 寄信與加註免責聲明                         |
-| `utils/command_sets.py`         | Valid command keywords                       | 合法指令關鍵字集                                  |
-| `utils/google_drive_service.py` | Uploads logs as `.txt` to Drive              | 將內容上傳為 .txt 至 Google Drive                |
-| `utils/google_sheets.py`        | gspread client setup                         | 建立 Google Sheets 連線                       |
-| `utils/log_to_sheets.py`        | Logs chat and uploads to Drive               | 記錄對話並上傳 Gemini 內容至雲端                      |
-
----
-
-### 📓 Gemini Prompt Engineering 提示詞設計
-
-* `zh_prompt`: Generates health material in Traditional Chinese
-  產生繁體中文衛教內容
-* `modify_prompt`: Applies user modifications to zh content
-  根據使用者需求修改原始內容
-* `translate_prompt_template`: Translates into user-selected language
-  翻譯為指定語言
-
-> All prompts follow health literacy and plain language guidelines.
-> 所有提示詞設計皆符合健康素養與淺顯易懂原則。
-
-
----
-
-### 🧠 Original System Instructions for Gemini Models  完整原始提示詞
-
-<details>
-<summary>📘 zh_prompt — 中文衛教生成</summary>
-
-```text
-You are an AI health education expert helping create plain-text patient education materials for the general public in Traditional Chinese. Follow these instructions strictly:
-
-1. All output must be in Traditional Chinese (`zh-tw`) and in plain text. Do not use Markdown, HTML, or any special formatting symbols like `*`, `_`, `#` (for markdown), or backticks.
-2. Acceptable formatting structure:
-   - Use a clear title at the top (e.g., `主題：高血壓的日常控制`)
-   - Use simple bullet points with dashes (`-`) for subsections, e.g.:
-     - 標題
-     - 概要
-     - 詳細說明（4–6 條說明）
-     - 常見問答（2–3 組問答）
-     - 建議行動（1–2 項具體建議）
-     - 聯絡資訊
-3. Do not add emojis to every line. Emojis may be used sparingly in section headers or to highlight key reminders (e.g., ⭐ ⚠️ ✅ ❓ 📞), but not excessively.
-4. Language should be clear, supportive, and suitable for a middle-school reading level. Use full sentences that explain what something is, why it matters, and how to act on it.
-5. Sentence length can be moderate to ensure clarity. Avoid overly simplistic or fragmented instructions.
-6. Avoid scolding, alarming, or fear-based tones. Be supportive and encouraging.
-7. Do not include links or citations, even if referring to trusted sources. The content must be self-contained.
-
-Based on the provided topic, generate a complete and structured patient education message in Traditional Chinese, following the rules above exactly.
+```bash
+$ python main.py
+# 或
+$ uvicorn main:app --reload --host 0.0.0.0 --port 10000
 ```
 
-</details>
+### 4. 測試
 
-<details>
-<summary>🛠️ modify_prompt — 中文微調</summary>
-
-```text
-You are a health education assistant helping revise existing plain-text health content in Traditional Chinese (`zh-tw`). The original content was generated for the public based on current clinical knowledge.
-
-Please revise the text below according to the user’s instructions, but keep the original structure, formatting, and tone. Do not remove necessary sections.
-
-Constraints:
-- Do not use Markdown or HTML.
-- Use only dash (`-`) bullets and clear section headers.
-- Preserve formatting and use plain Traditional Chinese.
-
-Your task:
-Given the original text and user modification instructions, revise the text as requested and return the full corrected result in `zh-tw`.
-```
-
-</details>
-
-<details>
-<summary>🌐 translate_prompt_template — 翻譯提示詞</summary>
-
-```text
-You are a medical translation assistant. Please translate the following medical education content into {lang}. Use plain text only, and make the translation clear and easy to understand. Do not add any extra explanations or comments.
-```
-
-</details>
-
+* 瀏覽 `http://localhost:10000/`       → 健康檢查
+* `POST /chat` with JSON `{"message":"new"}` → 測試端點
 
 ---
 
-### 📧 Email Sending (via Gmail SMTP) 郵件寄送
+## Render 部署指南
 
-* Uses `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD`
-  使用 Gmail 地址與應用程式密碼登入
-* Adds disclaimer to all messages
-  所有信件均附加免責聲明
-* Validates email domains using MX lookup
-  驗證收件人信箱網域是否有效
+### 1. 建立 Web Service
 
----
+1. 登入 [Render](https://render.com/) → **New +** → **Web Service**。
+2. 連結 GitHub 倉庫，分支選擇 **main**。
 
-### 📓 Google Sheets Logging 使用紀錄
+### 2. Build 與 Start 指令
 
-* Logs every Gemini or LINE interaction
-  所有使用紀錄皆會儲存
-* Details include:
-  包含以下資訊：
+| 欄位            | 指令                                             |
+| ------------- | ---------------------------------------------- |
+| Build Command | `pip install -r requirements.txt`              |
+| Start Command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
 
-  * Timestamp 時間戳記
-  * User ID 使用者 ID
-  * Input 輸入內容
-  * Gemini preview Gemini 回應摘要
-  * Action type 操作類型
-  * Gemini output (Drive link if available) Gemini 產出（含雲端連結）
+### 3. 環境變數
 
----
+於 Render 介面 **Environment → Add Environment Variable**，填入與本機相同之變數。
 
-### 🌟 Sample Interaction 範例對話
+### 4. 免費方案睡眠 & UptimeRobot
 
-```txt
-User: new
-Bot: 🆕 新對話已開始... 請輸入疾病名稱 + 衛教主題
+* Render 免費方案若 15 分鐘無流量即休眠，首次喚醒需 \~30 秒。
+* 於 [UptimeRobot](https://uptimerobot.com/) 新增 **HTTP(s) Monitor**：
 
-User: CAD with STEMI s/p POBAS care
-Bot: ✅ 中文版衛教內容已產生... (顯示內容)
+  * **URL**：`https://<your‑render‑service>.onrender.com/ping`
+  * **Interval**：5 分鐘。
+* UptimeRobot 會定期 GET `/ping`，保持服務常駐。
 
-User: translate
-Bot: 🌐 請輸入您要翻譯成的語言...
-
-User: Thai
-Bot: 🌐 翻譯完成... (顯示原文+譯文)
-
-User: mail
-Bot: 📧 請輸入您要寄送至的 email...
-
-User: example@email.com
-Bot: ✅ 已成功寄送衛教內容
-```
+> **注意**：Render 官方允許低頻率健康檢查；設定過高 (≤1 min) 可能違反 TOS。
 
 ---
 
-### ✂️ LINE Message Truncation Logic 訊息長度處理邏輯
+## LINE Webhook 設定
 
-Due to LINE’s message limits (max **5 messages per reply**, each **\~4000 chars**), this bot uses smart truncation with guidance:
-由於 LINE 有訊息限制（最多 **5 則訊息**，每則約 **4000 字元**），本機器人實作了智慧截斷機制與提醒提示：
-
-* `zh_output` limited to 2 messages
-  中文內容最多顯示 2 則
-* `translated_output` limited to 1 message
-  翻譯內容最多顯示 1 則
-* 4th message gives follow-up options
-  第四則為操作選項提示
-* If too long, 5th message says:
-  如超出限制，第五則提示如下：
+1. 於 LINE Developers Console 建立 **Messaging API Channel**。
+2. 將 **Webhook URL** 設為：
 
 ```
-⚠️ Due to LINE message length limits, some content is not shown.
-Type "mail" or "寄送" to receive the full material by email.
-
-⚠️ 因 LINE 訊息長度限制，部分內容未顯示。
-請輸入 "mail" 或 "寄送" 以透過電子郵件取得完整內容。
+https://<your‑render‑service>.onrender.com/webhook
 ```
 
----
-
-## ⚖️ License 授權條款
-
-MIT License
-MIT 授權條款
+3. 啟用 Webhook、發佈 Bot。
+4. 把 `LINE_CHANNEL_ACCESS_TOKEN`、`LINE_CHANNEL_SECRET` 放入 Render 變數。
 
 ---
 
-## 📢 Credits 開發者資訊
+## 環境變數說明
 
-Developed by **Kuan-Yuan Chen, M.D.**
-開發者：**陳冠元 醫師**
+| 變數                          | 說明                                    | 必要 |
+| --------------------------- | ------------------------------------- | -- |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Bot Long‑Lived Token             | ✅  |
+| `LINE_CHANNEL_SECRET`       | LINE Channel Secret                   | ✅  |
+| `GEMINI_API_KEY`            | Google Gemini API Key                 | ✅  |
+| `GMAIL_ADDRESS`             | Gmail 寄信帳號                            | ✅  |
+| `GMAIL_APP_PASSWORD`        | Gmail 應用程式密碼                          | ✅  |
+| `GOOGLE_CREDS_B64`          | 以 Base64 編碼之 GCP Service Account JSON | ✅  |
+| `GOOGLE_DRIVE_FOLDER_ID`    | Drive 資料夾 ID，用於上傳 .txt                | ✅  |
 
-Contact 聯絡方式：[galen147258369@gmail.com](mailto:galen147258369@gmail.com)
+---
+
+## 指令與操作流程
+
+| 階段            | 指令/訊息              | 機器人回應                  |
+| ------------- | ------------------ | ---------------------- |
+| **開始**        | `new` / `開始`       | 初始化，要求選擇 `ed` 或 `chat` |
+| **選擇模式**      | `ed` / `衛教`        | 進入 Education 模式        |
+|               | `chat` / `聊天`      | 進入 MedChat 模式          |
+| **Education** | 輸入 `疾病 + 主題`       | 產生中文版衛教單張              |
+|               | `modify` / `修改`    | 進入修改 → 提供修改指示          |
+|               | `translate` / `翻譯` | 指定語言 → 產生譯文            |
+|               | `mail` / `寄送`      | 輸入 Email → Gmail 寄送    |
+| **MedChat**   | 未設定語言時輸入目標語言       | 例如 `英文` → 設定成功         |
+|               | 任意中文訊息             | 回傳平易化中文 + 目標語言翻譯       |
+
+---
+
+## 常見問題 FAQ
+
+**Q1 › API 呼叫延遲多久？**
+
+* 衛教模式（ed）平均約 **15 秒**。
+* 聊天模式（chat）平均約 **25 秒**。（Gemini 需雙向處理：簡化＋翻譯）
+
+**Q2 › 機器人使用了哪些提示詞（prompts）？**
+
+* `zh_prompt`：生成繁體中文衛教內容。
+* `translate_prompt_template`：進行跨語言翻譯並保留版面。
+* `modify_prompt`：依使用者指示微調衛教文字。
+* `plainify_prompt`：將口語或混雜醫學縮寫整理成平易近人的中文。
+* `confirm_translate_prompt`：產出目標語言翻譯並回覆「是否理解？」短句。
+
+> 以上提示詞均位於 `services/prompt_config.py`，可自行客製化。
+
+**Q3 › UptimeRobot Ping 是否違規？** — Render 官方文件允許「適度」健康檢查，5 分鐘以上屬安全區間。
+
+**Q4 › 如何替換 SMTP？** — 修改 `utils/email_service.py`，支援 SendGrid / SES 等。
+
+---
+
+## 授權與聯絡方式
+
+* **License**：MIT
+* **Maintainer**：陳冠元 ([galen147258369@gmail.com](mailto:galen147258369@gmail.com))
 
 歡迎提供建議、合作邀約或回饋意見！
 For suggestions, collaboration, or feedback — feel free to reach out!
