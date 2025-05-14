@@ -12,16 +12,30 @@ line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 def split_text(text, chunk_size=4000):
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
+# update will_call_gemini()
+
 def will_call_gemini(text: str, session: dict) -> bool:
     text_lower = text.strip().lower()
-    if not session.get("started"):
+
+    # 🚫 Don’t call Gemini until the user has chosen a mode
+    if session.get("mode") is None:
         return False
+
     if session.get("awaiting_modify") or session.get("awaiting_translate_language"):
         return True
-    command_words = {"new", "開始", "modify", "修改", "mail", "寄送", "translate", "翻譯", "trans"}
-    if not session.get("zh_output") and text_lower not in command_words:
-        return True
-    return False
+
+    # Treat mode-selection words as commands, not Gemini prompts
+    command_words = {
+        "new", "開始",
+        "ed", "education", "衛教",    # ← added
+        "chat", "聊天",              # ← added
+        "modify", "修改",
+        "mail", "寄送",
+        "translate", "翻譯", "trans"
+    }
+
+    return not session.get("zh_output") and text_lower not in command_words
+
 
 def handle_line_message(event):
     user_id = event.source.user_id
