@@ -1,4 +1,3 @@
-# === handlers/logic_handler.py ===
 """Top‑level dispatcher for both Education and MedChat branches.
 
 This file replaces the previous logic_handler, integrating the
@@ -72,10 +71,23 @@ def handle_user_message(user_id: str, text: str, session: dict) -> Tuple[str, bo
 
     # 2. Dispatch by mode --------------------------------------------------
     if session["mode"] == "chat":
+
+        # NEW inside chat  ←←  add this block
+        if text_lower in new_commands:
+            _reset_session(session)
+            return (
+                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n"
+                "• ed / education / 衛教 → 產生衛教單張\n"
+                "• chat / 聊天 → 醫療即時翻譯 (MedChat)",
+                False,
+            )
+
         # guard: prevent accidental edu command inside chat
         if text_lower in edu_commands:
             return "⚠️ 目前在『聊天』模式。如要切換到衛教請先輸入 new。", False
+
         return handle_medchat(user_id, raw, session)
+
 
     # ---------------- Education branch below -----------------------------
 
