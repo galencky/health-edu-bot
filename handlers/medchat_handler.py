@@ -31,6 +31,10 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool]:
     plain_zh = plainify(raw)
     translated = confirm_translate(plain_zh, session["chat_target_lang"])
 
+    # ── stash for Drive log (upload_gemini_log looks for these keys) ──
+    session["zh_output"]         = plain_zh
+    session["translated_output"] = translated
+
     reply_text = (
         "您是否想表達：\n"
         f"{plain_zh}\n\n"

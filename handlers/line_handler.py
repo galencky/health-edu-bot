@@ -1,12 +1,18 @@
-"""Reply handler for LINE webhook events.
+"""
+LINE webhook adapter.
+Business logic lives in handlers.logic_handler; this file only:
 
-• Distinguishes between education and MedChat modes.
-• Calls Gemini only when needed (after mode chosen).
-• Builds carousel replies only for the education branch.
+1. Pulls/creates the user session.
+2. Passes the message to handle_user_message().
+3. Formats the reply bubbles for LINE.
+4. Logs the interaction.
+
+If logic_handler invokes Gemini it returns gemini_called=True,
+so we can log appropriately without re-implementing that rule here.
 """
 
-import os
-import time
+from __future__ import annotations
+import os, time
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
@@ -16,95 +22,66 @@ from utils.log_to_sheets import log_to_sheet
 
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 
-# ── helpers ──────────────────────────────────────────────────────────
-def split_text(text: str, chunk_size: int = 4000) -> list[str]:
-    """Split long text into LINE-safe ≤4000-char chunks."""
-    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+# ---------- helpers -----------------------------------------------------
+def _chunks(text: str, limit: int = 4000) -> list[str]:
+    """Split long text into ≤4 000-character pieces (LINE hard cap)."""
+    return [text[i : i + limit] for i in range(0, len(text), limit)]
 
 
-def will_call_gemini(text: str, session: dict) -> bool:
-    """Return True when this message should trigger a Gemini call."""
-    text_lower = text.strip().lower()
-
-    # 1) Gemini never runs until user picks a mode
-    if session.get("mode") is None:
-        return False
-
-    # 2) Pending edu operations always call Gemini
-    if session.get("awaiting_modify") or session.get("awaiting_translate_language"):
-        return True
-
-    # 3) Fresh prompts that need zh_output
-    command_words = {
-        "new", "開始",
-        "ed", "education", "衛教",
-        "chat", "聊天",
-        "modify", "修改",
-        "mail", "寄送",
-        "translate", "翻譯", "trans",
-    }
-    return not session.get("zh_output") and text_lower not in command_words
-
-
-# ── main LINE event handler ──────────────────────────────────────────
+# ---------- main entry --------------------------------------------------
 def handle_line_message(event):
     user_id    = event.source.user_id
     user_input = event.message.text
     session    = get_user_session(user_id)
 
-    # ── Branch A: needs Gemini ───────────────────────────────────────
-    if will_call_gemini(user_input, session):
-        try:
-            start = time.time()
-            reply, _ = handle_user_message(user_id, user_input, session)
-            if time.time() - start > 50:
-                raise TimeoutError("⏰ Gemini 回應超時 (>50 秒)")
+    t0 = time.time()
+    reply, gemini_called = handle_user_message(user_id, user_input, session)
+    elapsed = time.time() - t0
 
-            # Log once *unless* MedChat already logged inside handler
-            if session.get("mode") != "chat":
-                log_to_sheet(user_id, user_input, reply, session,
-                             action_type="Gemini reply", gemini_call="yes")
+    # ---------- build LINE bubbles -------------------------------------
+    messages: list[TextSendMessage] = []
 
-            # ── MedChat: single-text reply then exit
-            if session.get("mode") == "chat":
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-                return  # ✅ MedChat done
+    if session.get("mode") == "chat":                    # MedChat
+        messages.append(TextSendMessage(text=reply))
 
-            # ── Education: assemble carousel reply
-            zh_out = session.get("zh_output", "")
-            tr_out = session.get("translated_output", "")
-            zh_chunks = split_text(f"📄 原文：\n{zh_out}") if zh_out else []
-            tr_chunks = split_text(f"🌐 譯文：\n{tr_out}") if tr_out else []
+    else:                                                # Education branch
+        zh = session.get("zh_output") or ""
+        tr = session.get("translated_output") or ""
 
-            msgs: list[TextSendMessage] = []
-            content = zh_chunks[:2] + tr_chunks[: max(0, 3 - len(zh_chunks[:2]))]
-            msgs.extend(TextSendMessage(text=c) for c in content)
+        # show up to three bubbles: max 2 zh + (3-len) tr
+        zh_bubbles = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
+        tr_bubbles = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_bubbles))] if tr else []
 
-            msgs.append(TextSendMessage(
-                text=("📌 您目前可：\n"
-                      "1️⃣ 再次輸入: 翻譯/translate/trans\n"
-                      "2️⃣ 輸入: mail/寄送\n"
-                      "3️⃣ 輸入 new 重新開始\n"
-                      "⚠️ Gemini 呼叫約需 20 秒，請耐心等候")
+        for txt in (*zh_bubbles, *tr_bubbles):
+            messages.append(TextSendMessage(text=txt))
+
+        # always append the action-hint / fallback text returned by logic_handler
+        messages.append(TextSendMessage(text=reply))
+
+        # warn if not all text could be shown
+        if len(zh_bubbles) + len(tr_bubbles) > 3:
+            messages.append(TextSendMessage(
+                text="⚠️ 內容過長，僅部分顯示。如需完整內容請輸入 mail / 寄送。"
             ))
-            if len(zh_chunks) + len(tr_chunks) > 3:
-                msgs.append(TextSendMessage(
-                    text=("⚠️ 部分內容因長度受限未顯示。\n"
-                          "如需完整內容請輸入 mail 或 寄送，以 email 收取全文。")
-                ))
 
-            line_bot_api.reply_message(event.reply_token, msgs)
+    # ---------- send & log ---------------------------------------------
+    try:
+        line_bot_api.reply_message(event.reply_token, messages)
+    except Exception as exc:
+        # best-effort fallback to avoid silent failure
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"⚠️ 發生錯誤：{exc}")
+        )
 
-        except TimeoutError:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                text="⚠️ Gemini 回應逾時，請稍後再試或輸入 new 重新開始。"))
-        except Exception as exc:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                text=f"⚠️ 發生錯誤: {exc}。請稍後再試或輸入 new 重新開始。"))
-        return
-
-    # ── Branch B: synchronous reply (no Gemini) ──────────────────────
-    reply, _ = handle_user_message(user_id, user_input, session)
-    log_to_sheet(user_id, user_input, reply, session,
-                 action_type="sync reply", gemini_call="no")
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+    # MedChat 已自行記錄，避免重複
+    if session.get("mode") != "chat":
+        log_to_sheet(
+            user_id,
+            user_input,
+            reply[:200],
+            session,
+            action_type="Gemini reply" if gemini_called else "sync reply",
+            gemini_call="yes" if gemini_called else "no",
+        )
