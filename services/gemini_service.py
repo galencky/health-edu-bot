@@ -1,6 +1,6 @@
 import os
 import google.generativeai as genai
-from .prompt_config import zh_prompt, translate_prompt_template
+from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
 # from google.generativeai import grounding  # Uncomment when you have grounding access
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
