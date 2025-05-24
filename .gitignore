@@ -1,0 +1,5 @@
+# Ignore everything inside the gitignore directory
+/gitignore/**
+
+# (optional) keep an empty directory in Git by committing a placeholder file
+# !gitignore/.gitkeep
