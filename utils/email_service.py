@@ -5,6 +5,10 @@ from email.message import EmailMessage
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
+# Ensure these are set
+if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
+    raise ValueError("Missing GMAIL_ADDRESS or GMAIL_APP_PASSWORD in environment variables.")
+
 DISCLAIMER = """您好，
 
 感謝您使用Mededbot-多語言衛教AI的衛教單張生成暨翻譯服務。
@@ -31,8 +35,8 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     msg.set_content(DISCLAIMER + "\n\n" + body)
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 465) as smtp:
-            smtp.starttls()
+        # Use SSL on port 465 (no starttls)
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
             smtp.send_message(msg)
         return True
