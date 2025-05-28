@@ -2,8 +2,8 @@ FROM python:3.10-slim
 
 WORKDIR /mededbot
 
-# Install system dependencies required for secure SMTP (TLS/SSL)
-RUN apt update && apt install -y ca-certificates
+# Install required packages for SSL/TLS and update certs
+RUN apt update && apt install -y ca-certificates && update-ca-certificates
 
 COPY smtp_test.py .
 COPY requirements.txt .
