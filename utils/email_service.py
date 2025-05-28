@@ -31,7 +31,7 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     msg.set_content(DISCLAIMER + "\n\n" + body)
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        with smtplib.SMTP("smtp.gmail.com", 465) as smtp:
             smtp.starttls()
             smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
             smtp.send_message(msg)

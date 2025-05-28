@@ -1,6 +1,7 @@
 FROM python:3.10-slim
 
 WORKDIR /mededbot
+COPY smtp_test.py .
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
