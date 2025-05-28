@@ -2,8 +2,8 @@ FROM python:3.10-slim
 
 WORKDIR /mededbot
 
-# Install required packages for SSL/TLS and update certs
-RUN apt update && apt install -y ca-certificates && update-ca-certificates
+# 🛠️ Install full TLS stack
+RUN apt update && apt install -y ca-certificates libssl-dev openssl && update-ca-certificates
 
 COPY smtp_test.py .
 COPY requirements.txt .
