@@ -1,5 +1,4 @@
 /gitignore/**
-/.env/
-/.dockerignore/
-/Dockerfile.dockerfile/
 !gitignore/.gitkeep
+.env
+Dockerfile
