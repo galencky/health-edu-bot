@@ -11,7 +11,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Copy in your test script & deps list
-COPY smtp_test.py requirements.txt ./
+COPY requirements.txt ./
 
 # Install Python deps
 RUN pip install --no-cache-dir -r requirements.txt
