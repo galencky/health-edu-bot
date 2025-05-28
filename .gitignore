@@ -1,3 +1,4 @@
 /gitignore/**
 !gitignore/.gitkeep
 .env
+.dockerignore
