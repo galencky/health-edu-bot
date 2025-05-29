@@ -1,3 +1,7 @@
+
+from dotenv import load_dotenv
+load_dotenv()   # ← ensure .env is loaded here
+
 import os
 import smtplib
 from email.message import EmailMessage

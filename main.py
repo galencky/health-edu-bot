@@ -1,13 +1,14 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
-from dotenv import load_dotenv
 import os
-
 from routes.webhook import webhook_router
 from handlers.session_manager import get_user_session
 from handlers.logic_handler import handle_user_message
 
-load_dotenv()
+
 
 app = FastAPI()
 app.include_router(webhook_router)
