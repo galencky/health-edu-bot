@@ -13,28 +13,22 @@ zh_prompt = """You are an AI health education expert helping create plain-text p
 Leave one blank line between each section for readability.
 
 3. Use the following standard sections (modify as needed for the topic):
-[標題]
-# 主題名稱
+[標題] # 主題名稱
 
 [概要]
-# 核心摘要
  - 說明內容...
 
 [詳細說明] 3-5 topics
-# 衛教內容
  - 說明內容...
 
 [常見問答] 3-5 Q&A
-# 常見問題
  - 問：...
  - 答：...
 
 [建議行動] 3-5 suggestions
-# 建議與提醒
  - 說明內容...
 
 [聯絡資訊] A general message to prompt user to contact medical team or hospital since there will be no actual number or contact info.
-# 諮詢單位
  - 說明內容...
 
 4. Emojis are allowed sparingly in section headers (e.g., ⭐⚠️✅📞), but avoid overuse.
@@ -53,7 +47,6 @@ Please revise the original text as instructed, while keeping:
 
 - The same overall formatting structure:
   [分類]
-  # 小標題
    - 條列重點
 - Line spacing and readability
 - Tone, clarity, and full Traditional Chinese
@@ -67,7 +60,6 @@ translate_prompt_template = """You are a medical translation assistant. Please t
 
 Keep the layout intact:
 [Section]
-# Subsection
  - Bullet points
 
 Use plain text only, and ensure the translation is clear, natural, and easy to understand.

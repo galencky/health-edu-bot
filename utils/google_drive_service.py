@@ -1,12 +1,12 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import base64
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from dotenv import load_dotenv
-load_dotenv()
-
 
 DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 if not DRIVE_FOLDER_ID:
