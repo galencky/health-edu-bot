@@ -2,4 +2,4 @@
 !gitignore/.gitkeep
 .env
 .dockerignore
-mededbot.tar
+*.tar
