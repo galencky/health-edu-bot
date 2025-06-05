@@ -14,3 +14,4 @@ chat_commands      = {"chat", "聊天"}
 modify_commands    = {"modify", "修改"}
 translate_commands = {"translate", "翻譯", "trans"}
 mail_commands      = {"mail", "寄送"}
+speak_commands = {"speak", "朗讀"}

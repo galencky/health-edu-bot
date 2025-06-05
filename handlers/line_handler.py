@@ -8,11 +8,11 @@ handlers.logic_handler.
 from __future__ import annotations
 import os
 from linebot import LineBotApi
-from linebot.models import TextSendMessage, FlexSendMessage
+from linebot.models import TextSendMessage, FlexSendMessage, AudioSendMessage
 from handlers.logic_handler   import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.log_to_sheets      import log_to_sheet
-from services.gemini_service  import get_references, references_to_flex
+from services.gemini_service  import get_references, references_to_flexuse 
 
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 
@@ -34,6 +34,14 @@ def handle_line_message(event):
     # Chat mode → always single-bubble reply
     # ──────────────────────────────────────────────────────────────────
     if session.get("mode") == "chat":
+        # if a TTS was just generated, send audio first
+        if session.get("tts_audio_url"):
+            bubbles.append(
+                AudioSendMessage(
+                    original_content_url=session.pop("tts_audio_url"),
+                    duration=session.pop("tts_audio_dur", 0)
+                )
+            )
         bubbles.append(TextSendMessage(text=reply))
 
     # ──────────────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ from __future__ import annotations
 import re
 import dns.resolver
 from typing import Tuple
+from services.tts_service import synthesize
+from utils.command_sets import speak_commands
 
 # ── Gemini helpers ───────────────────────────────────────────────────
 from services.gemini_service import (
@@ -34,6 +36,7 @@ from utils.command_sets import (
     modify_commands,
     translate_commands,
     mail_commands,
+    speak_commands,
 )
 
 # ── Other helpers ────────────────────────────────────────────────────
@@ -98,6 +101,15 @@ def handle_user_message(
 
     # 2. Chat branch -----------------------------------------------------
     if session["mode"] == "chat":
+            # ── NEW: speak ──────────────────────────────────────────────
+        if text_lower in speak_commands:
+            if not session.get("translated_output"):
+                return "⚠️ 尚未有翻譯內容可朗讀，請先輸入要翻譯的文字。", gemini_called
+
+            url, dur = synthesize(session["translated_output"], user_id)
+            session["tts_audio_url"] = url
+            session["tts_audio_dur"] = dur
+            return "🔊 語音檔已生成，正在傳送…", gemini_called
         if text_lower in new_commands:
             _reset_session(session)
             return (

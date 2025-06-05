@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 from routes.webhook import webhook_router
@@ -11,6 +12,13 @@ from handlers.logic_handler import handle_user_message
 
 
 app = FastAPI()
+
+# add BEFORE app.include_router(...)
+if not os.path.exists("tts_audio"):
+    os.makedirs("tts_audio")
+app.mount("/static", StaticFiles(directory="tts_audio"), name="static")
+
+
 app.include_router(webhook_router)
 
 # ── simple test endpoint ----------------------------------------------
