@@ -8,18 +8,17 @@ handlers.logic_handler.
 from __future__ import annotations
 import os
 from linebot import LineBotApi
-from linebot.models import TextSendMessage
+from linebot.models import TextSendMessage, FlexSendMessage
 from handlers.logic_handler   import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.log_to_sheets      import log_to_sheet
+from services.gemini_service  import get_references, references_to_flex
 
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
-
 
 # ── helper: split text into LINE-safe chunks (≤4 000 chars) ───────────
 def _chunks(txt: str, limit: int = 4000) -> list[str]:
     return [txt[i : i + limit] for i in range(0, len(txt), limit)]
-
 
 # ── webhook entrypoint (bound in routes/webhook.py) ───────────────────
 def handle_line_message(event):
@@ -29,7 +28,7 @@ def handle_line_message(event):
 
     reply, gemini_called = handle_user_message(user_id, user_input, session)
 
-    bubbles: list[TextSendMessage] = []
+    bubbles: list = []
 
     # ──────────────────────────────────────────────────────────────────
     # Chat mode → always single-bubble reply
@@ -52,6 +51,12 @@ def handle_line_message(event):
 
             for c in (*zh_chunks, *tr_chunks):
                 bubbles.append(TextSendMessage(text=c))
+
+            # ── Reference bubble (Flex Message), if references exist ──
+            refs = session.get("references") or []
+            flex = references_to_flex(refs)
+            if flex:
+                bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
 
             if len(zh_chunks) + len(tr_chunks) > 3:
                 bubbles.append(TextSendMessage(

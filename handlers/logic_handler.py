@@ -22,6 +22,7 @@ from services.gemini_service import (
     call_translate,
     plainify,
     confirm_translate,
+    get_references,   # <<< added
 )
 from services.prompt_config import modify_prompt
 
@@ -143,6 +144,12 @@ def handle_user_message(
         prompt  = f"User instruction:\n{raw}\n\nOriginal content:\n{session['zh_output']}"
         new_zh  = call_zh(prompt, system_prompt=modify_prompt)
         session.update({"zh_output": new_zh, "awaiting_modify": False})
+        new_refs = get_references()
+        if new_refs:
+            if session.get("references"):
+                session["references"].extend(new_refs)
+            else:
+                session["references"] = new_refs  # <<< added
         return (
             "✅ 已修改中文版內容。\n\n"
             "📌 您目前可：\n"
@@ -182,6 +189,12 @@ def handle_user_message(
             "last_translation_lang": target_lang,
             "last_topic": zh_text.split("\n")[0][:20],
         })
+        new_refs = get_references()
+        if new_refs:
+            if session.get("references"):
+                session["references"].extend(new_refs)
+            else:
+                session["references"] = new_refs  # <<< added
         return (
             f"🌐 翻譯完成（目標語言：{target_lang}）。\n\n"
             "您目前可：\n"
@@ -215,6 +228,12 @@ def handle_user_message(
         gemini_called = True
         zh = call_zh(raw)
         session.update({"zh_output": zh, "last_topic": raw[:30]})
+        new_refs = get_references()
+        if new_refs:
+            if session.get("references"):
+                session["references"].extend(new_refs)
+            else:
+                session["references"] = new_refs      # <<< added
         return (
             "✅ 中文版衛教內容已生成。\n\n"
             "📌 您目前可：\n"
@@ -252,6 +271,7 @@ def _reset_session(session: dict) -> None:
         "awaiting_modify": False,
         "last_topic": None,
         "last_translation_lang": None,
+        "references": None,  # <<< added for clean reset
         # MedChat
         "awaiting_chat_language": False,
         "chat_target_lang": None,

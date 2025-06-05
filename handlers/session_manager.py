@@ -11,6 +11,9 @@ def get_user_session(user_id: str) -> dict:
             "awaiting_translate_language": False,
             "awaiting_email": False,
             "awaiting_modify": False,
+            "last_topic": None,
+            "last_translation_lang": None,
+            "references": None,                # <<< added here
             # MedChat-specific
             "awaiting_chat_language": False,
             "chat_target_lang": None,
