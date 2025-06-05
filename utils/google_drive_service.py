@@ -37,11 +37,9 @@ def upload_gemini_log(user_id, session, message):
         f"Gemini translated_output:\n{session.get('translated_output')}\n"
     )
 
-    # Save to temp file
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
 
-    # Upload to Drive
     drive_service = get_drive_service()
     file_metadata = {
         "name": filename,
@@ -50,7 +48,12 @@ def upload_gemini_log(user_id, session, message):
     media = MediaFileUpload(filename, mimetype="text/plain")
     uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 
+    # ---- FIX: Ensure file is closed before deleting ----
+    if hasattr(media, '_fd') and not media._fd.closed:
+        media._fd.close()
+
     os.remove(filename)
 
     file_id = uploaded_file["id"]
     return f"https://drive.google.com/file/d/{file_id}/view", filename
+

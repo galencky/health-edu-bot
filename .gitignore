@@ -4,3 +4,4 @@
 .dockerignore
 *.tar
 *.pyc
+*.json
