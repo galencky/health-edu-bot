@@ -3,3 +3,4 @@
 .env
 .dockerignore
 *.tar
+*.pyc
