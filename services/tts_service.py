@@ -3,6 +3,7 @@ import os, time, wave
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from utils.tts_log import log_tts_to_drive_and_sheet  # add at top
 
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -17,6 +18,7 @@ def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):
 
 # ── public API ────────────────────────────────────────────────────
 def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, int]:
+    import time
     """
     Returns  (absolute_url , duration_ms)
     The file is saved under  /tts_audio.
@@ -44,4 +46,8 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     dur_ms = int(len(pcm) / (24_000 * 2) * 1000)
     base   = os.getenv("BASE_URL", "https://YOUR_DOMAIN")
     url    = f"{base}/static/{fn}"
+
+    # --- Log in background ---
+    log_tts_to_drive_and_sheet(user_id, text, path, url)
+
     return url, dur_ms
