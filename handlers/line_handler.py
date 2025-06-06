@@ -84,10 +84,13 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             except LineBotApiError:
                 pass
             return
+        
+        # *** HERE: switch into chat mode so TTS works next ***
+        session["mode"] = "chat"
 
         # Build and send the translation reply + TTS hint
         reply_lines = [
-            "🌐 **翻譯結果**：",
+            "🌐 翻譯結果：",
             translated,
             "\n若希望將翻譯文句用 AI 語音朗讀，請輸入「朗讀」或是 \"speak\"。"
         ]
@@ -233,17 +236,17 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     session["awaiting_stt_translation"] = True
 
     reply_lines = [
-        "📣 **原始轉錄**：",
+        "📣 原始轉錄：",
         transcription,
         "",
         "請輸入欲翻譯之語言；若無，請輸入「無」或「new」。"
     ]
-    if drive_link:
-        reply_lines.extend([
-            "",
-            f"🔗 已將語音檔上傳至 Google Drive：",
-            drive_link
-        ])
+    #if drive_link:
+    #    reply_lines.extend([
+    #        "",
+    #        f"🔗 已將語音檔上傳至 Google Drive：",
+    #        drive_link
+    #    ])
 
     try:
         line_bot_api.reply_message(
