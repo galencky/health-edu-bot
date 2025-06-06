@@ -12,7 +12,7 @@ from linebot.models import TextSendMessage, FlexSendMessage, AudioSendMessage
 from handlers.logic_handler   import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.log_to_sheets      import log_to_sheet
-from services.gemini_service  import get_references, references_to_flexuse 
+from services.gemini_service  import get_references, references_to_flex
 
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 
