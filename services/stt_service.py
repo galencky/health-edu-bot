@@ -30,7 +30,7 @@ def transcribe_audio_file(file_path: str) -> str:
     #    According to Gemini docs, "gemini-2.0-flash" (or "gemini-1.5-flash") can handle audio.
     model_name = "gemini-2.0-flash"
 
-    prompt = "Generate a transcript of the speech."
+    prompt = "Generate a transcript of the speech, must transcribe faithfully, with no added or changed context."
 
     try:
         response = _client.models.generate_content(
