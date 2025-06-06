@@ -109,7 +109,7 @@ def handle_user_message(
             url, dur = synthesize(session["translated_output"], user_id)
             session["tts_audio_url"] = url
             session["tts_audio_dur"] = dur
-            return "🔊 語音檔已生成，正在傳送…", gemini_called
+            return "🔊 語音檔已生成", gemini_called
         if text_lower in new_commands:
             _reset_session(session)
             return (
