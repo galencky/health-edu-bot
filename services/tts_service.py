@@ -7,8 +7,9 @@ from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
 
 import os, time, wave
-import google.generativeai as genai
-from google.generativeai import types
+from google import genai
+from google.genai import types
+
 from utils.tts_log import log_tts_to_drive_and_sheet
 
 # Load environment
@@ -16,7 +17,11 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Internal helper: Save raw PCM as WAV
 def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):
-    with wave.open(path, "wb") as wf:
+    """
+    Save PCM bytes as a .wav file at the given path.
+    Ensures path is a string before passing to wave.open.
+    """
+    with wave.open(str(path), "wb") as wf:  # 🔧 Convert Path to str
         wf.setnchannels(ch)
         wf.setsampwidth(sampwidth)
         wf.setframerate(rate)
@@ -26,7 +31,7 @@ def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):
 def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, int]:
     """
     Synthesizes speech using Gemini API.
-    
+
     Returns:
         (audio_url, duration_ms) tuple
     Saves WAV to ./tts_audio and uploads to Google Drive in background.
