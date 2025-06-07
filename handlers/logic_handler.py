@@ -104,19 +104,27 @@ def handle_user_message(
     if session["mode"] == "chat":
             # ── NEW: speak ──────────────────────────────────────────────
         if text_lower in speak_commands:
-            if not session.get("translated_output"):
-                return "⚠️ 尚未有翻譯內容可朗讀，請先輸入要翻譯的文字。", gemini_called
+            # 先找語音翻譯
+            tts_source = session.get("stt_last_translation")
+            # 沒有的話再退回教育翻譯
+            if not tts_source:
+                tts_source = session.get("translated_output")
 
-            url, dur = synthesize(session["translated_output"], user_id)
+            if not tts_source:
+                return "⚠️ 尚未有可朗讀的翻譯內容。", False
+
+            url, dur = synthesize(tts_source, user_id)
             session["tts_audio_url"] = url
             session["tts_audio_dur"] = dur
-            return "🔊 語音檔已生成", gemini_called
+            return "🔊 語音檔已生成", False
+        
         if text_lower in new_commands:
             _reset_session(session)
             return (
-                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n"
+                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
-                "• chat / 聊天 → 醫療即時翻譯 (MedChat)",
+                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n"
+                "📣若要使用語音翻譯功能，請直接使用LINE語音信箱功能並傳至聊天室",
                 gemini_called,
             )
         if text_lower in edu_commands:
@@ -288,4 +296,5 @@ def _reset_session(session: dict) -> None:
         # MedChat
         "awaiting_chat_language": False,
         "chat_target_lang": None,
+        "stt_last_translation": None,
     })

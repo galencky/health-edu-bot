@@ -71,6 +71,8 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         try:
             # Call Gemini with our custom voicemail_prompt
             translated = _call_genai(original_text, sys_prompt=sys_prompt, temp=0)
+            session["stt_last_translation"] = translated          # NEW
+            session["mode"] = "chat"                              # keep this line
         except Exception as e:
             # On failure, clear state and inform user
             session.pop("awaiting_stt_translation", None)

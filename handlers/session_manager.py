@@ -17,5 +17,6 @@ def get_user_session(user_id: str) -> dict:
             # MedChat-specific
             "awaiting_chat_language": False,
             "chat_target_lang": None,
+            "stt_last_translation": None,   # last voice-message translation
         }
     return sessions[user_id]
