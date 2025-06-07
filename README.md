@@ -1,240 +1,201 @@
-# Mededbot – 多語言衛教 AI 聊天機器人
+# MedEdBot – FastAPI + LINE Chatbot with Google Gemini Integration
 
-> 以 **FastAPI + LINE Messaging API + Google Gemini API** 打造的衛教內容生成與即時醫療翻譯服務，部署於 **Render** 免費 Web Service，並透過 **UptimeRobot** 每 5 分鐘喚醒，確保 24 × 7 線上服務。
-
----
-
-## 內容快速導覽
-
-1. [專案簡介](#專案簡介)
-2. [功能特色](#功能特色)
-3. [系統架構](#系統架構)
-4. [快速開始](#快速開始)
-5. [Render 部署指南](#render-部署指南)
-6. [LINE Webhook 設定](#line-webhook-設定)
-7. [環境變數說明](#環境變數說明)
-8. [指令與操作流程](#指令與操作流程)
-9. [常見問題 FAQ](#常見問題-faq)
-10. [授權與聯絡方式](#授權與聯絡方式)
+**Author:** Kuan-Yuan Chen, M.D.  
+**Contact:** galen147258369@gmail.com  
 
 ---
 
-## 專案簡介
+## 🚀 Project Overview
 
-Mededbot 旨在協助醫療人員以繁體中文撰寫結構化衛教單張，並可一鍵翻譯、修改與寄送 Email。另提供 **MedChat** 模式，支援中文→任意語言之即時醫療對話翻譯，加速與外國患者溝通。
+MedEdBot is a multilingual health-education and real-time translation chatbot built with FastAPI, LINE Messaging API, and Google’s Gemini AI models. It supports:
 
-此專案使用：
-
-* **FastAPI**：非同步 Python Web Framework。
-* **LINE Messaging API**：聊天介面與 Webhook。
-* **Google Gemini API**：生成與翻譯大型語言模型（LLM）。
-* **Google Drive / Sheets**：日誌與檔案備份。
-* **Render Free Web Service**：零成本雲端部署。
-* **UptimeRobot**：定時 `/ping` 監測，避免 Render 服務休眠。
-
----
-
-## 功能特色
-
-| 模組                    | 功能概要                                                                 |
-| --------------------- | -------------------------------------------------------------------- |
-| **Education 模式**      | 依「疾病名稱 + 衛教主題」產生條列式衛教單張 → 可 `modify` 調整 → `translate` 翻譯 → `mail` 寄送 |
-| **MedChat 模式**        | 將口語中文平易化後翻譯至指定語言，並附 "Do you understand?" 確認句                         |
-| **Google Sheets Log** | 將用戶輸入、Gemini 結果、動作類型寫入試算表                                            |
-| **Google Drive 備份**   | 生成之全文 .txt 以 HYPERLINK 形式儲存雲端                                        |
-| **Email 寄送**          | 透過 Gmail SMTP，附免責聲明郵寄衛教內容                                            |
-| **Session 管理**        | 以 in‑memory dict 追蹤對話狀態、模式、產出                                        |
+- **Health Education Sheets (“衛教”)**  
+  Generate structured Traditional Chinese patient-education sheets (「衛教單張」), edit, translate into various languages, and email or deliver via LINE.
+- **MedChat Translation**  
+  Real-time conversational translation between Chinese and a user-selected language, with optional AI-generated text-to-speech.
+- **Voicemail Transcription & Translation**  
+  Upload LINE voice messages, transcribe via Gemini STT, then translate on demand.
+- **Text-to-Speech (TTS)**  
+  AI-generated TTS audio delivered in-chat or logged to Google Drive & Sheets.
+- **Logging & Analytics**  
+  All interactions (text, audio, Gemini logs) are archived to Google Drive and Google Sheets for audit and analysis.
 
 ---
 
-## 系統架構
+## 📂 Repository Structure
 
-### 流程概述
+~~~
 
-```
-LINE User → LINE Webhook → FastAPI /webhook → handlers.line_handler
-              │                                 │
-              │                                 └─> handlers.logic_handler ↔ Gemini API
-              │                                                     │
-              │                                   Google Drive / Google Sheets
-              └── /ping (UptimeRobot)
-```
-
-### 專案目錄結構
-
-```
 .
-├── main.py                # 入口點 + /ping /chat 測試端點
+├── main.py                   # FastAPI app entrypoint
 ├── routes/
-│   └── webhook.py         # 綁定 LINE WebhookHandler
+│   └── webhook.py            # LINE webhook endpoint & handlers registration
 ├── handlers/
-│   ├── line_handler.py    # LINE 訊息分段、回覆
-│   ├── logic_handler.py   # 核心指令解析
-│   ├── medchat_handler.py # 即時翻譯流程
-│   ├── mail_handler.py    # Gmail 寄送
-│   └── session_manager.py # 使用者 Session
+│   ├── line\_handler.py       # LINE event handlers (text & audio)
+│   ├── logic\_handler.py      # Core dispatcher for modes & commands
+│   ├── session\_manager.py    # In-memory session store per user
+│   ├── medchat\_handler.py    # Real-time chat translation logic
+│   └── mail\_handler.py       # Email sending logic for health-education sheets
 ├── services/
-│   ├── gemini_service.py  # Gemini 呼叫封裝
-│   └── prompt_config.py   # 系統 / 修改 / 翻譯 Prompt
-└── utils/
-    ├── command_sets.py    # 指令字集合
-    ├── email_service.py   # SMTP 寄信
-    ├── google_drive_service.py
-    ├── google_sheets.py
-    └── log_to_sheets.py   # 寫入試算表 + 上傳 Drive
-```
+│   ├── gemini\_service.py     # Wrapper for Google Gemini API calls
+│   ├── prompt\_config.py      # System prompts & templates
+│   ├── stt\_service.py        # Gemini-based speech-to-text
+│   └── tts\_service.py        # Gemini-based text-to-speech
+├── utils/
+│   ├── command\_sets.py       # Recognized command keywords
+│   ├── email\_service.py      # SMTP email helper
+│   ├── google\_drive\_service.py  # Google Drive upload helper
+│   ├── google\_sheets.py      # Google Sheets helper
+│   ├── log\_to\_sheets.py      # Append interaction logs to Sheets
+│   ├── tts\_log.py            # Background TTS Drive & Sheets logger
+│   └── voicemail\_drive.py    # Upload voicemail files to Drive
+├── tts\_audio/                # Local storage for generated WAV files
+├── voicemail/                # Downloaded LINE voice-message files
+├── .env                      # Environment variables (not in repo)
+└── requirements.txt          # Python dependencies
+
+~~~
 
 ---
 
-## 快速開始
+## 🔧 Prerequisites
 
-### 系統需求
-
-* Python ≥ 3.11
-* pip / venv / poetry (擇一)
-
-### 1. 下載與安裝
-
-```bash
-# 取得程式碼
-$ git clone https://github.com/<your‑repo>/mededbot.git
-$ cd mededbot
-
-# 安裝依賴
-$ pip install -r requirements.txt
-```
-
-### 2. 設定環境變數
-
-> 詳細定義請見下節「[環境變數說明](#環境變數說明)」。在本機可於根目錄建立 **.env** 檔：
-
-```dotenv
-LINE_CHANNEL_ACCESS_TOKEN=...  # LINE Bot Token
-LINE_CHANNEL_SECRET=...
-GEMINI_API_KEY=...
-GMAIL_ADDRESS=your@gmail.com
-GMAIL_APP_PASSWORD=your_app_pass
-GOOGLE_CREDS_B64=<base64_JSON>
-GOOGLE_DRIVE_FOLDER_ID=...
-```
-
-### 3. 啟動開發伺服器
-
-```bash
-$ python main.py
-# 或
-$ uvicorn main:app --reload --host 0.0.0.0 --port 10000
-```
-
-### 4. 測試
-
-* 瀏覽 `http://localhost:10000/`       → 健康檢查
-* `POST /chat` with JSON `{"message":"new"}` → 測試端點
+- Python 3.9+  
+- A LINE Messaging API channel (access token & secret)  
+- Google Cloud Service Account JSON (base64-encoded in `GOOGLE_CREDS_B64`)  
+- Gmail account & app-specific password  
+- Google Drive folder ID for logs & audio  
+- A publicly accessible `BASE_URL` pointing to your server (for TTS audio URLs)  
 
 ---
 
-## Render 部署指南
+## ⚙️ Configuration
 
-### 1. 建立 Web Service
+Create a `.env` file in project root with the following variables:
 
-1. 登入 [Render](https://render.com/) → **New +** → **Web Service**。
-2. 連結 GitHub 倉庫，分支選擇 **main**。
+~~~
+-LINE
+LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
+LINE_CHANNEL_SECRET=your_line_channel_secret
 
-### 2. Build 與 Start 指令
+-Gemini API
+GEMINI_API_KEY=your_google_gemini_api_key
 
-| 欄位            | 指令                                             |
-| ------------- | ---------------------------------------------- |
-| Build Command | `pip install -r requirements.txt`              |
-| Start Command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
+-SMTP Email (Gmail)
+GMAIL_ADDRESS=your_email@gmail.com
+GMAIL_APP_PASSWORD=your_app_password
 
-### 3. 環境變數
+-Google Drive & Sheets
+GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id
+GOOGLE_CREDS_B64=base64_encoded_service_account_json
 
-於 Render 介面 **Environment → Add Environment Variable**，填入與本機相同之變數。
-
-### 4. 免費方案睡眠 & UptimeRobot
-
-* Render 免費方案若 15 分鐘無流量即休眠，首次喚醒需 \~30 秒。
-* 於 [UptimeRobot](https://uptimerobot.com/) 新增 **HTTP(s) Monitor**：
-
-  * **URL**：`https://<your‑render‑service>.onrender.com/ping`
-  * **Interval**：5 分鐘。
-* UptimeRobot 會定期 GET `/ping`，保持服務常駐。
-
-> **注意**：Render 官方允許低頻率健康檢查；設定過高 (≤1 min) 可能違反 TOS。
+-Server URL (for TTS)
+BASE_URL=https://your.domain.com
+~~~
 
 ---
 
-## LINE Webhook 設定
+## 📥 Installation
 
-1. 於 LINE Developers Console 建立 **Messaging API Channel**。
-2. 將 **Webhook URL** 設為：
+1. Clone the repository:
 
-```
-https://<your‑render‑service>.onrender.com/webhook
-```
+   ~~~
+   git clone https://github.com/your-org/mededbot.git
+   cd mededbot
+   ~~~
 
-3. 啟用 Webhook、發佈 Bot。
-4. 把 `LINE_CHANNEL_ACCESS_TOKEN`、`LINE_CHANNEL_SECRET` 放入 Render 變數。
+2. Install dependencies:
 
----
+   ~~~
+   pip install -r requirements.txt
+   ~~~
 
-## 環境變數說明
-
-| 變數                          | 說明                                    | 必要 |
-| --------------------------- | ------------------------------------- | -- |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Bot Long‑Lived Token             | ✅  |
-| `LINE_CHANNEL_SECRET`       | LINE Channel Secret                   | ✅  |
-| `GEMINI_API_KEY`            | Google Gemini API Key                 | ✅  |
-| `GMAIL_ADDRESS`             | Gmail 寄信帳號                            | ✅  |
-| `GMAIL_APP_PASSWORD`        | Gmail 應用程式密碼                          | ✅  |
-| `GOOGLE_CREDS_B64`          | 以 Base64 編碼之 GCP Service Account JSON | ✅  |
-| `GOOGLE_DRIVE_FOLDER_ID`    | Drive 資料夾 ID，用於上傳 .txt                | ✅  |
+3. Create and populate your `.env` (see above).
 
 ---
 
-## 指令與操作流程
+## 🏃 Running Locally
 
-| 階段            | 指令/訊息              | 機器人回應                  |
-| ------------- | ------------------ | ---------------------- |
-| **開始**        | `new` / `開始`       | 初始化，要求選擇 `ed` 或 `chat` |
-| **選擇模式**      | `ed` / `衛教`        | 進入 Education 模式        |
-|               | `chat` / `聊天`      | 進入 MedChat 模式          |
-| **Education** | 輸入 `疾病 + 主題`       | 產生中文版衛教單張              |
-|               | `modify` / `修改`    | 進入修改 → 提供修改指示          |
-|               | `translate` / `翻譯` | 指定語言 → 產生譯文            |
-|               | `mail` / `寄送`      | 輸入 Email → Gmail 寄送    |
-| **MedChat**   | 未設定語言時輸入目標語言       | 例如 `英文` → 設定成功         |
-|               | 任意中文訊息             | 回傳平易化中文 + 目標語言翻譯       |
+~~~
+uvicorn main:app --host 0.0.0.0 --port 10000 --reload
+~~~
 
----
+* **Static TTS audio** will be served at `http://localhost:10000/static/<filename>.wav`.
+* **LINE webhook endpoint**: `POST /webhook`
+* **Test chat endpoint**: `POST /chat`
 
-## 常見問題 FAQ
-
-**Q1 › API 呼叫延遲多久？**
-
-* 衛教模式（ed）平均約 **15 秒**。
-* 聊天模式（chat）平均約 **25 秒**。（Gemini 需雙向處理：簡化＋翻譯）
-
-**Q2 › 機器人使用了哪些提示詞（prompts）？**
-
-* `zh_prompt`：生成繁體中文衛教內容。
-* `translate_prompt_template`：進行跨語言翻譯並保留版面。
-* `modify_prompt`：依使用者指示微調衛教文字。
-* `plainify_prompt`：將口語或混雜醫學縮寫整理成平易近人的中文。
-* `confirm_translate_prompt`：產出目標語言翻譯並回覆「是否理解？」短句。
-
-> 以上提示詞均位於 `services/prompt_config.py`，可自行客製化。
-
-**Q3 › UptimeRobot Ping 是否違規？** — Render 官方文件允許「適度」健康檢查，5 分鐘以上屬安全區間。
-
-**Q4 › 如何替換 SMTP？** — 修改 `utils/email_service.py`，支援 SendGrid / SES 等。
+~~~
+  { "message": "你好" }
+~~~
 
 ---
 
-## 授權與聯絡方式
+## 📍 API Endpoints
 
-* **License**：MIT
-* **Maintainer**：陳冠元 ([galen147258369@gmail.com](mailto:galen147258369@gmail.com))
+| Path       | Method   | Description                                |
+| ---------- | -------- | ------------------------------------------ |
+| `/`        | GET      | Health check & list of available endpoints |
+| `/ping`    | GET/HEAD | Simple JSON status `"ok"`                  |
+| `/chat`    | POST     | Simple testing endpoint (bypasses LINE)    |
+| `/webhook` | POST     | LINE webhook for text & audio events       |
 
-歡迎提供建議、合作邀約或回饋意見！
-For suggestions, collaboration, or feedback — feel free to reach out!
+---
+
+## 💬 Usage & Commands
+
+1. **Start a new session**
+   Send `new` or `開始`
+2. **Choose mode**
+
+   * Enter `ed` / `education` / `衛教` → Health-education sheet
+   * Enter `chat` / `聊天` → Real-time MedChat
+3. **In “衛教” mode**
+
+   * Send `<疾病名稱> <衛教主題>` → Generate Chinese sheet
+   * `modify` / `修改` → Edit generated sheet
+   * `translate` / `翻譯` → Translate to your target language
+   * `mail` / `寄送` → Email the content
+   * `speak` / `朗讀` → (Only after translation) Generate TTS
+4. **In “聊天” mode**
+
+   * First send target language (e.g. `英文`)
+   * Then send any text → Gemini will plainify & translate
+   * `speak` / `朗讀` → Generate TTS of last translation
+5. **Voicemail**
+
+   * Send an audio message → Bot replies with transcription
+   * Reply with `<lang>` or `new`/`無` → Bot translates or cancels
+
+---
+
+## 🔍 Logging & Auditing
+
+* **Text logs** are uploaded as `.txt` files to Google Drive and linked in Google Sheets (`ChatbotLogs`).
+* **TTS audio** files are saved locally under `tts_audio/`, uploaded to Drive, and logged in `TTSLogs` sheet.
+* **Voicemail uploads** are stored under `voicemail/` and backed up to Drive.
+
+---
+
+## 🛠️ Extending & Customizing
+
+* **Prompts**
+  Modify system prompts in `services/prompt_config.py` to tailor GPT behavior.
+* **Commands**
+  Edit `utils/command_sets.py` to add synonyms or new commands.
+* **Session Storage**
+  Replace in-memory `handlers/session_manager.py` with Redis or database for persistence.
+* **Deployment**
+  Containerize with Docker, expose `/static` and `/webhook` via HTTPS, and configure LINE webhook URL accordingly.
+
+---
+
+## 📜 License
+
+This project is released under the MIT License.
+
+---
+
+*Thank you for using MedEdBot!*
+— Kuan-Yuan Chen, M.D. (陳冠元 醫師)
+[galen147258369@gmail.com](mailto:galen147258369@gmail.com)
+
