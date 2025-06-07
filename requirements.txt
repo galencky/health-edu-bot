@@ -4,6 +4,8 @@ python-dotenv            # load .env vars
 line-bot-sdk             # LINE messaging SDK
 google-genai             # Google Gen AI SDK for Gemini & TTS :contentReference[oaicite:0]{index=0}
 google-api-python-client # Google Drive / Sheets API
+google-auth
+google-auth-oauthlib
 oauth2client             # service-account creds
 gspread                  # Google Sheets wrapper
 beautifulsoup4           # HTML parsing
