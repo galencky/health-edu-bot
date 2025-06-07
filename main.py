@@ -8,15 +8,14 @@ import os
 from routes.webhook import webhook_router
 from handlers.session_manager import get_user_session
 from handlers.logic_handler import handle_user_message
+from utils.paths import TTS_AUDIO_DIR
 
 
 
 app = FastAPI()
 
-# add BEFORE app.include_router(...)
-if not os.path.exists("tts_audio"):
-    os.makedirs("tts_audio")
-app.mount("/static", StaticFiles(directory="tts_audio"), name="static")
+# Add BEFORE app.include_router(...)
+app.mount("/static", StaticFiles(directory=str(TTS_AUDIO_DIR)), name="static")
 
 
 app.include_router(webhook_router)

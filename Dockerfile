@@ -1,24 +1,32 @@
+# ── Base image ────────────────────────────────────────────────────────
 FROM python:3.10-slim
 
-WORKDIR /mededbot
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install only the runtime TLS stack, then clean up apt cache
-RUN apt-get update \
- && apt-get install --no-install-recommends -y \
-      ca-certificates \
-      openssl \
- && update-ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+# ── System deps ──────────────────────────────────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy in your test script & deps list
-COPY requirements.txt ./
+# ── Non-root user ────────────────────────────────────────────────────
+RUN useradd --create-home mededbot
 
-# Install Python deps
-RUN pip install --no-cache-dir -r requirements.txt
+# ── Working dir (matches your host folder name) ──────────────────────
+WORKDIR /docker/mededbot-v4/app
+USER mededbot
 
-# Copy the rest of your application
-COPY . .
+# ── Python deps ──────────────────────────────────────────────────────
+COPY --chown=mededbot:mededbot requirements.txt .
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir google-genai \
+ && pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 10000
+# ── App code ─────────────────────────────────────────────────────────
+COPY --chown=mededbot:mededbot . .
 
-CMD ["uvicorn","main:app","--host","0.0.0.0","--port","10000"]
+# ── Writable dirs for audio files ────────────────────────────────────
+RUN mkdir -p tts_audio voicemail
+
+# ── Expose & launch on 10001 ─────────────────────────────────────────
+EXPOSE 10001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10001"]

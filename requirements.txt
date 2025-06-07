@@ -1,13 +1,10 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-line-bot-sdk
-google-generativeai
-gspread
-oauth2client
-google-api-python-client
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-dnspython
-bs4
+fastapi                  # web framework
+uvicorn[standard]        # ASGI server
+python-dotenv            # load .env vars
+line-bot-sdk             # LINE messaging SDK
+google-genai             # Google Gen AI SDK for Gemini & TTS :contentReference[oaicite:0]{index=0}
+google-api-python-client # Google Drive / Sheets API
+oauth2client             # service-account creds
+gspread                  # Google Sheets wrapper
+beautifulsoup4           # HTML parsing
+dnspython                # DNS lookups

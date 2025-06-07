@@ -19,6 +19,7 @@ from utils.log_to_sheets import log_to_sheet
 from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
 from utils.voicemail_drive import upload_voicemail_to_drive
+from utils.paths import VOICEMAIL_DIR
 
 # -----------------------------------------------
 # Custom prompt for voicemail translation
@@ -217,7 +218,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         return
 
     # 2. Save locally under ./voicemail/
-    save_dir = Path("voicemail")
+    save_dir = VOICEMAIL_DIR
     save_dir.mkdir(exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     local_filename = save_dir / f"{user_id}_{timestamp}.m4a"

@@ -7,6 +7,7 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from utils.paths import CREDS_PATH
 
 DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 if not DRIVE_FOLDER_ID:
@@ -14,15 +15,15 @@ if not DRIVE_FOLDER_ID:
 
 # Setup Google Drive client
 def get_drive_service():
-    if not os.path.exists("credentials.json"):
+    if not os.path.exists(str(CREDS_PATH)):
         creds_b64 = os.getenv("GOOGLE_CREDS_B64")
         if creds_b64:
-            with open("credentials.json", "wb") as f:
+            with open(str(CREDS_PATH), "wb") as f:
                 f.write(base64.b64decode(creds_b64))
         else:
             raise ValueError("Missing GOOGLE_CREDS_B64 environment variable")
 
-    creds = Credentials.from_service_account_file("credentials.json", scopes=["https://www.googleapis.com/auth/drive"])
+    creds = Credentials.from_service_account_file(str(CREDS_PATH), scopes=["https://www.googleapis.com/auth/drive"])
     return build("drive", "v3", credentials=creds)
 
 # Upload .txt Gemini log to Google Drive

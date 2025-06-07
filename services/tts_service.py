@@ -1,5 +1,8 @@
 # === File: services/tts_service.py ===
 
+from pathlib import Path
+from utils.paths import TTS_AUDIO_DIR
+
 from __future__ import annotations
 import os, time, wave
 from dotenv import load_dotenv
@@ -30,7 +33,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     """
     ts   = time.strftime("%Y%m%d_%H%M%S")
     fn   = f"{user_id}_{ts}.wav"
-    path = os.path.join("tts_audio", fn)
+    path = TTS_AUDIO_DIR / fn
 
     # Generate audio using Gemini
     resp = client.models.generate_content(

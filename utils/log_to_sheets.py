@@ -4,13 +4,14 @@ import base64
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from utils.google_drive_service import upload_gemini_log
+from utils.paths import CREDS_PATH
 
 # Setup Google Sheets
 def get_sheet():
-    if not os.path.exists("credentials.json"):
+    if not os.path.exists(str(CREDS_PATH)):
         creds_b64 = os.getenv("GOOGLE_CREDS_B64")
         if creds_b64:
-            with open("credentials.json", "wb") as f:
+            with open(str(CREDS_PATH), "wb") as f:
                 f.write(base64.b64decode(creds_b64))
         else:
             raise ValueError("Missing GOOGLE_CREDS_B64 in environment")
@@ -19,7 +20,7 @@ def get_sheet():
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(str(CREDS_PATH), scope)
     client = gspread.authorize(creds)
     return client.open("ChatbotLogs").sheet1
 
