@@ -22,7 +22,9 @@ def get_sheet():
     ]
     creds = ServiceAccountCredentials.from_json_keyfile_name(str(CREDS_PATH), scope)
     client = gspread.authorize(creds)
-    return client.open("ChatbotLogs").sheet1
+
+    sheet_name = os.getenv("GOOGLE_CHAT_SHEET_NAME", "ChatLogs")  # 👈 customizable
+    return client.open("ChatbotLogs").worksheet(sheet_name)
 
 # Log to sheet
 def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call=None):
@@ -41,7 +43,7 @@ def log_to_sheet(user_id, message, reply, session, action_type=None, gemini_call
         reply[:200],
         action_type,
         gemini_call_val,
-        gemini_output  # ✅ now a single unified output column
+        gemini_output
     ]
 
     sheet = get_sheet()

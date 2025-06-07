@@ -2,7 +2,7 @@ fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-dotenv==1.0.1
 line-bot-sdk==3.9.0
-google-generativeai==0.8.5
+google-genai
 google-api-python-client==2.121.0
 google-auth==2.29.0
 google-auth-oauthlib==1.2.0

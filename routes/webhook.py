@@ -14,8 +14,12 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 async def webhook(request: Request, x_line_signature: str = Header(None)):
     body = await request.body()
     try:
-        handler.handle(body.decode(), x_line_signature)
+        body_str = body.decode()
+        print("[WEBHOOK] Raw body:", body_str)
+        print("[WEBHOOK] Signature:", x_line_signature)
+        handler.handle(body_str, x_line_signature)
     except Exception as e:
+        print("[WEBHOOK] Exception:", traceback.format_exc())
         raise HTTPException(400, str(e))
     return "OK"
 
