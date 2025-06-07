@@ -59,37 +59,55 @@ def handle_user_message(
     session: dict,
 ) -> Tuple[str, bool]:
     """
-    Route a single incoming message and update `session` in-place.
-
-    Parameters
-    ----------
-    user_id : str
-    text    : str
-    session : dict
-
-    Returns
-    -------
-    reply_text : str
-    gemini_called : bool
+    Central dispatcher for both Education and MedChat branches.
+    Returns (reply_text, gemini_called)
     """
     gemini_called = False
     raw           = text.strip()
     text_lower    = raw.lower()
 
-    # 0. NEW conversation ------------------------------------------------
+    # ──────────────────────────────────────────────────────────────
+    # 0. Global “speak / 朗讀” handler  (works in any mode once started)
+    # ──────────────────────────────────────────────────────────────
+    if session.get("started") and text_lower in speak_commands:
+
+        # 🚫  Block in Education mode
+        if session.get("mode") == "edu":
+            return (
+                "⚠️ 目前在『衛教』模式，無法語音朗讀。\n"
+                "若要使用語音功能請先輸入 new 重新開始。",
+                False,
+            )
+
+        tts_source = session.get("stt_last_translation") \
+                  or session.get("translated_output")
+        if not tts_source:
+            return "⚠️ 尚未有可朗讀的翻譯內容。", False
+
+        url, dur = synthesize(tts_source, user_id)
+        session["tts_audio_url"] = url
+        session["tts_audio_dur"] = dur
+        session.pop("stt_last_translation", None)   # avoid memory leak
+        return "🔊 語音檔已生成", False
+
+    # ──────────────────────────────────────────────────────────────
+    # 1. First message guard (“new” required)
+    # ──────────────────────────────────────────────────────────────
     if not session.get("started"):
         if text_lower in new_commands:
             _reset_session(session)
             return (
-                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n"
+                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
-                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n"
-                "• 📣若要使用語音翻譯功能，請直接使用LINE語音信箱功能並傳至聊天室",
+                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
+                "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
                 gemini_called,
             )
         return "⚠️ 請先輸入 new / 開始 啟動對話。", gemini_called
 
-    # 1. Mode selection --------------------------------------------------
+    # ──────────────────────────────────────────────────────────────
+    # 2. Mode selection (after “new”)
+    # ──────────────────────────────────────────────────────────────
     if session.get("mode") is None:
         if text_lower in edu_commands:
             session["mode"] = "edu"
@@ -100,33 +118,22 @@ def handle_user_message(
             return "🌐 請輸入欲翻譯到的語言，例如：英文、日文…", gemini_called
         return "⚠️ 未辨識模式，請輸入 ed 或 chat。", gemini_called
 
-    # 2. Chat branch -----------------------------------------------------
+    # ──────────────────────────────────────────────────────────────
+    # 3. Chat branch  (MED-CHAT)
+    # ──────────────────────────────────────────────────────────────
     if session["mode"] == "chat":
-            # ── NEW: speak ──────────────────────────────────────────────
-        if text_lower in speak_commands:
-            # 先找語音翻譯
-            tts_source = session.get("stt_last_translation")
-            # 沒有的話再退回教育翻譯
-            if not tts_source:
-                tts_source = session.get("translated_output")
 
-            if not tts_source:
-                return "⚠️ 尚未有可朗讀的翻譯內容。", False
-
-            url, dur = synthesize(tts_source, user_id)
-            session["tts_audio_url"] = url
-            session["tts_audio_dur"] = dur
-            return "🔊 語音檔已生成", False
-        
+        # “new” while chatting
         if text_lower in new_commands:
             _reset_session(session)
             return (
                 "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
-                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n"
-                "📣若要使用語音翻譯功能，請直接使用LINE語音信箱功能並傳至聊天室",
+                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
+                "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
                 gemini_called,
             )
+
         if text_lower in edu_commands:
             return "⚠️ 目前在『聊天』模式。如要切換到衛教請先輸入 new。", gemini_called
 
@@ -152,12 +159,12 @@ def handle_user_message(
     if is_new:
         _reset_session(session)
         return (
-            "🆕 已重新開始。\n"
-            "請輸入以下其一以選擇模式：\n"
-            "• ed / education / 衛教 → 產生衛教單張\n"
-            "• chat / 聊天 → 醫療即時翻譯 (MedChat)",
-            gemini_called,
-        )
+                "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
+                "• ed / education / 衛教 → 產生衛教單張\n"
+                "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
+                "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
+                gemini_called,
+            )
 
     # --- awaiting modified content -------------------------------------
     if session.get("awaiting_modify"):
@@ -278,11 +285,11 @@ def handle_user_message(
 
 # ── session reset helper ─────────────────────────────────────────────
 def _reset_session(session: dict) -> None:
-    """Re-initialize the conversation state."""
     session.clear()
     session.update({
         "started": True,
         "mode": None,
+
         # Education
         "zh_output": None,
         "translated_output": None,
@@ -292,9 +299,20 @@ def _reset_session(session: dict) -> None:
         "awaiting_modify": False,
         "last_topic": None,
         "last_translation_lang": None,
-        "references": None,  # <<< added for clean reset
+        "references": None,
+
         # MedChat
         "awaiting_chat_language": False,
         "chat_target_lang": None,
+
+        # STT / TTS
+        "awaiting_stt_translation": False,
+        "stt_transcription": None,
         "stt_last_translation": None,
+        "tts_audio_url": None,
+        "tts_audio_dur": 0,
+        "tts_queue": [],
+
+        # misc
+        "_prev_mode": None,
     })

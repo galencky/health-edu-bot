@@ -43,6 +43,18 @@ def handle_line_message(event: MessageEvent[TextMessage]):
     user_input = event.message.text.strip()
     session    = get_user_session(user_id)
 
+    # ------------------------------------------------------------------
+    # Always flush any queued TTS audio FIRST (works in edu *and* chat)
+    # ------------------------------------------------------------------
+    bubbles: list = []
+    if session.get("tts_audio_url"):
+        bubbles.append(
+            AudioSendMessage(
+                original_content_url=session.pop("tts_audio_url"),
+                duration=session.pop("tts_audio_dur", 0)
+            )
+        )
+
     # ───────────────────────────────────────────────────────────────────
     # 1) STT‐translation branch: check this first, before any other logic
     # ───────────────────────────────────────────────────────────────────
@@ -89,6 +101,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         
         # *** HERE: switch into chat mode so TTS works next ***
         session["mode"] = "chat"
+        session["started"] = True   
 
         # Build and send the translation reply + TTS hint
         reply_lines = [
@@ -114,7 +127,6 @@ def handle_line_message(event: MessageEvent[TextMessage]):
     # 2) Normal bot flow (no STT‐translation in progress)
     # ───────────────────────────────────────────────────────────────────
     reply, gemini_called = handle_user_message(user_id, user_input, session)
-    bubbles: list = []
 
     if session.get("mode") == "chat":
         # If TTS audio is queued, send it first
@@ -181,6 +193,19 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     message_id  = event.message.id
     session     = get_user_session(user_id)
 
+    # 🚫  Block audio uploads while editing Education sheets
+    if session.get("mode") == "edu":
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text=(
+                    "⚠️ 目前在『衛教』模式，無法使用語音翻譯。\n"
+                    "若要啟用語音功能，請先輸入 new 開啟新聊天。"
+                )
+            )
+        )
+        return
+
     # 1. Download the raw audio from LINE
     try:
         message_content = line_bot_api.get_message_content(message_id)
@@ -236,6 +261,9 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     # 5. Store transcription & set flag, then send prompt
     session["stt_transcription"] = transcription
     session["awaiting_stt_translation"] = True
+    session["started"]                 = True          # NEW: fixes “speak”-first bug
+    session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt
+    session["_prev_mode"] = session.get("mode") or "edu"  # remember current mode
 
     reply_lines = [
         "📣 原始轉錄：",
