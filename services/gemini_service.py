@@ -1,12 +1,14 @@
-import os
 from dotenv import load_dotenv
+load_dotenv()
+
+import os
 from google import genai
 from google.genai import types
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
 
 # ---- Load API key from .env ----
-load_dotenv()
+
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("❌ GEMINI_API_KEY not found in .env")

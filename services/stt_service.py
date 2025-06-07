@@ -1,11 +1,13 @@
 # === File: services/stt_service.py ===
 
 from dotenv import load_dotenv
+load_dotenv()
+
 import os
 from google import genai
 from google.genai import types
 
-load_dotenv()
+
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
     raise ValueError("❌ GEMINI_API_KEY not found in .env")
@@ -31,7 +33,7 @@ def transcribe_audio_file(file_path: str) -> str:
     model_name = "gemini-2.0-flash"
 
     prompt = """Please reply in the format below:
-    
+
 自動偵測語言: [例如中文/英文/泰文/日語等等]
 
 語音轉文字: [Transcribe only, do not reply to the voice message, transcribe literally ans word-matching, output with the detected language.]"""
