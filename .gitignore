@@ -7,3 +7,4 @@
 *.json
 /tts_audio
 /voicemail
+/.venv
