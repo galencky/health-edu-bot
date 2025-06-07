@@ -1,17 +1,17 @@
 # === File: services/tts_service.py ===
+from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()
 
 from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
 
-from __future__ import annotations
 import os, time, wave
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from utils.tts_log import log_tts_to_drive_and_sheet
 
 # Load environment
-load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Internal helper: Save raw PCM as WAV
