@@ -2,8 +2,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
 

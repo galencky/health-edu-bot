@@ -7,8 +7,8 @@ from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
 
 import os, time, wave
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 from utils.tts_log import log_tts_to_drive_and_sheet
 
 # Load environment
