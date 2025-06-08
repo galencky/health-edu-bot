@@ -74,7 +74,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         # Generate audio using Gemini
         # BUG FIX: Use the correct Gemini 2.5 Flash Preview TTS model name from documentation
         tts_model = "gemini-2.5-flash-preview-tts"  # Dedicated TTS model
-        print(f"[TTS DEBUG] Using model: {tts_model}, Voice: {voice_name}")
+        #print(f"[TTS DEBUG] Using model: {tts_model}, Voice: {voice_name}")
         
         resp = client.models.generate_content(
             model=tts_model,
