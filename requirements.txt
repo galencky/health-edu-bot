@@ -17,7 +17,7 @@ oauth2client==4.1.3
 # --- other top-level imports in the code ------------------------------
 dnspython==2.6.1           # MX-record check
 beautifulsoup4==4.12.3     # extract Gemini grounding references
-pydub==0.25.1              # audio helpers (if you drop pydub, delete its import)
+# pydub==0.25.1            # REMOVED - not used in codebase
 
 # ----------------------------------------------------------------------
 # Everything below is pulled in automatically by the libraries above
