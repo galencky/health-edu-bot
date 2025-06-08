@@ -4,9 +4,15 @@ load_dotenv()
 import os
 from google import genai
 from google.genai import types
+import asyncio
+from concurrent.futures import TimeoutError
 
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
+
+# BUG FIX: Add timeout configuration for API calls
+# Previously: No timeout, requests could hang indefinitely
+API_TIMEOUT_SECONDS = 30  # 30 second timeout for Gemini API calls
 
 # ---- Load API key from .env ----
 
@@ -26,6 +32,7 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
     """
     Internal function to call Gemini, store response for reference extraction.
     Returns only the answer string.
+    BUG FIX: Added timeout to prevent hanging requests
     """
     global _last_response
     contents = [
@@ -46,11 +53,25 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
     generate_content_config.system_instruction = [
         part for part in generate_content_config.system_instruction if part is not None
     ]
-    _last_response = _client.models.generate_content(
-        model=_model,
-        contents=contents,
-        config=generate_content_config,
-    )
+    
+    # BUG FIX: Wrap API call with timeout
+    # Previously: Could hang indefinitely
+    try:
+        # For synchronous code, we use thread executor with timeout
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                _client.models.generate_content,
+                model=_model,
+                contents=contents,
+                config=generate_content_config,
+            )
+            _last_response = future.result(timeout=API_TIMEOUT_SECONDS)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError(f"Gemini API call timed out after {API_TIMEOUT_SECONDS} seconds")
+    except Exception as e:
+        raise Exception(f"Gemini API error: {str(e)}")
+    
     # Standard output: answer as text string
     return _last_response.candidates[0].content.parts[0].text if _last_response.candidates[0].content.parts else ""
 

@@ -83,11 +83,17 @@ def handle_user_message(
         if not tts_source:
             return "⚠️ 尚未有可朗讀的翻譯內容。", False
 
-        url, dur = synthesize(tts_source, user_id)
-        session["tts_audio_url"] = url
-        session["tts_audio_dur"] = dur
-        session.pop("stt_last_translation", None)   # avoid memory leak
-        return "🔊 語音檔已生成", False
+        # BUG FIX: Add error handling for TTS synthesis failures
+        # Previously: Uncaught exceptions crashed the webhook
+        try:
+            url, dur = synthesize(tts_source, user_id)
+            session["tts_audio_url"] = url
+            session["tts_audio_dur"] = dur
+            session.pop("stt_last_translation", None)   # avoid memory leak
+            return "🔊 語音檔已生成", False
+        except Exception as e:
+            print(f"[TTS ERROR] Failed to synthesize audio: {e}")
+            return "⚠️ 語音合成失敗，請稍後再試。", False
 
     # ──────────────────────────────────────────────────────────────
     # 1. First message guard (“new” required)
@@ -246,16 +252,40 @@ def handle_user_message(
         return "📧 請輸入您要寄送至的 email 地址：", gemini_called
 
     if session.get("awaiting_email"):
-        email_pattern = r"^[^@]+@[^@]+\.[^@]+$"
-        if re.fullmatch(email_pattern, raw):
-            domain = raw.split("@")[1]
-            if not _has_mx_record(domain):
-                return "⚠️ 此 email 網域無法接收郵件，請重新確認。", gemini_called
-            session["awaiting_email"] = False
-            if send_last_txt_email(user_id, raw, session):
-                return f"✅ 已成功寄出衛教內容至 {raw}", gemini_called
-            return "⚠️ 寄送失敗，請稍後再試。", gemini_called
-        return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", gemini_called
+        # BUG FIX: Enhanced email validation to prevent header injection
+        # Previously: Basic regex allowed potentially malicious input
+        import email.utils
+        import html
+        
+        # First, basic format validation
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.fullmatch(email_pattern, raw):
+            return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", gemini_called
+        
+        # BUG FIX: Validate email address to prevent header injection
+        try:
+            # This will raise an exception if the email is invalid
+            parsed_email = email.utils.parseaddr(raw)
+            if not parsed_email[1] or parsed_email[1] != raw:
+                return "⚠️ 無效 email 格式，請重新輸入。", gemini_called
+                
+            # Additional check for newlines and other control characters
+            if any(char in raw for char in ['\n', '\r', '\x00']):
+                return "⚠️ Email 地址包含無效字符，請重新輸入。", gemini_called
+                
+        except Exception:
+            return "⚠️ 無效 email 格式，請重新輸入。", gemini_called
+            
+        domain = raw.split("@")[1]
+        if not _has_mx_record(domain):
+            return "⚠️ 此 email 網域無法接收郵件，請重新確認。", gemini_called
+            
+        session["awaiting_email"] = False
+        # BUG FIX: Escape email for display to prevent XSS
+        safe_email = html.escape(raw)
+        if send_last_txt_email(user_id, raw, session):
+            return f"✅ 已成功寄出衛教內容至 {safe_email}", gemini_called
+        return "⚠️ 寄送失敗，請稍後再試。", gemini_called
 
     # --- first-time zh-TW sheet ----------------------------------------
     if not session.get("zh_output"):

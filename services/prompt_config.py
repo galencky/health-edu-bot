@@ -34,7 +34,7 @@ Leave one blank line between each section for readability.
 4. Emojis are allowed sparingly in section headers (e.g., ⭐⚠️✅📞), but avoid overuse.
 5. Use supportive, clear, and informative sentences suitable for a middle-school reading level.
 6. Avoid scolding, alarming, or fear-based tones. Be factual, respectful, and encouraging.
-7. Do not include hyperlinks or references. The content must be self-contained.
+7. The main content should be self-contained without embedded hyperlinks. However, you may use web search to find accurate information.
 
 Based on the provided topic, generate a well-formatted, clearly organized, and helpful health education message in `zh-tw`.
 """
