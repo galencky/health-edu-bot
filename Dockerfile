@@ -47,7 +47,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Default environment variables (can be overridden)
 ENV PORT=10001 \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=info
 
 # Expose port (Synology typically uses this for port mapping)
 EXPOSE 10001
