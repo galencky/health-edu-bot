@@ -1,0 +1,87 @@
+# === Docker Compose for MedEdBot ===
+# Optimized for Synology NAS Container Manager
+
+version: '3.8'
+
+services:
+  mededbot:
+    build: .
+    container_name: mededbot
+    restart: unless-stopped
+    
+    # Port mapping (adjust external port as needed)
+    ports:
+      - "10001:10001"
+    
+    # Environment variables
+    environment:
+      - PORT=10001
+      - LOG_LEVEL=INFO
+      # Add your actual environment variables here:
+      # - LINE_CHANNEL_ACCESS_TOKEN=your_token
+      # - LINE_CHANNEL_SECRET=your_secret
+      # - GEMINI_API_KEY=your_key
+      # - GMAIL_ADDRESS=your_email
+      # - GMAIL_APP_PASSWORD=your_password
+      # - GOOGLE_DRIVE_FOLDER_ID=your_folder_id
+      # - GOOGLE_CREDS_B64=your_base64_creds
+      # - BASE_URL=https://your-domain.com
+    
+    # Alternative: Load from .env file (recommended for Synology)
+    env_file:
+      - .env
+    
+    # Volume mounts for persistent data
+    volumes:
+      # TTS audio files (optional: for persistence across container restarts)
+      - ./data/tts_audio:/app/tts_audio
+      # Voicemail files (optional: for persistence)
+      - ./data/voicemail:/app/voicemail
+      # Logs directory (recommended for debugging)
+      - ./data/logs:/app/logs
+      # Credentials file (if using file instead of base64)
+      # - ./credentials.json:/app/credentials.json:ro
+    
+    # Resource limits (adjust based on your NAS capabilities)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10001/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Network configuration
+    networks:
+      - mededbot-network
+
+# Create a custom network
+networks:
+  mededbot-network:
+    driver: bridge
+
+# Create named volumes (alternative to bind mounts)
+volumes:
+  tts_audio:
+  voicemail:
+  logs:
