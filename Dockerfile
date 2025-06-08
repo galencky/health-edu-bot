@@ -1,7 +1,7 @@
 # === Dockerfile for MedEdBot ===
-# Optimized for Docker and Synology NAS Container Manager
+# Optimized for minimal size - uses Alpine Linux
 
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 # Set environment variables for Python
 ENV PYTHONUNBUFFERED=1 \
@@ -9,18 +9,16 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Required for audio processing
-    ffmpeg \
-    # Required for DNS resolution (MX record checks)
-    dnsutils \
-    # Useful for debugging
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install minimal system dependencies
+RUN apk add --no-cache \
+    # Build dependencies (removed after pip install)
+    gcc musl-dev libffi-dev \
+    # Runtime dependencies only
+    && apk add --no-cache --virtual .runtime-deps \
+    ca-certificates
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user for security (Alpine syntax)
+RUN addgroup -S appuser && adduser -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app
@@ -28,8 +26,9 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies and cleanup build deps
+RUN pip install --no-cache-dir -r requirements.txt \
+    && apk del gcc musl-dev libffi-dev
 
 # Copy application code
 COPY --chown=appuser:appuser . .
@@ -41,9 +40,9 @@ RUN mkdir -p /app/tts_audio /app/voicemail /app/logs && \
 # Switch to non-root user
 USER appuser
 
-# Health check for container monitoring
+# Health check for container monitoring (using wget instead of curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-10001}/ping || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-10001}/ping || exit 1
 
 # Default environment variables (can be overridden)
 ENV PORT=10001 \
