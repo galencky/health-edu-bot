@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import mimetypes
 from google import genai
 from google.genai import types
 
@@ -24,7 +25,22 @@ def transcribe_audio_file(file_path: str) -> str:
     # 1. Upload using Files API
     #    This returns a "File" object that we can pass to generate_content
     try:
-        uploaded_file = _client.files.upload(file=file_path)
+        # Detect MIME type based on file extension
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type:
+            # Default to common audio formats if detection fails
+            if file_path.lower().endswith(('.m4a', '.aac')):
+                mime_type = 'audio/mp4'
+            elif file_path.lower().endswith('.ogg'):
+                mime_type = 'audio/ogg'
+            elif file_path.lower().endswith('.wav'):
+                mime_type = 'audio/wav'
+            elif file_path.lower().endswith('.mp3'):
+                mime_type = 'audio/mpeg'
+            else:
+                mime_type = 'audio/mpeg'  # fallback
+        
+        uploaded_file = _client.files.upload(file=file_path, mime_type=mime_type)
     except Exception as e:
         raise RuntimeError(f"Failed to upload audio to Gemini Files API: {e}")
 
