@@ -28,9 +28,20 @@ docker run -d \
   -e GOOGLE_DRIVE_FOLDER_ID=your_folder_id \
   -e GOOGLE_CREDS_B64=your_base64_creds \
   -e BASE_URL=https://your-domain.com \
+  -e LOG_LEVEL=info \
   mededbot:latest
 
-# Or run with .env file
+# Or run with .env file (Windows PowerShell)
+docker run -d `
+  --name mededbot `
+  -p 10001:10001 `
+  --restart unless-stopped `
+  --env-file .env `
+  -v ${PWD}/data/tts_audio:/app/tts_audio `
+  -v ${PWD}/data/voicemail:/app/voicemail `
+  mededbot:latest
+
+# Or run with .env file (Linux/WSL)
 docker run -d \
   --name mededbot \
   -p 10001:10001 \
@@ -150,6 +161,21 @@ sudo docker run -d \
 ---
 
 ## 🌐 Network Configuration
+
+### Local Development (Windows with WSL)
+When developing locally on Windows with WSL:
+1. **Your machine IP**: 192.168.0.109 (Wi-Fi adapter)
+2. **WSL IP**: 172.19.96.1 (WSL Hyper-V adapter)
+3. **Docker network**: 172.20.0.0/16 (custom bridge)
+
+Configure BASE_URL in .env:
+```bash
+# For local testing
+BASE_URL=http://192.168.0.109:10001
+
+# For production
+BASE_URL=https://your-domain.com
+```
 
 ### Port Forwarding
 For external access (LINE webhooks), configure your router:

@@ -16,7 +16,7 @@ services:
     # Environment variables
     environment:
       - PORT=10001
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=info
       # Add your actual environment variables here:
       # - LINE_CHANNEL_ACCESS_TOKEN=your_token
       # - LINE_CHANNEL_SECRET=your_secret
@@ -26,6 +26,8 @@ services:
       # - GOOGLE_DRIVE_FOLDER_ID=your_folder_id
       # - GOOGLE_CREDS_B64=your_base64_creds
       # - BASE_URL=https://your-domain.com
+      # For local development on Windows with WSL:
+      # - BASE_URL=http://192.168.0.109:10001
     
     # Alternative: Load from .env file (recommended for Synology)
     env_file:
@@ -79,6 +81,11 @@ services:
 networks:
   mededbot-network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 # Create named volumes (alternative to bind mounts)
 volumes:
