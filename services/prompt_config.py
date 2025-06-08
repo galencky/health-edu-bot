@@ -51,6 +51,8 @@ Please revise the original text as instructed, while keeping:
 - Line spacing and readability
 - Tone, clarity, and full Traditional Chinese
 
+If the user's modification request requires new medical information or recent updates, feel free to search for current, accurate information to enhance the content.
+
 Do not convert to Markdown or HTML. Do not skip or re-order major sections unless the user explicitly requests it.
 
 Return the entire revised content in `zh-tw`.

@@ -15,6 +15,23 @@ from utils.tts_log import log_tts_to_drive_and_sheet
 # Load environment
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+# BUG FIX: Function to list available models for debugging
+def list_available_models():
+    """List available Gemini models for debugging TTS issues"""
+    try:
+        models = client.models.list()
+        audio_models = []
+        for model in models:
+            # Look for models that support audio generation
+            if hasattr(model, 'supported_generation_methods'):
+                if 'generateContent' in model.supported_generation_methods:
+                    audio_models.append(model.name)
+        print(f"[TTS DEBUG] Available models: {audio_models[:5]}...")  # Show first 5
+        return audio_models
+    except Exception as e:
+        print(f"[TTS DEBUG] Could not list models: {e}")
+        return []
+
 # Internal helper: Save raw PCM as WAV
 def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):
     """
@@ -55,8 +72,8 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
 
     try:
         # Generate audio using Gemini
-        # BUG FIX: Log the model being used for debugging
-        tts_model = "gemini-2.0-flash-preview-tts"  # Updated model name
+        # BUG FIX: Use the correct Gemini 2.5 Flash Preview TTS model name from documentation
+        tts_model = "gemini-2.5-flash-preview-tts"  # Dedicated TTS model
         print(f"[TTS DEBUG] Using model: {tts_model}, Voice: {voice_name}")
         
         resp = client.models.generate_content(
@@ -71,8 +88,9 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
                 ),
             ),
         )
+            
     except Exception as e:
-        # BUG FIX: Catch API errors and provide meaningful error message
+        # BUG FIX: Catch other API errors
         raise ValueError(f"TTS API call failed: {str(e)}")
 
     # BUG FIX: Add proper error handling for TTS response

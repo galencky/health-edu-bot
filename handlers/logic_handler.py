@@ -185,11 +185,15 @@ def handle_user_message(
         new_zh  = call_zh(prompt, system_prompt=modify_prompt)
         session.update({"zh_output": new_zh, "awaiting_modify": False})
         new_refs = get_references()
+        print(f"[DEBUG MODIFY] Found {len(new_refs)} new references after modification")
         if new_refs:
+            existing_refs = session.get("references") or []
+            print(f"[DEBUG MODIFY] Existing refs: {len(existing_refs)}, New refs: {len(new_refs)}")
             if session.get("references"):
                 session["references"].extend(new_refs)
             else:
-                session["references"] = new_refs  # <<< added
+                session["references"] = new_refs
+            print(f"[DEBUG MODIFY] Total refs after merge: {len(session.get('references', []))}")
         return (
             "✅ 已修改中文版內容。\n\n"
             "📌 您目前可：\n"
