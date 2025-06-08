@@ -40,7 +40,7 @@ def transcribe_audio_file(file_path: str) -> str:
             else:
                 mime_type = 'audio/mpeg'  # fallback
         
-        uploaded_file = _client.files.upload(file=file_path, mime_type=mime_type)
+        uploaded_file = _client.files.upload(path=file_path, mime_type=mime_type)
     except Exception as e:
         raise RuntimeError(f"Failed to upload audio to Gemini Files API: {e}")
 
