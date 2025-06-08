@@ -26,6 +26,9 @@ from utils.paths import VOICEMAIL_DIR
 voicemail_prompt = """ You are a medical translation assistant fluent in {lang}. Please translate the following message to {lang}."""
 # -----------------------------------------------
 
+# BUG FIX: Added file size limits to prevent disk exhaustion attacks
+MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for audio files
+
 # Instantiate LINE client
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 
@@ -140,23 +143,28 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             )
         bubbles.append(TextSendMessage(text=reply))
     else:
+        # Only show content when it's newly generated/modified (gemini_called=True)
         if gemini_called:
             zh = session.get("zh_output") or ""
             tr = session.get("translated_output") or ""
-            zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
-            tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
-            for c in (*zh_chunks, *tr_chunks):
-                bubbles.append(TextSendMessage(text=c))
+            
+            if zh or tr:
+                zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
+                tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
+                for c in (*zh_chunks, *tr_chunks):
+                    bubbles.append(TextSendMessage(text=c))
 
-            refs = session.get("references") or []
-            flex = references_to_flex(refs)
-            if flex:
-                bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
+                # BUG FIX: Show references when content is displayed
+                refs = session.get("references") or []
+                flex = references_to_flex(refs)
+                if flex:
+                    bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
 
-            if len(zh_chunks) + len(tr_chunks) > 3:
-                bubbles.append(TextSendMessage(
-                    text="⚠️ 內容過長，僅部分顯示。如需完整內容請輸入 mail / 寄送。"
-                ))
+                if len(zh_chunks) + len(tr_chunks) > 3:
+                    bubbles.append(TextSendMessage(
+                        text="⚠️ 內容過長，僅部分顯示。如需完整內容請輸入 mail / 寄送。"
+                    ))
+        
         bubbles.append(TextSendMessage(text=reply))
 
     try:
@@ -223,11 +231,27 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     local_filename = save_dir / f"{user_id}_{timestamp}.m4a"
 
+    # BUG FIX: Add file size validation and proper file cleanup
+    # Previously: No size limit, files not cleaned up on error
+    total_size = 0
     try:
         with open(local_filename, "wb") as f:
             for chunk in message_content.iter_content():
+                total_size += len(chunk)
+                if total_size > MAX_AUDIO_FILE_SIZE:
+                    # Clean up partial file
+                    f.close()
+                    local_filename.unlink(missing_ok=True)
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text="⚠️ 語音檔過大（超過10MB），請縮短錄音長度。")
+                    )
+                    return
                 f.write(chunk)
     except Exception:
+        # BUG FIX: Clean up file on any error
+        if local_filename.exists():
+            local_filename.unlink(missing_ok=True)
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="⚠️ 儲存語音檔失敗，請稍後重試。")
@@ -235,6 +259,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         return
 
     # 3. Upload to Google Drive
+    drive_link = None
     try:
         drive_link = upload_voicemail_to_drive(str(local_filename), user_id)
     except Exception as e:
@@ -246,11 +271,25 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         transcription = transcribe_audio_file(str(local_filename))
     except Exception as e:
         print(f"[STT ERROR] {e}")
+        # BUG FIX: Clean up local file on STT failure
+        try:
+            if local_filename.exists():
+                local_filename.unlink()
+        except Exception:
+            pass
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="⚠️ 語音轉文字失敗，請稍後重試。")
         )
         return
+    finally:
+        # BUG FIX: Always clean up local file after processing
+        # Previously: Local files accumulated on disk
+        try:
+            if local_filename.exists():
+                local_filename.unlink()
+        except Exception as cleanup_error:
+            print(f"[CLEANUP ERROR] Failed to delete {local_filename}: {cleanup_error}")
 
     if not transcription:
         line_bot_api.reply_message(

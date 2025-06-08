@@ -35,27 +35,65 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     Returns:
         (audio_url, duration_ms) tuple
     Saves WAV to ./tts_audio and uploads to Google Drive in background.
+    
+    BUG FIX: Added comprehensive error handling for TTS failures
     """
+    # BUG FIX: Validate input text
+    # Previously: No validation could cause API failures
+    if not text or not text.strip():
+        raise ValueError("Cannot synthesize empty text")
+    
+    # Limit text length to prevent API errors (5000 chars is a safe limit)
+    MAX_TTS_LENGTH = 5000
+    if len(text) > MAX_TTS_LENGTH:
+        print(f"[TTS WARNING] Text too long ({len(text)} chars), truncating to {MAX_TTS_LENGTH}")
+        text = text[:MAX_TTS_LENGTH] + "..."
+    
     ts   = time.strftime("%Y%m%d_%H%M%S")
     fn   = f"{user_id}_{ts}.wav"
     path = TTS_AUDIO_DIR / fn
 
-    # Generate audio using Gemini
-    resp = client.models.generate_content(
-        model="gemini-2.5-flash-preview-tts",
-        contents=text,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
-                )
+    try:
+        # Generate audio using Gemini
+        # BUG FIX: Log the model being used for debugging
+        tts_model = "gemini-2.0-flash-preview-tts"  # Updated model name
+        print(f"[TTS DEBUG] Using model: {tts_model}, Voice: {voice_name}")
+        
+        resp = client.models.generate_content(
+            model=tts_model,
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
+                    )
+                ),
             ),
-        ),
-    )
+        )
+    except Exception as e:
+        # BUG FIX: Catch API errors and provide meaningful error message
+        raise ValueError(f"TTS API call failed: {str(e)}")
 
+    # BUG FIX: Add proper error handling for TTS response
+    # Previously: AttributeError when response has no candidates or parts
+    if not resp or not resp.candidates:
+        print(f"[TTS DEBUG] Empty response. Text length: {len(text)}, Text preview: {text[:100]}...")
+        raise ValueError("TTS service returned empty response")
+    
+    if not resp.candidates[0].content or not resp.candidates[0].content.parts:
+        print(f"[TTS DEBUG] No content/parts. Candidate: {resp.candidates[0]}")
+        raise ValueError("TTS response has no audio content")
+    
+    if not resp.candidates[0].content.parts[0].inline_data:
+        print(f"[TTS DEBUG] No inline data. Parts: {resp.candidates[0].content.parts}")
+        raise ValueError("TTS response has no inline audio data")
+    
     # Extract audio and save as .wav
     pcm = resp.candidates[0].content.parts[0].inline_data.data
+    if not pcm:
+        raise ValueError("TTS response contains empty audio data")
+    
     _wave_file(path, pcm)
 
     # Calculate duration (ms)

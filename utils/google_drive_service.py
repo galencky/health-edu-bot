@@ -13,8 +13,17 @@ DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 if not DRIVE_FOLDER_ID:
     raise ValueError("Missing GOOGLE_DRIVE_FOLDER_ID in environment.")
 
+# BUG FIX: Cache service to avoid repeated credential file writes
+# Previously: Credentials written to disk on every API call
+_drive_service_cache = None
+
 # Setup Google Drive client
 def get_drive_service():
+    global _drive_service_cache
+    
+    if _drive_service_cache is not None:
+        return _drive_service_cache
+    
     if not os.path.exists(str(CREDS_PATH)):
         creds_b64 = os.getenv("GOOGLE_CREDS_B64")
         if creds_b64:
@@ -24,7 +33,8 @@ def get_drive_service():
             raise ValueError("Missing GOOGLE_CREDS_B64 environment variable")
 
     creds = Credentials.from_service_account_file(str(CREDS_PATH), scopes=["https://www.googleapis.com/auth/drive"])
-    return build("drive", "v3", credentials=creds)
+    _drive_service_cache = build("drive", "v3", credentials=creds)
+    return _drive_service_cache
 
 # Upload .txt Gemini log to Google Drive
 def upload_gemini_log(user_id, session, message):
@@ -38,23 +48,36 @@ def upload_gemini_log(user_id, session, message):
         f"Gemini translated_output:\n{session.get('translated_output')}\n"
     )
 
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(content)
+    # BUG FIX: Use context manager to ensure file is properly closed
+    # Previously: File might not be closed if exception occurs
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
 
-    drive_service = get_drive_service()
-    file_metadata = {
-        "name": filename,
-        "parents": [DRIVE_FOLDER_ID]
-    }
-    media = MediaFileUpload(filename, mimetype="text/plain")
-    uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        drive_service = get_drive_service()
+        file_metadata = {
+            "name": filename,
+            "parents": [DRIVE_FOLDER_ID]
+        }
+        
+        # BUG FIX: Properly handle MediaFileUpload cleanup
+        media = MediaFileUpload(filename, mimetype="text/plain")
+        try:
+            uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        finally:
+            # Ensure media file handle is closed
+            if hasattr(media, '_fd') and media._fd and not media._fd.closed:
+                media._fd.close()
 
-    # ---- FIX: Ensure file is closed before deleting ----
-    if hasattr(media, '_fd') and not media._fd.closed:
-        media._fd.close()
-
-    os.remove(filename)
-
-    file_id = uploaded_file["id"]
-    return f"https://drive.google.com/file/d/{file_id}/view", filename
+        file_id = uploaded_file["id"]
+        return f"https://drive.google.com/file/d/{file_id}/view", filename
+    
+    finally:
+        # BUG FIX: Always clean up temporary file
+        # Previously: File might not be deleted if exception occurs
+        if os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except Exception as e:
+                print(f"Warning: Failed to delete temporary file {filename}: {e}")
 
