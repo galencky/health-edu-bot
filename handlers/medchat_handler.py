@@ -1,5 +1,6 @@
 from services.gemini_service import plainify, confirm_translate
 from utils.log_to_sheets import log_to_sheet
+from utils.command_sets import create_quick_reply_items, COMMON_LANGUAGES, CHAT_TTS_OPTIONS
 
 __all__ = ["handle_medchat"]
 
@@ -11,21 +12,33 @@ def _looks_like_language(token: str) -> bool:
     )
 
 
-def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool]:
+def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, dict]:
     
     # 1. Waiting for user to supply the target language -----------------
     if session.get("awaiting_chat_language"):
         if not _looks_like_language(raw):
-            return "⚠️ 請先輸入欲翻譯的語言，例如：英文、日文。", False
+            quick_reply = {
+                "items": create_quick_reply_items(COMMON_LANGUAGES)
+            }
+            return "⚠️ 請先輸入欲翻譯的語言，例如：英文、日文。", False, quick_reply
 
         session["chat_target_lang"] = raw
         session["awaiting_chat_language"] = False
-        return f"✅ 目標語言已設定為「{raw}」。\n請輸入要轉換的文字…", False
+        # Ensure session remains active
+        session["started"] = True
+        session["mode"] = "chat"
+        return f"✅ 目標語言已設定為「{raw}」。\n請輸入要轉換的文字…", False, None
 
     # 2. No language set yet -------------------------------------------
     if not session.get("chat_target_lang"):
         session["awaiting_chat_language"] = True
-        return "⚠️ 尚未設定語言，請先輸入目標語言，例如：英文。", False
+        # Ensure session remains active
+        session["started"] = True
+        session["mode"] = "chat"
+        quick_reply = {
+            "items": create_quick_reply_items(COMMON_LANGUAGES)
+        }
+        return "⚠️ 尚未設定語言，請先輸入目標語言，例如：英文。", False, quick_reply
 
     # 3. Plain‑ify Chinese, then translate + confirmation --------------
     plain_zh = plainify(raw)
@@ -41,6 +54,10 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool]:
         f"{translated}\n\n"
         "若希望將翻譯文句用AI語音朗讀，請輸入「朗讀」或是 \"speak\"。"
 )
+    
+    quick_reply = {
+        "items": create_quick_reply_items(CHAT_TTS_OPTIONS)
+    }
 
     # Log interaction --------------------------------------------------
     log_to_sheet(
@@ -52,4 +69,4 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool]:
         gemini_call="yes",
     )
 
-    return reply_text, False
+    return reply_text, False, quick_reply

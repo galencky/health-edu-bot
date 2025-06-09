@@ -10,6 +10,7 @@ from linebot.models import (
     MessageEvent,
     TextMessage,
     AudioMessage,
+    QuickReply,
 )
 from linebot.exceptions import LineBotApiError
 
@@ -20,6 +21,7 @@ from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
 from utils.voicemail_drive import upload_voicemail_to_drive
 from utils.paths import VOICEMAIL_DIR
+from utils.command_sets import new_commands, create_quick_reply_items, VOICE_TRANSLATION_OPTIONS, TTS_OPTIONS
 
 # -----------------------------------------------
 # Custom prompt for voicemail translation
@@ -117,10 +119,13 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         session.pop("awaiting_stt_translation", None)
         session.pop("stt_transcription", None)
 
+        # Add quick reply for TTS
+        quick_reply = QuickReply(items=create_quick_reply_items(TTS_OPTIONS))
+        
         try:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="\n".join(reply_lines))
+                TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
             )
         except LineBotApiError:
             pass
@@ -130,7 +135,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
     # ───────────────────────────────────────────────────────────────────
     # 2) Normal bot flow (no STT‐translation in progress)
     # ───────────────────────────────────────────────────────────────────
-    reply, gemini_called = handle_user_message(user_id, user_input, session)
+    reply, gemini_called, quick_reply_data = handle_user_message(user_id, user_input, session)
 
     if session.get("mode") == "chat":
         # If TTS audio is queued, send it first
@@ -141,7 +146,14 @@ def handle_line_message(event: MessageEvent[TextMessage]):
                     duration=session.pop("tts_audio_dur", 0)
                 )
             )
-        bubbles.append(TextSendMessage(text=reply))
+        # Add quick reply if available
+        if quick_reply_data:
+            bubbles.append(TextSendMessage(
+                text=reply,
+                quick_reply=QuickReply(items=quick_reply_data["items"])
+            ))
+        else:
+            bubbles.append(TextSendMessage(text=reply))
     else:
         # Only show content when it's newly generated/modified (gemini_called=True)
         if gemini_called:
@@ -165,7 +177,14 @@ def handle_line_message(event: MessageEvent[TextMessage]):
                         text="⚠️ 內容過長，僅部分顯示。如需完整內容請輸入 mail / 寄送。"
                     ))
         
-        bubbles.append(TextSendMessage(text=reply))
+        # Add quick reply if available
+        if quick_reply_data:
+            bubbles.append(TextSendMessage(
+                text=reply,
+                quick_reply=QuickReply(items=quick_reply_data["items"])
+            ))
+        else:
+            bubbles.append(TextSendMessage(text=reply))
 
     try:
         line_bot_api.reply_message(event.reply_token, bubbles)
@@ -318,10 +337,13 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     #        drive_link
     #    ])
 
+    # Add quick reply for voice translation options
+    quick_reply = QuickReply(items=create_quick_reply_items(VOICE_TRANSLATION_OPTIONS))
+    
     try:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="\n".join(reply_lines))
+            TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
         )
     except LineBotApiError:
         pass
