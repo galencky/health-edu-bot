@@ -1,0 +1,89 @@
+# === Docker Compose for Synology NAS ===
+# Optimized specifically for Synology Container Manager
+
+version: '3.8'
+
+services:
+  mededbot:
+    build: .
+    container_name: mededbot
+    restart: unless-stopped
+    
+    # Port mapping (adjust external port as needed for Synology)
+    ports:
+      - "10001:10001"
+    
+    # Environment variables (use Synology's environment variable management)
+    environment:
+      - PORT=10001
+      - LOG_LEVEL=info
+      # Database URL for Neon PostgreSQL
+      - DATABASE_URL=${DATABASE_URL}
+      # LINE Bot configuration
+      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
+      # Google AI configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Email configuration
+      - GMAIL_ADDRESS=${GMAIL_ADDRESS}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      # Google Drive configuration
+      - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID}
+      - GOOGLE_CREDS_B64=${GOOGLE_CREDS_B64}
+      # Server configuration
+      - BASE_URL=${BASE_URL}
+    
+    # Synology NAS volume mounts (adjust paths based on your setup)
+    volumes:
+      # Persistent data directories
+      - /volume1/docker/mededbot/tts_audio:/app/tts_audio
+      - /volume1/docker/mededbot/voicemail:/app/voicemail
+      - /volume1/docker/mededbot/logs:/app/logs
+      
+      # Optional: Mount .env file for easier configuration
+      # - /volume1/docker/mededbot/.env:/app/.env:ro
+      
+      # Optional: Mount credentials file instead of using base64
+      # - /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
+    
+    # Resource limits for Synology NAS
+    deploy:
+      resources:
+        limits:
+          memory: 1G      # Adjust based on your NAS RAM
+          cpus: '0.5'     # Adjust based on your NAS CPU
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+    
+    # Health check using wget (available in Alpine)
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging configuration (important for Synology monitoring)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Network configuration
+    networks:
+      - mededbot-network
+
+# Custom network for better isolation
+networks:
+  mededbot-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

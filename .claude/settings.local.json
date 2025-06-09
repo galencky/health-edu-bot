@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(touch:*)",
+      "Bash(docker run:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker build:*)",
+      "Bash(docker logs:*)",
+      "Bash(grep:*)",
+      "Bash(for line in 85 95 107 110 121 132 148 155 159 177 186 191 195 204 209 233 247 249 251 256 258 278 290 292 303 310 314 317 321 327 328 341 352)",
+      "Bash(do echo \"Line $line:\")",
+      "Bash(sed:*)",
+      "Bash(done)",
+      "Bash(python:*)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(pip install:*)"
+    ],
+    "deny": []
+  }
+}
