@@ -107,6 +107,14 @@ def handle_user_message(
         except Exception as e:
             print(f"[TTS ERROR] Failed to synthesize audio: {e}")
             return "⚠️ 語音合成失敗，請稍後再試。", False, None
+    
+    # Handle continue_translate command
+    if session.get("started") and text_lower == "continue_translate":
+        if session.get("mode") == "chat" and session.get("chat_target_lang"):
+            lang = session.get("chat_target_lang")
+            return f"✅ 語言已設定為「{lang}」，請輸入要翻譯的文字：", False, None
+        else:
+            return "⚠️ 請先進入聊天模式並設定語言。", False, None
 
     # ──────────────────────────────────────────────────────────────
     # 1. First message guard (“new” required)
@@ -141,7 +149,7 @@ def handle_user_message(
                     ("氣喘 環境控制", "氣喘 環境控制")
                 ])
             }
-            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。", gemini_called, quick_reply
+            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。\n⏳ 生成約需 10-20 秒...", gemini_called, quick_reply
         if text_lower in chat_commands:
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
@@ -240,8 +248,7 @@ def handle_user_message(
             ])
         }
         return (
-            "✅ 已修改中文版內容。\n"
-            "⚠️ 請注意：修改或翻譯需約 20 秒，請耐心等候回覆…",
+            "✅ 已修改中文版內容。",
             gemini_called,
             quick_reply
         )
@@ -256,7 +263,7 @@ def handle_user_message(
         if not session.get("zh_output"):
             return "⚠️ 尚未產出中文版內容，無法修改。", gemini_called, None
         session["awaiting_modify"] = True
-        return "✏️ 請輸入您的修改指示，例如：強調飲食控制。", gemini_called, None
+        return "✏️ 請輸入您的修改指示，例如：強調飲食控制。\n⏳ 處理約需 10-20 秒...", gemini_called, None
 
     # --- translate ------------------------------------------------------
     if is_translate:
@@ -266,7 +273,7 @@ def handle_user_message(
         quick_reply = {
             "items": create_quick_reply_items(COMMON_LANGUAGES)
         }
-        return "🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", gemini_called, quick_reply
+        return "🌐 請輸入您要翻譯成的語言，例如：日文、泰文…\n⏳ 處理約需 10-20 秒...", gemini_called, quick_reply
 
     if session.get("awaiting_translate_language"):
         gemini_called = True

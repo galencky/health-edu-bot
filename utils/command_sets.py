@@ -78,13 +78,14 @@ TTS_OPTIONS = [
     ("🆕 新對話", "new")
 ]
 
-# Chat mode specific - no new button to avoid accidental exit
+# Chat mode specific - includes new and continue translate
 CHAT_TTS_OPTIONS = [
-    ("🔊 朗讀", "朗讀")
+    ("🔊 朗讀", "朗讀"),
+    ("💬 繼續翻譯", "continue_translate"),
+    ("🆕 新對話", "new")
 ]
 
 VOICE_TRANSLATION_OPTIONS = [
     ("🌐 翻譯", "translate_voice"),
-    ("❌ 不翻譯", "無"),
     ("🆕 新對話", "new")
 ]

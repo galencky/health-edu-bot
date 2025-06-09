@@ -68,7 +68,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         text_lower = user_input.lower()
 
         # a) Cancel or “new” path
-        if text_lower in {"new", "無"}:
+        if text_lower == "new":
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
 
@@ -340,9 +340,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
 
     reply_lines = [
         "📣 原始轉錄：",
-        transcription,
-        "",
-        "請輸入欲翻譯之語言；若無，請輸入「無」或「new」。"
+        transcription
     ]
     #if drive_link:
     #    reply_lines.extend([
