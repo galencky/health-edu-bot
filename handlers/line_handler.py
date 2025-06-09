@@ -16,12 +16,12 @@ from linebot.exceptions import LineBotApiError
 
 from handlers.logic_handler import handle_user_message
 from handlers.session_manager import get_user_session
-from utils.log_to_sheets import log_to_sheet
+from utils.logging import log_chat, upload_voicemail
 from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
-from utils.voicemail_drive import upload_voicemail_to_drive
 from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import new_commands, create_quick_reply_items, VOICE_TRANSLATION_OPTIONS, TTS_OPTIONS, COMMON_LANGUAGES
+from utils.retry_utils import exponential_backoff, RetryError
 
 # -----------------------------------------------
 # Custom prompt for voicemail translation
@@ -208,12 +208,12 @@ def handle_line_message(event: MessageEvent[TextMessage]):
                 event.reply_token,
                 TextSendMessage(text=f"⚠️ 發送訊息失敗：{exc}")
             )
-        except:
-            pass
+        except Exception as e:
+            print(f"[LINE] Failed to send error message: {e}")
 
-    # Log to Sheets if not in chat‐mode (MedChat logs itself)
+    # Log if not in chat‐mode (MedChat logs itself)
     if session.get("mode") != "chat":
-        log_to_sheet(
+        log_chat(
             user_id,
             user_input,
             reply[:200],
@@ -248,58 +248,95 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         )
         return
 
-    # 1. Download the raw audio from LINE
+    # 1. Download the raw audio from LINE with retry logic
+    @exponential_backoff(
+        max_retries=3,
+        initial_delay=0.5,
+        max_delay=10.0,
+        exceptions=(LineBotApiError, ConnectionError, TimeoutError),
+        on_retry=lambda attempt, error: print(f"[Audio Download] Retry {attempt} due to: {error}")
+    )
+    def download_audio():
+        return line_bot_api.get_message_content(message_id)
+    
     try:
-        message_content = line_bot_api.get_message_content(message_id)
-    except LineBotApiError:
+        message_content = download_audio()
+    except RetryError as e:
+        print(f"[Audio Download] Failed after all retries: {e}")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ 無法下載語音檔，請稍後重試。")
+            TextSendMessage(text="⚠️ 無法下載語音檔，請稍後重試。網路連線似乎不穩定。")
+        )
+        return
+    except Exception as e:
+        print(f"[Audio Download] Unexpected error: {e}")
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⚠️ 下載語音檔時發生錯誤，請稍後重試。")
         )
         return
 
-    # 2. Save locally under ./voicemail/
+    # 2. Save locally under ./voicemail/ with robust error handling
     save_dir = VOICEMAIL_DIR
     save_dir.mkdir(exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     local_filename = save_dir / f"{user_id}_{timestamp}.m4a"
 
-    # BUG FIX: Add file size validation and proper file cleanup
-    # Previously: No size limit, files not cleaned up on error
+    # Enhanced file saving with chunked writing and connection stability
     total_size = 0
+    chunk_size = 8192  # 8KB chunks
+    max_retries_per_chunk = 3
+    
     try:
         with open(local_filename, "wb") as f:
-            for chunk in message_content.iter_content():
-                total_size += len(chunk)
-                if total_size > MAX_AUDIO_FILE_SIZE:
-                    # Clean up partial file
-                    f.close()
-                    local_filename.unlink(missing_ok=True)
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        TextSendMessage(text="⚠️ 語音檔過大（超過10MB），請縮短錄音長度。")
-                    )
-                    return
-                f.write(chunk)
-    except Exception:
-        # BUG FIX: Clean up file on any error
+            chunk_iterator = message_content.iter_content(chunk_size=chunk_size)
+            chunk_number = 0
+            
+            for chunk in chunk_iterator:
+                chunk_number += 1
+                retry_count = 0
+                
+                while retry_count < max_retries_per_chunk:
+                    try:
+                        if chunk:  # Filter out keep-alive chunks
+                            total_size += len(chunk)
+                            
+                            # Check file size limit
+                            if total_size > MAX_AUDIO_FILE_SIZE:
+                                f.close()
+                                local_filename.unlink(missing_ok=True)
+                                line_bot_api.reply_message(
+                                    event.reply_token,
+                                    TextSendMessage(text="⚠️ 語音檔過大（超過10MB），請縮短錄音長度。")
+                                )
+                                return
+                            
+                            f.write(chunk)
+                            f.flush()  # Ensure data is written to disk
+                            break  # Success, move to next chunk
+                            
+                    except (IOError, OSError) as e:
+                        retry_count += 1
+                        if retry_count >= max_retries_per_chunk:
+                            raise Exception(f"Failed to write chunk {chunk_number} after {max_retries_per_chunk} retries: {e}")
+                        print(f"[Audio Save] Retry {retry_count} for chunk {chunk_number}: {e}")
+                        time.sleep(0.1 * retry_count)  # Brief delay before retry
+                        
+    except Exception as e:
+        print(f"[Audio Save] Error saving audio file: {e}")
+        # Clean up partial file
         if local_filename.exists():
-            local_filename.unlink(missing_ok=True)
+            try:
+                local_filename.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"[CLEANUP] Failed to delete temp file {local_filename}: {e}")
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="⚠️ 儲存語音檔失敗，請稍後重試。")
         )
         return
 
-    # 3. Upload to Google Drive
-    drive_link = None
-    try:
-        drive_link = upload_voicemail_to_drive(str(local_filename), user_id)
-    except Exception as e:
-        print(f"[Voicemail → Drive] Upload failed: {e}")
-        drive_link = None  # continue even if upload fails
-
-    # 4. Call Gemini STT
+    # 3. Call Gemini STT first (before upload)
     try:
         transcription = transcribe_audio_file(str(local_filename))
     except Exception as e:
@@ -337,6 +374,19 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     session["started"]                 = True          # NEW: fixes “speak”-first bug
     session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt
     session["_prev_mode"] = session.get("mode") or "edu"  # remember current mode
+    
+    # 4. Upload to Drive and log to database
+    drive_link = None
+    try:
+        drive_link = upload_voicemail(
+            str(local_filename), 
+            user_id,
+            transcription=transcription,
+            translation=None  # Translation happens later
+        )
+    except Exception as e:
+        print(f"[Voicemail upload/log failed] {e}")
+        # Continue even if upload fails
 
     reply_lines = [
         "📣 原始轉錄：",
@@ -360,8 +410,8 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     except LineBotApiError:
         pass
 
-    # (Optional) log to Sheets
-    log_to_sheet(
+    # Log audio message
+    log_chat(
         user_id,
         "[AudioMessage]",
         transcription[:200],

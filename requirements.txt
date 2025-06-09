@@ -11,13 +11,18 @@ google-api-python-client==2.121.0
 google-auth==2.29.0
 google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.0
-gspread==5.12.4
-oauth2client==4.1.3
+# gspread==5.12.4            # REMOVED - replaced by database logging
+# oauth2client==4.1.3        # REMOVED - replaced by database logging
 
 # --- other top-level imports in the code ------------------------------
 dnspython==2.6.1           # MX-record check
 beautifulsoup4==4.12.3     # extract Gemini grounding references
 # pydub==0.25.1            # REMOVED - not used in codebase
+
+# --- database dependencies for Neon DB logging ------------------------
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
 
 # ----------------------------------------------------------------------
 # Everything below is pulled in automatically by the libraries above
@@ -41,7 +46,7 @@ beautifulsoup4==4.12.3     # extract Gemini grounding references
 #googleapis-common-protos==1.70.0
 #h11==0.16.0
 #httpcore==1.0.9
-#httplib2==0.22.0
+httplib2==0.22.0
 #httptools==0.6.4
 #httpx==0.28.1
 #idna==3.10

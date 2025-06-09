@@ -1,5 +1,5 @@
 from services.gemini_service import plainify, confirm_translate
-from utils.log_to_sheets import log_to_sheet
+from utils.logging import log_chat
 from utils.command_sets import create_quick_reply_items, COMMON_LANGUAGES, CHAT_TTS_OPTIONS
 
 __all__ = ["handle_medchat"]
@@ -59,7 +59,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
     }
 
     # Log interaction --------------------------------------------------
-    log_to_sheet(
+    log_chat(
         user_id,
         raw,
         reply_text,

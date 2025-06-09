@@ -20,7 +20,7 @@ async def periodic_session_cleanup():
     while True:
         await asyncio.sleep(3600)  # 1 hour
         try:
-            await cleanup_expired_sessions()
+            cleanup_expired_sessions()  # This is not async
         except Exception as e:
             print(f"Error during session cleanup: {e}")
 

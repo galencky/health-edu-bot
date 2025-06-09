@@ -61,6 +61,7 @@ The application follows a layered architecture:
 Required in `.env` file:
 - LINE API credentials: `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`
 - Google services: `GEMINI_API_KEY`, `GOOGLE_CREDS_B64`, `GOOGLE_DRIVE_FOLDER_ID`
+- Database: `CONNECTION_STRING` (Neon PostgreSQL connection string)
 - Email: `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`
 - Server: `BASE_URL` (for serving TTS audio files)
 
@@ -72,7 +73,8 @@ Required in `.env` file:
 ### File Handling
 - TTS audio files: Saved to `tts_audio/` directory, served via `/static/{filename}`
 - Voicemail files: Saved to `voicemail/` directory
-- All interactions logged to Google Drive and Sheets for audit trail
+- All interactions logged to Neon PostgreSQL database
+- Audio files and Gemini logs uploaded to Google Drive for storage
 
 ### LINE Integration
 - Uses LINE Flex Messages for rich UI (buttons, carousels)
