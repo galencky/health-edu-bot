@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import mimetypes
 from google import genai
 from google.genai import types
 
@@ -24,10 +25,36 @@ def transcribe_audio_file(file_path: str) -> str:
     # 1. Upload using Files API
     #    This returns a "File" object that we can pass to generate_content
     try:
-        # Upload audio file - Gemini automatically detects supported formats:
-        # WAV (audio/wav), MP3 (audio/mp3), AIFF (audio/aiff), 
-        # AAC (audio/aac), OGG Vorbis (audio/ogg), FLAC (audio/flac)
-        uploaded_file = _client.files.upload(file=file_path)
+        # Try file upload first (simpler approach)
+        try:
+            uploaded_file = _client.files.upload(file=file_path)
+        except Exception as first_error:
+            # If file upload fails (likely Docker MIME detection issue), 
+            # use inline audio data approach with explicit MIME type
+            if "mime type" in str(first_error).lower():
+                # Read audio file as bytes for inline approach
+                with open(file_path, 'rb') as f:
+                    audio_bytes = f.read()
+                
+                # Detect MIME type for inline data
+                mime_type, _ = mimetypes.guess_type(file_path)
+                if not mime_type:
+                    ext = file_path.lower().split('.')[-1]
+                    mime_map = {
+                        'm4a': 'audio/mp4',
+                        'aac': 'audio/aac', 
+                        'mp3': 'audio/mp3',  # Use audio/mp3 as per docs
+                        'wav': 'audio/wav',
+                        'ogg': 'audio/ogg',
+                        'flac': 'audio/flac',
+                        'aiff': 'audio/aiff'
+                    }
+                    mime_type = mime_map.get(ext, 'audio/mp3')
+                
+                # Create inline audio part
+                uploaded_file = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+            else:
+                raise first_error
     except Exception as e:
         raise RuntimeError(f"Failed to upload audio to Gemini Files API: {e}")
 
