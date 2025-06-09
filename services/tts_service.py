@@ -10,7 +10,7 @@ import os, time, wave
 from google import genai
 from google.genai import types
 
-from utils.tts_log import log_tts_to_drive_and_sheet
+from utils.logging import log_tts_async
 
 # Load environment
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -128,6 +128,6 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     url = f"{base}/static/{fn}"
 
     # Log to Google Drive & Sheets (in background)
-    log_tts_to_drive_and_sheet(user_id, text, path, url)
+    log_tts_async(user_id, text, path, url)
 
     return url, dur_ms
