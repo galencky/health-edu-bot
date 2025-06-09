@@ -54,8 +54,8 @@ class UserInput(BaseModel):
 def chat(input: UserInput):
     user_id = "test-user"                     # stub ID for this endpoint
     session = get_user_session(user_id)
-    reply, _ = handle_user_message(user_id, input.message, session)
-    return {"reply": reply}
+    reply, _, quick_reply_data = handle_user_message(user_id, input.message, session)
+    return {"reply": reply, "quick_reply": quick_reply_data}
 
 # ── misc endpoints -----------------------------------------------------
 @app.get("/")

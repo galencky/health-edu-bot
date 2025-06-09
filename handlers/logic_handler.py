@@ -36,6 +36,11 @@ from utils.command_sets import (
     translate_commands,
     mail_commands,
     speak_commands,
+    create_quick_reply_items,
+    MODE_SELECTION_OPTIONS,
+    COMMON_LANGUAGES,
+    COMMON_DISEASES,
+    TTS_OPTIONS,
 )
 
 # ── Other helpers ────────────────────────────────────────────────────
@@ -56,14 +61,15 @@ def handle_user_message(
     user_id: str,
     text: str,
     session: dict,
-) -> Tuple[str, bool]:
+) -> Tuple[str, bool, dict]:
     """
     Central dispatcher for both Education and MedChat branches.
-    Returns (reply_text, gemini_called)
+    Returns (reply_text, gemini_called, quick_reply_data)
     """
     gemini_called = False
     raw           = text.strip()
     text_lower    = raw.lower()
+    quick_reply   = None  # Will hold quick reply configuration if needed
 
     # ──────────────────────────────────────────────────────────────
     # 0. Global “speak / 朗讀” handler  (works in any mode once started)
@@ -72,16 +78,20 @@ def handle_user_message(
 
         # 🚫  Block in Education mode
         if session.get("mode") == "edu":
+            quick_reply = {
+                "items": create_quick_reply_items([("🆕 新對話", "new")])
+            }
             return (
                 "⚠️ 目前在『衛教』模式，無法語音朗讀。\n"
                 "若要使用語音功能請先輸入 new 重新開始。",
                 False,
+                quick_reply
             )
 
         tts_source = session.get("stt_last_translation") \
                   or session.get("translated_output")
         if not tts_source:
-            return "⚠️ 尚未有可朗讀的翻譯內容。", False
+            return "⚠️ 尚未有可朗讀的翻譯內容。", False, None
 
         # BUG FIX: Add error handling for TTS synthesis failures
         # Previously: Uncaught exceptions crashed the webhook
@@ -90,10 +100,13 @@ def handle_user_message(
             session["tts_audio_url"] = url
             session["tts_audio_dur"] = dur
             session.pop("stt_last_translation", None)   # avoid memory leak
-            return "🔊 語音檔已生成", False
+            quick_reply = {
+                "items": create_quick_reply_items([("🆕 新對話", "new")])
+            }
+            return "🔊 語音檔已生成", False, quick_reply
         except Exception as e:
             print(f"[TTS ERROR] Failed to synthesize audio: {e}")
-            return "⚠️ 語音合成失敗，請稍後再試。", False
+            return "⚠️ 語音合成失敗，請稍後再試。", False, None
 
     # ──────────────────────────────────────────────────────────────
     # 1. First message guard (“new” required)
@@ -101,14 +114,21 @@ def handle_user_message(
     if not session.get("started"):
         if text_lower in new_commands:
             _reset_session(session)
+            quick_reply = {
+                "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
+            }
             return (
                 "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
                 "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
                 "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
                 gemini_called,
+                quick_reply
             )
-        return "⚠️ 請先輸入 new / 開始 啟動對話。", gemini_called
+        quick_reply = {
+            "items": create_quick_reply_items([("🆕 開始", "new")])
+        }
+        return "⚠️ 請先輸入 new / 開始 啟動對話。", gemini_called, quick_reply
 
     # ──────────────────────────────────────────────────────────────
     # 2. Mode selection (after “new”)
@@ -116,47 +136,72 @@ def handle_user_message(
     if session.get("mode") is None:
         if text_lower in edu_commands:
             session["mode"] = "edu"
-            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。", gemini_called
+            quick_reply = {
+                "items": create_quick_reply_items([
+                    ("糖尿病 飲食控制", "糖尿病 飲食控制"),
+                    ("高血壓 生活習慣", "高血壓 生活習慣"),
+                    ("心臟病 復健運動", "心臟病 復健運動"),
+                    ("氣喘 環境控制", "氣喘 環境控制")
+                ])
+            }
+            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。", gemini_called, quick_reply
         if text_lower in chat_commands:
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
-            return "🌐 請輸入欲翻譯到的語言，例如：英文、日文…", gemini_called
+            quick_reply = {
+                "items": create_quick_reply_items(COMMON_LANGUAGES)
+            }
+            return "🌐 請輸入欲翻譯到的語言，例如：英文、日文…", gemini_called, quick_reply
+        quick_reply = {
+            "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
+        }
         return (
             "請輸入以下其一以選擇模式：\n\n"
             "• ed / education / 衛教 → 產生衛教單張\n"
             "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
             "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
             gemini_called,
+            quick_reply
         )
             
 
     # ──────────────────────────────────────────────────────────────
     # 3. Chat branch  (MED-CHAT)
     # ──────────────────────────────────────────────────────────────
-    if session["mode"] == "chat":
+    if session.get("mode") == "chat":
 
         # “new” while chatting
         if text_lower in new_commands:
             _reset_session(session)
+            quick_reply = {
+                "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
+            }
             return (
                 "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
                 "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
                 "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
                 gemini_called,
+                quick_reply
             )
 
         if text_lower in edu_commands:
-            return "⚠️ 目前在『聊天』模式。如要切換到衛教請先輸入 new。", gemini_called
+            quick_reply = {
+                "items": create_quick_reply_items([("🆕 新對話", "new")])
+            }
+            return "⚠️ 目前在『聊天』模式。如要切換到衛教請先輸入 new。", gemini_called, quick_reply
 
         # delegate to MedChat handler (Gemini inside)
-        reply, _ = handle_medchat(user_id, raw, session)
+        reply, _, medchat_quick_reply = handle_medchat(user_id, raw, session)
         gemini_called = True
-        return reply, gemini_called
+        return reply, gemini_called, medchat_quick_reply
 
     # 3. Education branch ------------------------------------------------
     if text_lower in chat_commands:
-        return "⚠️ 目前在『衛教』模式。如要切換到聊天請先輸入 new。", gemini_called
+        quick_reply = {
+            "items": create_quick_reply_items([("🆕 新對話", "new")])
+        }
+        return "⚠️ 目前在『衛教』模式。如要切換到聊天請先輸入 new。", gemini_called, quick_reply
 
     # convenience flags
     is_new        = text_lower in new_commands
@@ -165,17 +210,21 @@ def handle_user_message(
     is_modify_cmd = text_lower in modify_commands
 
     if sum([is_new, is_translate, is_mail, is_modify_cmd]) > 1:
-        return "⚠️ 同時偵測到多個指令，請一次只執行一項：new / modify / translate / mail。", gemini_called
+        return "⚠️ 同時偵測到多個指令，請一次只執行一項：new / modify / translate / mail。", gemini_called, None
 
     # --- NEW / reset ----------------------------------------------------
     if is_new:
         _reset_session(session)
+        quick_reply = {
+            "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
+        }
         return (
                 "🆕 新對話開始。\n請輸入以下其一以選擇模式：\n\n"
                 "• ed / education / 衛教 → 產生衛教單張\n"
                 "• chat / 聊天 → 醫療即時翻譯 (MedChat)\n\n"
                 "📣 若要使用語音翻譯功能，請直接傳 LINE 語音訊息",
                 gemini_called,
+                quick_reply
             )
 
     # --- awaiting modified content -------------------------------------
@@ -194,6 +243,14 @@ def handle_user_message(
             else:
                 session["references"] = new_refs
             print(f"[DEBUG MODIFY] Total refs after merge: {len(session.get('references', []))}")
+        quick_reply = {
+            "items": create_quick_reply_items([
+                ("✏️ 修改", "modify"),
+                ("🌐 翻譯", "translate"),
+                ("📧 寄送", "mail"),
+                ("🆕 新對話", "new")
+            ])
+        }
         return (
             "✅ 已修改中文版內容。\n\n"
             "📌 您目前可：\n"
@@ -203,23 +260,30 @@ def handle_user_message(
             "4️⃣ 輸入 new 重新開始\n"
             "⚠️ 請注意：修改或翻譯需約 20 秒，請耐心等候回覆…",
             gemini_called,
+            quick_reply
         )
 
     # --- enter modify mode ---------------------------------------------
     if is_modify_cmd:
         if session.get("translated"):
-            return "⚠️ 已完成翻譯，若需調整請輸入 new 重新開始。", gemini_called
+            quick_reply = {
+                "items": create_quick_reply_items([("🆕 新對話", "new")])
+            }
+            return "⚠️ 已完成翻譯，若需調整請輸入 new 重新開始。", gemini_called, quick_reply
         if not session.get("zh_output"):
-            return "⚠️ 尚未產出中文版內容，無法修改。", gemini_called
+            return "⚠️ 尚未產出中文版內容，無法修改。", gemini_called, None
         session["awaiting_modify"] = True
-        return "✏️ 請輸入您的修改指示，例如：強調飲食控制。", gemini_called
+        return "✏️ 請輸入您的修改指示，例如：強調飲食控制。", gemini_called, None
 
     # --- translate ------------------------------------------------------
     if is_translate:
         if not session.get("zh_output"):
-            return "⚠️ 尚未產出中文版內容，請先輸入疾病與主題。", gemini_called
+            return "⚠️ 尚未產出中文版內容，請先輸入疾病與主題。", gemini_called, None
         session["awaiting_translate_language"] = True
-        return "🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", gemini_called
+        quick_reply = {
+            "items": create_quick_reply_items(COMMON_LANGUAGES)
+        }
+        return "🌐 請輸入您要翻譯成的語言，例如：日文、泰文…", gemini_called, quick_reply
 
     if session.get("awaiting_translate_language"):
         gemini_called = True
@@ -239,6 +303,13 @@ def handle_user_message(
                 session["references"].extend(new_refs)
             else:
                 session["references"] = new_refs  # <<< added
+        quick_reply = {
+            "items": create_quick_reply_items([
+                ("🌐 翻譯", "translate"),
+                ("📧 寄送", "mail"),
+                ("🆕 新對話", "new")
+            ])
+        }
         return (
             f"🌐 翻譯完成（目標語言：{target_lang}）。\n\n"
             "您目前可：\n"
@@ -246,14 +317,15 @@ def handle_user_message(
             "2️⃣ 輸入: mail/寄送，寄出內容\n"
             "3️⃣ 輸入 new 重新開始",
             gemini_called,
+            quick_reply
         )
 
     # --- mail -----------------------------------------------------------
     if is_mail:
         if not session.get("zh_output"):
-            return "⚠️ 尚無內容可寄送，請先產生衛教內容。", gemini_called
+            return "⚠️ 尚無內容可寄送，請先產生衛教內容。", gemini_called, None
         session["awaiting_email"] = True
-        return "📧 請輸入您要寄送至的 email 地址：", gemini_called
+        return "📧 請輸入您要寄送至的 email 地址：", gemini_called, None
 
     if session.get("awaiting_email"):
         # BUG FIX: Enhanced email validation to prevent header injection
@@ -264,32 +336,35 @@ def handle_user_message(
         # First, basic format validation
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.fullmatch(email_pattern, raw):
-            return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", gemini_called
+            return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", gemini_called, None
         
         # BUG FIX: Validate email address to prevent header injection
         try:
             # This will raise an exception if the email is invalid
             parsed_email = email.utils.parseaddr(raw)
             if not parsed_email[1] or parsed_email[1] != raw:
-                return "⚠️ 無效 email 格式，請重新輸入。", gemini_called
+                return "⚠️ 無效 email 格式，請重新輸入。", gemini_called, None
                 
             # Additional check for newlines and other control characters
             if any(char in raw for char in ['\n', '\r', '\x00']):
-                return "⚠️ Email 地址包含無效字符，請重新輸入。", gemini_called
+                return "⚠️ Email 地址包含無效字符，請重新輸入。", gemini_called, None
                 
         except Exception:
             return "⚠️ 無效 email 格式，請重新輸入。", gemini_called
             
         domain = raw.split("@")[1]
         if not _has_mx_record(domain):
-            return "⚠️ 此 email 網域無法接收郵件，請重新確認。", gemini_called
+            return "⚠️ 此 email 網域無法接收郵件，請重新確認。", gemini_called, None
             
         session["awaiting_email"] = False
         # BUG FIX: Escape email for display to prevent XSS
         safe_email = html.escape(raw)
         if send_last_txt_email(user_id, raw, session):
-            return f"✅ 已成功寄出衛教內容至 {safe_email}", gemini_called
-        return "⚠️ 寄送失敗，請稍後再試。", gemini_called
+            quick_reply = {
+                "items": create_quick_reply_items([("🆕 新對話", "new")])
+            }
+            return f"✅ 已成功寄出衛教內容至 {safe_email}", gemini_called, quick_reply
+        return "⚠️ 寄送失敗，請稍後再試。", gemini_called, None
 
     # --- first-time zh-TW sheet ----------------------------------------
     if not session.get("zh_output"):
@@ -302,6 +377,14 @@ def handle_user_message(
                 session["references"].extend(new_refs)
             else:
                 session["references"] = new_refs      # <<< added
+        quick_reply = {
+            "items": create_quick_reply_items([
+                ("✏️ 修改", "modify"),
+                ("🌐 翻譯", "translate"),
+                ("📧 寄送", "mail"),
+                ("🆕 新對話", "new")
+            ])
+        }
         return (
             "✅ 中文版衛教內容已生成。\n\n"
             "📌 您目前可：\n"
@@ -310,9 +393,18 @@ def handle_user_message(
             "3️⃣ 輸入: mail/寄送，寄出內容\n"
             "4️⃣ 輸入 new 重新開始",
             gemini_called,
+            quick_reply
         )
 
     # --- fallback -------------------------------------------------------
+    quick_reply = {
+        "items": create_quick_reply_items([
+            ("🆕 開始", "new"),
+            ("✏️ 修改", "modify"),
+            ("🌐 翻譯", "translate"),
+            ("📧 寄送", "mail")
+        ])
+    }
     return (
         "⚠️ 指令不明，請依照下列操作：\n"
         "new / 開始           → 重新開始\n"
@@ -320,6 +412,7 @@ def handle_user_message(
         "translate / 翻譯     → 翻譯\n"
         "mail / 寄送          → 寄出內容",
         gemini_called,
+        quick_reply
     )
 
 
