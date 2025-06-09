@@ -21,7 +21,7 @@ from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
 from utils.voicemail_drive import upload_voicemail_to_drive
 from utils.paths import VOICEMAIL_DIR
-from utils.command_sets import new_commands, create_quick_reply_items, VOICE_TRANSLATION_OPTIONS, TTS_OPTIONS
+from utils.command_sets import new_commands, create_quick_reply_items, VOICE_TRANSLATION_OPTIONS, TTS_OPTIONS, COMMON_LANGUAGES
 
 # -----------------------------------------------
 # Custom prompt for voicemail translation
@@ -81,8 +81,23 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             except LineBotApiError:
                 pass
             return
+        
+        # b) "translate_voice" - prompt for language selection
+        if text_lower == "translate_voice":
+            quick_reply = QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
+            try:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(
+                        text="🌐 請選擇翻譯語言：",
+                        quick_reply=quick_reply
+                    )
+                )
+            except LineBotApiError:
+                pass
+            return
 
-        # b) Otherwise, treat `user_input` as the target language
+        # c) Otherwise, treat `user_input` as the target language
         original_text = session.get("stt_transcription", "")
         sys_prompt = voicemail_prompt.format(lang=user_input)
 
@@ -109,11 +124,10 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         session["mode"] = "chat"
         session["started"] = True   
 
-        # Build and send the translation reply + TTS hint
+        # Build and send the translation reply
         reply_lines = [
             "🌐 翻譯結果：",
-            translated,
-            "\n若希望將翻譯文句用 AI 語音朗讀，請輸入「朗讀」或是 \"speak\"。"
+            translated
         ]
 
         session.pop("awaiting_stt_translation", None)

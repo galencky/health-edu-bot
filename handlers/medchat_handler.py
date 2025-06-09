@@ -51,8 +51,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
     reply_text = (
         "您是否想表達：\n"
         f"{plain_zh}\n\n"
-        f"{translated}\n\n"
-        "若希望將翻譯文句用AI語音朗讀，請輸入「朗讀」或是 \"speak\"。"
+        f"{translated}"
 )
     
     quick_reply = {
