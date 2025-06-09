@@ -48,8 +48,7 @@ def create_quick_reply_items(options):
 # Predefined quick reply sets
 MODE_SELECTION_OPTIONS = [
     ("🏥 衛教單張", "衛教"),
-    ("💬 醫療翻譯", "chat"),
-    ("🎤 語音留言", "請直接傳送語音訊息")
+    ("💬 醫療翻譯", "chat")
 ]
 
 COMMON_LANGUAGES = [
@@ -85,7 +84,7 @@ CHAT_TTS_OPTIONS = [
 ]
 
 VOICE_TRANSLATION_OPTIONS = [
-    ("🌐 翻譯", "英文"),
+    ("🌐 翻譯", "translate_voice"),
     ("❌ 不翻譯", "無"),
     ("🆕 新對話", "new")
 ]
