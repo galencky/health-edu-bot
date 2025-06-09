@@ -1,12 +1,81 @@
+# === Environment & Configuration ===
+.env
+.env.local
+.env.*.local
+credentials.json
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === Virtual Environments ===
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# === IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === Operating System ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === Runtime Data Directories ===
+/tts_audio/
+/voicemail/
+/logs/
+/data/
+
+# === Docker ===
+.dockerignore
+
+# === Project Specific ===
 /gitignore/**
 !gitignore/.gitkeep
-.env
-.dockerignore
 *.tar
-*.pyc
-*.json
-/tts_audio
-/voicemail
-/.venv
-/venv
-/data
+*.zip
+
+# === Temporary Files ===
+*.log
+*.tmp
+*.temp
+
+# === Test Files ===
+test_audio_files/
+*test*.wav
+*test*.m4a
+
+# === Synology Specific ===
+@eaDir/
+.DS_Store
+Thumbs.db

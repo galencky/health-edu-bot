@@ -11,11 +11,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install minimal system dependencies
 RUN apk add --no-cache \
-    # Build dependencies (removed after pip install)
-    gcc musl-dev libffi-dev \
-    # Runtime dependencies only
-    && apk add --no-cache --virtual .runtime-deps \
-    ca-certificates
+    # Build dependencies for Python packages (will be removed after pip install)
+    gcc musl-dev libffi-dev postgresql-dev \
+    # Runtime dependencies (permanent)
+    ca-certificates \
+    # Health check tool
+    wget
 
 # Create non-root user for security (Alpine syntax)
 RUN addgroup -S appuser && adduser -S appuser -G appuser
@@ -28,7 +29,7 @@ COPY requirements.txt .
 
 # Install Python dependencies and cleanup build deps
 RUN pip install --no-cache-dir -r requirements.txt \
-    && apk del gcc musl-dev libffi-dev
+    && apk del gcc musl-dev libffi-dev postgresql-dev
 
 # Copy application code
 COPY --chown=appuser:appuser . .
@@ -41,8 +42,8 @@ RUN mkdir -p /app/tts_audio /app/voicemail /app/logs && \
 USER appuser
 
 # Health check for container monitoring (using wget instead of curl)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-10001}/ping || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-10001}/ || exit 1
 
 # Default environment variables (can be overridden)
 ENV PORT=10001 \

@@ -33,16 +33,20 @@ services:
     env_file:
       - .env
     
-    # Volume mounts for persistent data
+    # Volume mounts for persistent data (Synology NAS paths)
     volumes:
-      # TTS audio files (optional: for persistence across container restarts)
-      - ./data/tts_audio:/app/tts_audio
-      # Voicemail files (optional: for persistence)
-      - ./data/voicemail:/app/voicemail
+      # TTS audio files (for persistence across container restarts)
+      - /volume1/docker/mededbot/tts_audio:/app/tts_audio
+      # Voicemail files (for persistence)
+      - /volume1/docker/mededbot/voicemail:/app/voicemail
       # Logs directory (recommended for debugging)
-      - ./data/logs:/app/logs
+      - /volume1/docker/mededbot/logs:/app/logs
+      # Alternative: Use relative paths if deploying from project directory
+      # - ./data/tts_audio:/app/tts_audio
+      # - ./data/voicemail:/app/voicemail
+      # - ./data/logs:/app/logs
       # Credentials file (if using file instead of base64)
-      # - ./credentials.json:/app/credentials.json:ro
+      # - /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
     
     # Resource limits (adjust based on your NAS capabilities)
     deploy:
@@ -54,9 +58,9 @@ services:
           memory: 256M
           cpus: '0.1'
     
-    # Health check
+# Health check
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:10001/ping"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10001/"]
       interval: 30s
       timeout: 10s
       retries: 3
