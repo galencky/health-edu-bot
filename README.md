@@ -1,598 +1,365 @@
-# 🏥 MedEdBot - Multilingual Medical Education & Translation Chatbot
+# MedEdBot 🏥🤖
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?&logo=docker&logoColor=white)](https://www.docker.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![LINE Bot](https://img.shields.io/badge/LINE%20Bot-00C300?logo=line&logoColor=white)](https://developers.line.biz/)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
+[![LINE Bot](https://img.shields.io/badge/LINE-Bot_SDK-00C300.svg)](https://developers.line.biz/)
+[![Google Gemini](https://img.shields.io/badge/Google-Gemini_AI-4285F4.svg)](https://ai.google.dev/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A sophisticated multilingual medical education and translation chatbot designed for healthcare professionals in Taiwan. MedEdBot integrates with LINE messaging platform and leverages Google Gemini AI to facilitate communication between medical staff and patients across language barriers.
+A multilingual medical education and translation chatbot for healthcare professionals in Taiwan. MedEdBot integrates with LINE messaging and leverages Google's Gemini AI to bridge language barriers in medical settings, providing instant translations, patient education materials, and voice message transcription in multiple languages.
 
-**Author:** Kuan-Yuan Chen, M.D.  
-**Contact:** galen147258369@gmail.com  
-**License:** MIT
+## 🌟 Key Features
 
----
+- **Real-time Medical Translation**: Instant translation between Mandarin, English, Japanese, and more
+- **Voice Message Processing**: Transcribe and translate voice messages with high accuracy
+- **Patient Education Sheets**: Generate multilingual patient education materials on-demand
+- **Text-to-Speech**: Convert translated text to natural-sounding audio for better communication
+- **Google Search Integration**: Access up-to-date medical information when needed
+- **Session Management**: Maintain conversation context across interactions
+- **Comprehensive Logging**: Track all interactions with PostgreSQL database and Google Drive backup
 
-## 🌟 Features
+## 📋 Table of Contents
 
-### 🤖 Core Capabilities
-- **Real-time Medical Translation** - Instant translation between Mandarin, English, Vietnamese, Indonesian, and more
-- **Voice Message Processing** - Speech-to-text transcription and translation of voice messages
-- **Text-to-Speech Generation** - High-quality audio responses for better patient communication
-- **Medical Education Content** - Generate patient education materials in multiple languages
-- **Quick Reply System** - Context-aware quick actions and common responses
-
-### 🏗️ Technical Features
-- **Async PostgreSQL Logging** - Comprehensive interaction tracking with Neon database
-- **Google Drive Integration** - Automatic backup of audio files and conversation logs
-- **Session Management** - Stateful conversations with automatic cleanup
-- **Health Monitoring** - Built-in health checks and performance monitoring
-- **Docker Optimized** - Production-ready containerization for Synology NAS and cloud deployment
-
-### 🔧 Advanced Functionality
-- **Multi-modal Input** - Support for text, voice, and rich media messages
-- **Flexible Message Types** - LINE Flex Messages with interactive buttons and carousels
-- **Error Recovery** - Robust retry mechanisms for external API calls
-- **Security First** - Non-root containers, encrypted credential storage, input validation
-
----
-
-## 🎯 Project Overview
-
-### Key Problems Solved
-
-1. **Language Barriers in Healthcare**: Medical staff often struggle to communicate with patients who speak different languages
-2. **Time-Consuming Education Material Creation**: Doctors spend significant time creating and translating patient education sheets
-3. **Limited Access to Professional Medical Translation**: Real-time, accurate medical translation is expensive and often unavailable
-4. **Technology Restrictions**: Hospital IT policies often block external apps, but LINE is universally accessible
-
-### Medical Use Cases
-
-#### 👨‍⚕️ For Healthcare Professionals
-
-**Patient Communication:**
-- Instant translation of medical instructions
-- Voice message interpretation from patients
-- Generation of multilingual discharge instructions
-- Emergency phrase translation
-
-**Medical Education:**
-- Create patient education materials in native languages
-- Explain procedures and treatments
-- Medication instructions and side effects
-- Post-operative care guidelines
-
-#### 👥 For Patients
-
-**Language Support:**
-- Communicate with doctors in preferred language
-- Understand medical instructions clearly
-- Ask questions about treatments
-- Receive audio explanations for better comprehension
-
----
+- [Quick Start](#-quick-start)
+- [Architecture](#-architecture)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [Deployment](#-deployment)
+- [API Reference](#-api-reference)
+- [Contributing](#-contributing)
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL database (Neon recommended)
-- LINE Developer Account
-- Google Cloud Platform account (for Gemini AI)
-- Google Drive API access
-- Gmail account (for notifications)
-
-### 1. Clone Repository
-
 ```bash
-git clone https://github.com/yourusername/mededbot.git
-cd mededbot
+# Clone the repository
+git clone https://github.com/yourusername/MedEdBot.git
+cd MedEdBot
+
+# Set up environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your credentials
+
+# Initialize database
+python init_db.py
+
+# Run the application
+uvicorn main:app --host 0.0.0.0 --port 10000 --reload
 ```
 
-### 2. Environment Setup
+## 🏗️ Architecture
 
-Create `.env` file with your credentials:
+### System Architecture
+
+```mermaid
+graph TD
+    A[LINE User] -->|Message/Audio| B[LINE Platform]
+    B -->|Webhook| C[FastAPI Server]
+    C --> D[Line Handler]
+    D --> E[Logic Handler]
+    E -->|Education Mode| F[Education Handler]
+    E -->|Chat Mode| G[MedChat Handler]
+    E -->|Voice Message| H[STT Service]
+    F --> I[Gemini AI]
+    G --> I
+    H --> I
+    I --> J[TTS Service]
+    I --> K[Email Service]
+    C --> L[(PostgreSQL)]
+    C --> M[Google Drive]
+    J --> N[Audio Files]
+    K --> O[Gmail SMTP]
+```
+
+### Core Components
+
+| Component | Description | Key Files |
+|-----------|-------------|-----------|
+| **Web Server** | FastAPI application handling LINE webhooks | `main.py` |
+| **Message Handlers** | Process different types of user interactions | `handlers/` |
+| **AI Services** | Gemini integration for translation & generation | `services/gemini_service.py` |
+| **Audio Processing** | Speech-to-text and text-to-speech | `services/stt_service.py`, `services/tts_service.py` |
+| **Data Persistence** | PostgreSQL logging & Google Drive backup | `utils/database.py` |
+| **Session Management** | In-memory user state tracking | `handlers/session_manager.py` |
+
+## 💻 Installation
+
+### Prerequisites
+
+- Python 3.10 or higher
+- PostgreSQL database (or Neon account)
+- LINE Developer account
+- Google Cloud account with Gemini API access
+- Google service account for Drive/Sheets
+- Gmail account with app password
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/MedEdBot.git
+   cd MedEdBot
+   ```
+
+2. **Create virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials
+   ```
+
+5. **Initialize database**
+   ```bash
+   python init_db.py
+   ```
+
+6. **Run the application**
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 10000 --reload
+   ```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Create a `.env` file in the project root:
 
 ```env
-# Database Configuration
-DATABASE_URL=postgresql://username:password@host/database?ssl=require
+# Database
+DATABASE_URL=postgresql://user:pass@host/db?ssl=require
 
-# LINE Bot Configuration  
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_CHANNEL_SECRET=your_line_channel_secret
+# LINE Bot
+LINE_CHANNEL_ACCESS_TOKEN=your_token
+LINE_CHANNEL_SECRET=your_secret
 
-# Google AI Configuration
+# Google AI
 GEMINI_API_KEY=your_gemini_api_key
 
-# Email Configuration
+# Email
 GMAIL_ADDRESS=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_app_password
 
-# Google Drive Configuration
-GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id
-GOOGLE_CREDS_B64=your_base64_encoded_service_account_credentials
+# Google Drive
+GOOGLE_DRIVE_FOLDER_ID=folder_id
+GOOGLE_CREDS_B64=base64_encoded_credentials
 
-# Server Configuration
-BASE_URL=https://your-domain.com
-PORT=10001
-LOG_LEVEL=info
+# Server (important for audio playback)
+BASE_URL=https://your-public-domain.com
 ```
 
-### 3. Database Setup
+### Google Service Account Setup
 
-Initialize your PostgreSQL database:
+1. Create a service account in Google Cloud Console
+2. Enable Google Drive and Sheets APIs
+3. Download JSON credentials
+4. Convert to base64: `base64 -i credentials.json`
+5. Add to `GOOGLE_CREDS_B64` in `.env`
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### LINE Bot Configuration
 
-# Create database tables
-python init_db.py
-```
+1. Create a Messaging API channel in [LINE Developers Console](https://developers.line.biz/)
+2. Set webhook URL: `https://your-domain.com/webhook`
+3. Copy channel access token and secret to `.env`
 
-### 4. Local Development
+## 📱 Usage
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+### LINE Bot Commands
 
-# Install dependencies
-pip install -r requirements.txt
+| Command | Description | Example |
+|---------|-------------|---------|
+| **衛教** | Start health education mode | "衛教" → Select condition → Get multilingual sheet |
+| **中文/英文** | Switch chat language | "英文" → Switch to English |
+| **Voice messages** | Auto-transcribe & translate | Send audio → Get transcript |
 
-# Run development server
-uvicorn main:app --host 0.0.0.0 --port 10001 --reload
-```
+### Quick Reply Buttons
 
-### 5. Test Installation
+The bot provides contextual quick reply buttons for common actions:
+- Language selection (中文/English/日本語)
+- Common medical conditions
+- Email delivery options
+- Mode switching
 
-```bash
-# Health check
-curl http://localhost:10001/
+## 🚢 Deployment
 
-# Test chat endpoint
-curl -X POST http://localhost:10001/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello"}'
-```
-
----
-
-## 🐳 Docker Deployment
-
-### Standard Docker
+### Docker Deployment
 
 ```bash
-# Build image
+# Build and run with Docker
 docker build -t mededbot .
-
-# Run container
-docker run -d \
-  --name mededbot \
-  -p 10001:10001 \
+docker run -p 10001:10001 \
   --env-file .env \
-  -v $(pwd)/data/tts_audio:/app/tts_audio \
-  -v $(pwd)/data/voicemail:/app/voicemail \
-  -v $(pwd)/data/logs:/app/logs \
+  -v $(pwd)/tts_audio:/app/tts_audio \
+  -v $(pwd)/voicemail:/app/voicemail \
   mededbot
-```
-
-### Docker Compose
-
-```bash
-# Standard deployment
-docker-compose up -d
-
-# Synology NAS deployment
-docker-compose -f docker-compose.synology.yml up -d
 ```
 
 ### Synology NAS Deployment
 
-For detailed Synology NAS deployment instructions, see [`SYNOLOGY_DEPLOYMENT.md`](SYNOLOGY_DEPLOYMENT.md).
-
-**Quick Synology Setup:**
-1. Create directories: `/volume1/docker/mededbot/{source,tts_audio,voicemail,logs}`
-2. Upload project files to `source/`
-3. Configure environment variables in Container Manager
-4. Deploy using provided Docker Compose configuration
-
----
-
-## 🏗️ System Architecture
-
-### High-Level Architecture
-
-```
-┌─────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│    LINE     │────▶│   FastAPI App   │────▶│  Google Gemini   │
-│   Client    │◀────│   (main.py)     │◀────│      API         │
-└─────────────┘     └────────┬────────┘     └──────────────────┘
-                             │
-                    ┌────────┴────────┐
-                    │                 │
-              ┌─────▼─────┐    ┌─────▼─────┐    ┌─────▼─────┐
-              │  Neon DB  │    │  Google   │    │   Gmail   │
-              │PostgreSQL │    │   Drive   │    │   SMTP    │
-              └───────────┘    └───────────┘    └───────────┘
-```
-
-### Component Architecture
-
-```
-main.py (FastAPI Application)
-│
-├── routes/
-│   └── webhook.py          → LINE webhook endpoint handler
-│
-├── handlers/               → Request processing layer
-│   ├── line_handler.py     → LINE message/audio event processing
-│   ├── logic_handler.py    → Core business logic & mode routing
-│   ├── session_manager.py  → Thread-safe user session management
-│   ├── medchat_handler.py  → Real-time translation logic
-│   └── mail_handler.py     → Email composition & delivery
-│
-├── services/               → External service integrations
-│   ├── gemini_service.py   → Gemini API wrapper with Google Search
-│   ├── prompt_config.py    → System prompts for different modes
-│   ├── stt_service.py      → Speech-to-text via Gemini
-│   └── tts_service.py      → Text-to-speech via Gemini
-│
-└── utils/                  → Helper functions
-    ├── command_sets.py     → Multi-language command recognition
-    ├── database.py         → Async PostgreSQL operations
-    ├── logging.py          → Async logging system
-    ├── email_service.py    → SMTP email helper
-    ├── google_drive_service.py → Drive upload with caching
-    ├── paths.py            → Thread-safe directory management
-    └── retry_utils.py      → Error handling & retry logic
-```
-
-### Data Flow
-
-1. **Incoming Message**: LINE → Webhook → Handler → Session Manager
-2. **Content Generation**: Logic Handler → Gemini Service → Google Search (optional)
-3. **Response**: Handler → LINE API (text/audio/flex messages)
-4. **Logging**: Parallel async logging to PostgreSQL & Google Drive
-
----
-
-## 📚 API Documentation
-
-### Core Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Health check and service status |
-| `/ping` | GET/HEAD | Simple health check |
-| `/webhook` | POST | LINE Bot webhook endpoint |
-| `/chat` | POST | Direct chat API (for testing) |
-| `/static/{filename}` | GET | Serve generated audio files |
-
-### Interactive API Documentation
-
-Once running, visit:
-- **Swagger UI**: `http://localhost:10001/docs`
-- **ReDoc**: `http://localhost:10001/redoc`
-
----
-
-## 💡 Usage Guide
-
-### Basic Workflow
-
-1. **Start Session**: Send "new" or "開始"
-2. **Choose Mode**:
-   - "ed" / "衛教" → Education mode
-   - "chat" / "聊天" → Translation mode
-
-### Education Mode ("衛教")
-
-```
-User: 糖尿病飲食控制
-Bot: [Generates comprehensive education sheet with references]
-     
-Commands:
-- "modify" → Edit content
-- "translate" → Translate to another language  
-- "mail" → Send via email
-- "speak" → Generate audio (after translation)
-```
-
-### MedChat Mode
-
-```
-User: chat
-Bot: 請輸入欲翻譯的語言
-User: English
-Bot: Ready for translation
-User: 病人說肚子很痛
-Bot: The patient says their stomach hurts a lot
-```
-
-### Voice Messages
-
-1. Send audio message → Automatic transcription
-2. Choose language or type "無" to skip translation
-3. Optional: Generate TTS of translation
-
----
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `LINE_CHANNEL_ACCESS_TOKEN` | ✅ | LINE Bot access token |
-| `LINE_CHANNEL_SECRET` | ✅ | LINE Bot channel secret |
-| `GEMINI_API_KEY` | ✅ | Google Gemini AI API key |
-| `GOOGLE_DRIVE_FOLDER_ID` | ✅ | Google Drive folder for file storage |
-| `GOOGLE_CREDS_B64` | ✅ | Base64 encoded service account credentials |
-| `GMAIL_ADDRESS` | ✅ | Gmail address for notifications |
-| `GMAIL_APP_PASSWORD` | ✅ | Gmail app password |
-| `BASE_URL` | ✅ | Public URL for webhook and file serving |
-| `PORT` | ❌ | Server port (default: 10001) |
-| `LOG_LEVEL` | ❌ | Logging level (default: info) |
-
-### LINE Bot Setup
-
-1. **Create LINE Bot:**
-   - Visit [LINE Developers Console](https://developers.line.biz/)
-   - Create new channel (Messaging API)
-   - Get Channel Access Token and Channel Secret
-
-2. **Configure Webhook:**
-   - Set webhook URL: `https://your-domain.com/webhook`
-   - Enable webhook usage
-   - Disable auto-reply messages
-
-3. **Bot Settings:**
-   - Enable "Use webhooks"
-   - Disable "Auto-reply messages"
-   - Disable "Greeting messages"
-
-### Google Cloud Setup
-
-1. **Enable APIs:**
-   ```bash
-   # Enable required Google Cloud APIs
-   gcloud services enable generativelanguage.googleapis.com
-   gcloud services enable drive.googleapis.com
-   ```
-
-2. **Create Service Account:**
-   - Go to Google Cloud Console → IAM & Admin → Service Accounts
-   - Create new service account
-   - Download JSON credentials
-   - Convert to base64: `base64 -w 0 credentials.json`
-
-3. **Google Drive Setup:**
-   - Create dedicated folder for MedEdBot
-   - Share folder with service account email
-   - Copy folder ID from URL
-
----
-
-## 📊 Database Schema
-
-### Chat Logs
-```sql
-CREATE TABLE chat_logs (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id VARCHAR(255) NOT NULL,
-    message TEXT,
-    reply TEXT,
-    action_type VARCHAR(100),
-    gemini_call BOOLEAN DEFAULT FALSE,
-    gemini_output_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### TTS Logs
-```sql
-CREATE TABLE tts_logs (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id VARCHAR(255) NOT NULL,
-    text TEXT,
-    audio_filename VARCHAR(255),
-    audio_url TEXT,
-    drive_link TEXT,
-    status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Voicemail Logs
-```sql
-CREATE TABLE voicemail_logs (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id VARCHAR(255) NOT NULL,
-    audio_filename VARCHAR(255),
-    transcription TEXT,
-    translation TEXT,
-    drive_link TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
----
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-mededbot/
-├── handlers/           # Message processing logic
-│   ├── line_handler.py    # LINE Bot integration
-│   ├── logic_handler.py   # Core message routing
-│   ├── medchat_handler.py # Medical translation
-│   └── session_manager.py # User session management
-├── services/           # External service integrations
-│   ├── gemini_service.py  # Google Gemini AI
-│   ├── stt_service.py     # Speech-to-text
-│   ├── tts_service.py     # Text-to-speech
-│   └── prompt_config.py   # AI prompt templates
-├── utils/              # Utility modules
-│   ├── database.py        # Async PostgreSQL operations
-│   ├── logging.py         # Async logging system
-│   ├── google_drive_service.py # File storage
-│   ├── email_service.py   # Email notifications
-│   └── retry_utils.py     # Error handling
-├── routes/             # API route definitions
-│   └── webhook.py         # LINE webhook handler
-├── main.py             # FastAPI application entry point
-├── init_db.py          # Database initialization
-└── requirements.txt    # Python dependencies
-```
-
-### Code Style
-
-- **Async/Await**: Preferred for I/O operations
-- **Type Hints**: Used throughout for better code documentation
-- **Error Handling**: Comprehensive try-catch with retry mechanisms
-- **Logging**: Structured logging with database persistence
-- **Security**: Input validation and sanitization
-
-### Testing
-
 ```bash
-# Test database connectivity
-python test_logging_visibility.py
-
-# Test audio uploads
-python test_audio_upload.py
-
-# View logs
-python view_logs.py
-
-# Manual testing
-curl -X POST http://localhost:10001/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Test message"}'
+# Use the Synology-specific compose file
+docker-compose -f docker-compose.synology.yml up -d
 ```
 
----
+See [SYNOLOGY_DEPLOYMENT.md](SYNOLOGY_DEPLOYMENT.md) for detailed instructions.
 
-## 📈 Monitoring
+### Cloud Deployment (Render/Railway)
 
-### Health Checks
+1. Connect your GitHub repository
+2. Set environment variables in dashboard
+3. Deploy with automatic builds
 
-- **Container Health**: Built-in Docker health checks
-- **Application Health**: `/` and `/ping` endpoints
-- **Database Health**: Connection pool monitoring
-- **External APIs**: Retry logic with exponential backoff
+### Production Checklist
 
-### Logging
+- [ ] HTTPS configured (required for LINE audio)
+- [ ] Database migrations completed
+- [ ] Environment variables set
+- [ ] Public URL accessible
+- [ ] Webhook URL updated in LINE console
+- [ ] Google Drive folder shared with service account
+- [ ] Email app password configured
 
-**Console Output:**
+## 📚 API Reference
+
+### REST Endpoints
+
+#### Health Check
+```http
+GET /
 ```
-✅ [DB] Chat log saved to Neon DB - User: U61539d6d1..., Action: medchat
-🔄 [TTS] Starting TTS logging and Drive upload for user U61539d6d1...
-☁️ [TTS Upload] Upload completed successfully, File ID: 1a2b3c4d...
+Returns server status and metadata.
+
+#### LINE Webhook
+```http
+POST /webhook
+X-Line-Signature: {signature}
+```
+Handles LINE platform events.
+
+#### Test Chat
+```http
+POST /chat
+Content-Type: application/json
+
+{
+  "message": "Hello"
+}
 ```
 
-**Log Files:**
-- Application logs: `/app/logs/`
-- Container logs: `docker logs mededbot`
-- Database logs: Neon dashboard
+### Static Files
+```http
+GET /static/{filename}
+```
+Serves TTS audio files.
 
-### Performance Metrics
+## 🗄️ Database Schema
 
-- **Response Time**: < 5 seconds for text messages
-- **TTS Generation**: < 10 seconds
-- **Memory Usage**: < 1GB typical
-- **Database Queries**: < 100ms average
+```sql
+CREATE TABLE IF NOT EXISTS interaction_logs (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_id VARCHAR(50),
+    user_message TEXT,
+    bot_response TEXT,
+    mode VARCHAR(20),
+    language VARCHAR(20),
+    extras JSONB,
+    error TEXT
+);
 
----
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) UNIQUE NOT NULL,
+    data JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## 🔧 Project Structure
+
+```
+MedEdBot/
+├── main.py                    # FastAPI application
+├── requirements.txt           # Dependencies
+├── Dockerfile                 # Container configuration
+├── docker-compose.yml         # Docker orchestration
+├── init_db.py                 # Database setup
+├── .env.example              # Environment template
+│
+├── handlers/                  # Request handlers
+│   ├── line_handler.py       # LINE message processing
+│   ├── logic_handler.py      # Business logic routing
+│   ├── medchat_handler.py    # Medical chat mode
+│   ├── mail_handler.py       # Email functionality
+│   └── session_manager.py    # User sessions
+│
+├── services/                  # External services
+│   ├── gemini_service.py     # Google Gemini AI
+│   ├── stt_service.py        # Speech-to-text
+│   ├── tts_service.py        # Text-to-speech
+│   └── prompt_config.py      # AI prompts
+│
+├── utils/                     # Utilities
+│   ├── database.py           # Database operations
+│   ├── logging.py            # Structured logging
+│   ├── google_drive_service.py # File backup
+│   ├── email_service.py      # SMTP client
+│   └── command_sets.py       # Command recognition
+│
+└── routes/                    # API routes
+    └── webhook.py            # LINE webhook
+```
 
 ## 🔐 Security
 
-### Security Features
+- Environment variables stored securely in `.env`
+- LINE webhook signature validation
+- Input sanitization and validation
+- Non-root Docker container
+- SSL/TLS database connections
+- Secure file handling with size limits
 
-- **Non-root Container**: Runs as `appuser` (UID 1000)
-- **Input Validation**: All user inputs sanitized
-- **Credential Management**: Base64 encoded secrets
-- **Network Security**: Minimal exposed ports
-- **File Security**: Path traversal protection
-
-### Best Practices
-
-1. **Credential Storage**: Use environment variables, never commit secrets
-2. **Network Access**: Restrict to necessary ports only
-3. **Container Security**: Regular base image updates
-4. **Database Security**: Use connection pooling and SSL
-5. **API Security**: Rate limiting and request validation
-
----
-
-## 🚨 Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### Container Won't Start
-```bash
-# Check logs
-docker logs mededbot
+1. **Audio not playing in LINE**
+   - Check `BASE_URL` is publicly accessible
+   - Ensure HTTPS is configured
+   - Verify file permissions
 
-# Common causes:
-# - Missing environment variables
-# - Database connection failure
-# - Port conflicts
-```
+2. **Database connection errors**
+   - Verify `DATABASE_URL` format
+   - Check SSL requirements
+   - Test connection with `init_db.py`
 
-#### Database Connection Issues
-```bash
-# Test connectivity
-python -c "
-import os
-from utils.database import get_async_db_engine
-print('Testing DB connection...')
-engine = get_async_db_engine()
-print('✅ Connection successful')
-"
-```
+3. **Google Drive upload failures**
+   - Verify service account credentials
+   - Check folder permissions
+   - Ensure folder ID is correct
 
-#### Google Drive Upload Failures
-```bash
-# Check credentials
-python -c "
-import os
-print('Drive Folder ID:', os.getenv('GOOGLE_DRIVE_FOLDER_ID'))
-print('Credentials available:', bool(os.getenv('GOOGLE_CREDS_B64')))
-"
-```
+4. **LINE webhook not receiving messages**
+   - Verify webhook URL in LINE console
+   - Check signature validation
+   - Review server logs
 
-#### LINE Webhook Issues
-- Verify webhook URL is publicly accessible
-- Check SSL certificate validity
-- Ensure webhook responds within 30 seconds
-- Validate LINE channel configuration
-
-### Log Analysis
-
-**Key Log Patterns:**
-- `✅ [DB]` = Database operations successful
-- `❌ [DB]` = Database operations failed  
-- `☁️ uploaded` = Google Drive upload successful
-- `💾 local only` = Drive upload failed, file saved locally
-- `🔄 [LOGGING]` = Background process started
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
+See [troubleshooting guide](TTS_SYNOLOGY_TROUBLESHOOTING.md) for detailed solutions.
 
 ## 🤝 Contributing
 
@@ -604,77 +371,29 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Development Guidelines
 
-- Follow existing code style and patterns
-- Add tests for new functionality
-- Update documentation for API changes
-- Ensure Docker builds successfully
-- Test on both local and containerized environments
+- Follow PEP 8 style guide
+- Add tests for new features
+- Update documentation
+- Keep commits atomic and descriptive
 
----
+## 📄 License
 
-## 📞 Support
-
-### Documentation
-
-- [`SYNOLOGY_DEPLOYMENT.md`](SYNOLOGY_DEPLOYMENT.md) - Synology NAS deployment guide
-- [`DEPLOYMENT_CHECKLIST.md`](DEPLOYMENT_CHECKLIST.md) - Complete deployment checklist
-- [`MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md) - Migration from older versions
-- [`BUG_FIXES_SUMMARY.md`](BUG_FIXES_SUMMARY.md) - Recent bug fixes and improvements
-
-### Getting Help
-
-1. **Check Documentation**: Review relevant markdown files
-2. **Search Issues**: Look for similar problems in GitHub issues
-3. **Check Logs**: Review application and container logs
-4. **Test Connectivity**: Verify all external service connections
-5. **Create Issue**: Provide detailed error messages and environment info
-
-### Community
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/mededbot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mededbot/discussions)
-- **Wiki**: [Project Wiki](https://github.com/yourusername/mededbot/wiki)
-
----
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework
-- [LINE Messaging API](https://developers.line.biz/) - Messaging platform integration
-- [Google Gemini AI](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/overview) - Advanced language model
-- [Neon](https://neon.tech/) - Serverless PostgreSQL platform
-- [Synology](https://www.synology.com/) - Network Attached Storage solutions
-- Taiwan medical community for feedback and testing
+- Google Gemini team for the powerful AI models
+- LINE Corporation for the messaging platform
+- Healthcare professionals who provided feedback
+- Open source community for the amazing tools
+
+## 📞 Support
+
+For issues and questions:
+- Create an issue on GitHub
+- Check existing documentation
+- Review logs for error details
 
 ---
 
-## 📊 Project Status
-
-**Current Version**: 2.0.0  
-**Status**: Production Ready  
-**Last Updated**: December 2024
-
-### Recent Updates
-
-- ✅ Async PostgreSQL integration with Neon database
-- ✅ Enhanced Google Drive upload reliability
-- ✅ Synology NAS Docker optimization
-- ✅ Comprehensive health monitoring
-- ✅ Improved error handling and retry logic
-- ✅ Security hardening and best practices
-
-### Roadmap
-
-- 🔄 Advanced medical terminology support
-- 🔄 Integration with hospital management systems
-- 🔄 Enhanced voice recognition accuracy
-- 🔄 Multi-tenant support for hospitals
-- 🔄 Advanced analytics and reporting
-
----
-
-**Built with ❤️ for healthcare professionals in Taiwan**
-
-*Improving patient-doctor communication across language barriers*
-
-*Developed by Dr. Kuan-Yuan Chen*
+<p align="center">Made with ❤️ for healthcare professionals in Taiwan</p>
