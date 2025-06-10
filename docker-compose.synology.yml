@@ -18,20 +18,20 @@ services:
       - PORT=10001
       - LOG_LEVEL=info
       # Database URL for Neon PostgreSQL
-      - DATABASE_URL=${DATABASE_URL}
+      #- DATABASE_URL=${DATABASE_URL}
       # LINE Bot configuration
-      - LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
-      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
+      #- LINE_CHANNEL_ACCESS_TOKEN=${LINE_CHANNEL_ACCESS_TOKEN}
+      #- LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
       # Google AI configuration
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      #- GEMINI_API_KEY=${GEMINI_API_KEY}
       # Email configuration
-      - GMAIL_ADDRESS=${GMAIL_ADDRESS}
-      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      #- GMAIL_ADDRESS=${GMAIL_ADDRESS}
+      #- GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
       # Google Drive configuration
-      - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID}
-      - GOOGLE_CREDS_B64=${GOOGLE_CREDS_B64}
+      #- GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID}
+      #- GOOGLE_CREDS_B64=${GOOGLE_CREDS_B64}
       # Server configuration
-      - BASE_URL=${BASE_URL}
+      #- BASE_URL=${BASE_URL}
     
     # Synology NAS volume mounts (adjust paths based on your setup)
     volumes:
@@ -41,10 +41,10 @@ services:
       - /volume1/docker/mededbot/logs:/app/logs
       
       # Optional: Mount .env file for easier configuration
-      # - /volume1/docker/mededbot/.env:/app/.env:ro
+      - /volume1/docker/mededbot/.env:/app/.env:ro
       
       # Optional: Mount credentials file instead of using base64
-      # - /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
+      #- /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
     
     # Resource limits for Synology NAS
     deploy:

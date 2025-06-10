@@ -36,17 +36,17 @@ services:
     # Volume mounts for persistent data (Synology NAS paths)
     volumes:
       # TTS audio files (for persistence across container restarts)
-      - /volume1/docker/mededbot/tts_audio:/app/tts_audio
+      #- /volume1/docker/mededbot/tts_audio:/app/tts_audio
       # Voicemail files (for persistence)
-      - /volume1/docker/mededbot/voicemail:/app/voicemail
+      #- /volume1/docker/mededbot/voicemail:/app/voicemail
       # Logs directory (recommended for debugging)
-      - /volume1/docker/mededbot/logs:/app/logs
+      #- /volume1/docker/mededbot/logs:/app/logs
       # Alternative: Use relative paths if deploying from project directory
-      # - ./data/tts_audio:/app/tts_audio
-      # - ./data/voicemail:/app/voicemail
-      # - ./data/logs:/app/logs
+      - ./data/tts_audio:/app/tts_audio
+      - ./data/voicemail:/app/voicemail
+      - ./data/logs:/app/logs
       # Credentials file (if using file instead of base64)
-      # - /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
+      #- /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
     
     # Resource limits (adjust based on your NAS capabilities)
     deploy:
