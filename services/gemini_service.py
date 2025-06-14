@@ -7,6 +7,7 @@ from google.genai import types
 import asyncio
 from concurrent.futures import TimeoutError
 import time
+import threading
 
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
@@ -28,16 +29,16 @@ _client = genai.Client(api_key=api_key)
 _model = "gemini-2.5-flash-preview-05-20"
 _tools = [types.Tool(google_search=types.GoogleSearch())]
 
-# Store last response globally (thread safe for single request model)
-_last_response = None
+# Thread-local storage for last response to prevent race conditions
+_thread_local = threading.local()
 
 def _call_genai(user_text, sys_prompt=None, temp=0.25):
     """
     Internal function to call Gemini, store response for reference extraction.
     Returns only the answer string.
     BUG FIX: Added timeout to prevent hanging requests
+    BUG FIX: Use thread-local storage to prevent race conditions
     """
-    global _last_response
     contents = [
         types.Content(
             role="user",
@@ -70,7 +71,9 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
                     contents=contents,
                     config=generate_content_config,
                 )
-                _last_response = future.result(timeout=API_TIMEOUT_SECONDS)
+                response = future.result(timeout=API_TIMEOUT_SECONDS)
+                # Store in thread-local storage to prevent race conditions
+                _thread_local.last_response = response
                 break  # Success, exit retry loop
         except concurrent.futures.TimeoutError:
             if attempt < MAX_RETRIES:
@@ -86,7 +89,10 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
                 raise Exception(f"Gemini API error: {str(e)}")
     
     # Standard output: answer as text string
-    return _last_response.candidates[0].content.parts[0].text if _last_response.candidates[0].content.parts else ""
+    response = getattr(_thread_local, 'last_response', None)
+    if response and response.candidates and response.candidates[0].content.parts:
+        return response.candidates[0].content.parts[0].text
+    return ""
 
 def call_zh(prompt: str, system_prompt: str = zh_prompt) -> str:
     """Call Gemini with zh_prompt, return answer string."""
@@ -111,11 +117,12 @@ def get_references():
     Call immediately after call_zh/call_translate/plainify/confirm_translate.
     Returns a list of dicts: [{title:..., url:...}, ...]
     If no references found, returns empty list.
+    BUG FIX: Use thread-local storage to prevent race conditions
     """
-    global _last_response
-    if not _last_response:
+    last_response = getattr(_thread_local, 'last_response', None)
+    if not last_response:
         return []
-    grounding = getattr(_last_response.candidates[0], "grounding_metadata", None)
+    grounding = getattr(last_response.candidates[0], "grounding_metadata", None)
     refs = []
     if (
         grounding
