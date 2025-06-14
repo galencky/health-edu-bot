@@ -17,7 +17,8 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(pip install:*)",
-      "Bash(ss:*)"
+      "Bash(ss:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }
