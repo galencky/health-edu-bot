@@ -117,7 +117,9 @@ def validate_action_type(action_type: Optional[str]) -> Optional[str]:
     
     allowed_actions = {
         'edu', 'chat', 'translate', 'tts', 'email', 
-        'modify', 'voicemail', 'new', 'help'
+        'modify', 'voicemail', 'new', 'help', 'other',
+        'sync reply', 'medchat_audio', 'gemini reply', 'medchat', 
+        'exception', 'audio', 'text', 'voice'
     }
     
     action_type = action_type.lower().strip()
