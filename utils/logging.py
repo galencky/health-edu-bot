@@ -56,124 +56,131 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
     """
     Internal async function to log TTS generation and upload audio to Drive.
     """
+    from utils.storage_config import TTS_USE_MEMORY
+    
     web_link = None
     upload_status = "pending"
     retry_count = 0
     
-    # Define upload function with retry decorator
-    @exponential_backoff(
-        max_retries=3,
-        initial_delay=1.0,
-        max_delay=30.0,
-        exceptions=(Exception,),
-        on_retry=lambda attempt, error: print(f"[TTS Upload] Retry {attempt} due to: {error}")
-    )
-    def upload_to_drive():
-        nonlocal retry_count
-        retry_count += 1
-        
-        service = get_drive_service()
-        folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-        if not folder_id:
-            raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
-        
-        filename = os.path.basename(audio_path)
-        
-        # Detect file type and set appropriate mimetype
-        if filename.lower().endswith('.wav'):
-            mimetype = "audio/wav"
-        elif filename.lower().endswith('.m4a'):
-            mimetype = "audio/mp4"
-        elif filename.lower().endswith('.mp3'):
-            mimetype = "audio/mpeg"
-        else:
-            mimetype = "audio/wav"  # Default fallback
-        
-        file_metadata = {
-            "name": filename,
-            "parents": [folder_id]
-        }
-        
-        from googleapiclient.http import MediaFileUpload
-        media = None
-        try:
-            # Check if file exists and is accessible
-            if not os.path.exists(audio_path):
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+    # Skip Drive upload if using memory storage
+    if TTS_USE_MEMORY:
+        print(f"📝 [TTS] Using memory storage, skipping Drive upload")
+        upload_status = "memory_storage"
+    else:
+        # Define upload function with retry decorator
+        @exponential_backoff(
+            max_retries=3,
+            initial_delay=1.0,
+            max_delay=30.0,
+            exceptions=(Exception,),
+            on_retry=lambda attempt, error: print(f"[TTS Upload] Retry {attempt} due to: {error}")
+        )
+        def upload_to_drive():
+            nonlocal retry_count
+            retry_count += 1
             
-            # Check file size
-            file_size = os.path.getsize(audio_path)
-            print(f"[TTS Upload] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
+            service = get_drive_service()
+            folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+            if not folder_id:
+                raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
             
-            if file_size == 0:
-                raise ValueError(f"Audio file is empty: {audio_path}")
+            filename = os.path.basename(audio_path)
             
-            # Create media upload - use resumable for files > 5MB, otherwise simple upload
-            if file_size > 5 * 1024 * 1024:  # 5MB
-                media = MediaFileUpload(
-                    audio_path, 
-                    mimetype=mimetype,
-                    resumable=True,
-                    chunksize=1024*1024  # 1MB chunks for better reliability
-                )
-                print(f"[TTS Upload] Using resumable upload for large file")
+            # Detect file type and set appropriate mimetype
+            if filename.lower().endswith('.wav'):
+                mimetype = "audio/wav"
+            elif filename.lower().endswith('.m4a'):
+                mimetype = "audio/mp4"
+            elif filename.lower().endswith('.mp3'):
+                mimetype = "audio/mpeg"
             else:
-                media = MediaFileUpload(
-                    audio_path, 
-                    mimetype=mimetype,
-                    resumable=False
-                )
-                print(f"[TTS Upload] Using simple upload for small file")
+                mimetype = "audio/wav"  # Default fallback
             
-            # Upload file
-            if media._resumable:
-                request = service.files().create(
-                    body=file_metadata, 
-                    media_body=media, 
-                    fields="id,webViewLink"
-                )
+            file_metadata = {
+                "name": filename,
+                "parents": [folder_id]
+            }
+            
+            from googleapiclient.http import MediaFileUpload
+            media = None
+            try:
+                # Check if file exists and is accessible
+                if not os.path.exists(audio_path):
+                    raise FileNotFoundError(f"Audio file not found: {audio_path}")
                 
-                uploaded = None
-                while uploaded is None:
-                    status, uploaded = request.next_chunk()
-                    if status:
-                        print(f"[TTS Upload] Progress: {int(status.progress() * 100)}%")
-            else:
-                # Simple upload for small files
-                uploaded = service.files().create(
-                    body=file_metadata, 
-                    media_body=media, 
-                    fields="id,webViewLink"
-                ).execute()
-            
-            print(f"[TTS Upload] Upload completed successfully, File ID: {uploaded.get('id')}")
-            return uploaded
-            
-        finally:
-            # Ensure file handle is closed
-            if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
-                try:
-                    media._fd.close()
-                except Exception as e:
-                    print(f"[TTS Upload] Failed to close media file descriptor: {e}")
+                # Check file size
+                file_size = os.path.getsize(audio_path)
+                print(f"[TTS Upload] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
+                
+                if file_size == 0:
+                    raise ValueError(f"Audio file is empty: {audio_path}")
+                
+                # Create media upload - use resumable for files > 5MB, otherwise simple upload
+                if file_size > 5 * 1024 * 1024:  # 5MB
+                    media = MediaFileUpload(
+                        audio_path, 
+                        mimetype=mimetype,
+                        resumable=True,
+                        chunksize=1024*1024  # 1MB chunks for better reliability
+                    )
+                    print(f"[TTS Upload] Using resumable upload for large file")
+                else:
+                    media = MediaFileUpload(
+                        audio_path, 
+                        mimetype=mimetype,
+                        resumable=False
+                    )
+                    print(f"[TTS Upload] Using simple upload for small file")
+                
+                # Upload file
+                if media._resumable:
+                    request = service.files().create(
+                        body=file_metadata, 
+                        media_body=media, 
+                        fields="id,webViewLink"
+                    )
+                    
+                    uploaded = None
+                    while uploaded is None:
+                        status, uploaded = request.next_chunk()
+                        if status:
+                            print(f"[TTS Upload] Progress: {int(status.progress() * 100)}%")
+                else:
+                    # Simple upload for small files
+                    uploaded = service.files().create(
+                        body=file_metadata, 
+                        media_body=media, 
+                        fields="id,webViewLink"
+                    ).execute()
+                
+                print(f"[TTS Upload] Upload completed successfully, File ID: {uploaded.get('id')}")
+                return uploaded
+                
+            finally:
+                # Ensure file handle is closed
+                if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
+                    try:
+                        media._fd.close()
+                    except Exception as e:
+                        print(f"[TTS Upload] Failed to close media file descriptor: {e}")
     
-    try:
-        # Run sync Drive upload in thread pool
-        loop = asyncio.get_event_loop()
-        uploaded = await loop.run_in_executor(None, upload_to_drive)
-        
-        file_id = uploaded.get("id")
-        web_link = uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
-        upload_status = "success"
-        
-    except RetryError as e:
-        print(f"[TTS Upload] Failed after all retries: {e}")
-        print(f"[TTS Upload] Last error: {e.last_error}")
-        upload_status = f"drive_upload_failed_after_{retry_count}_attempts"
-        
-    except Exception as e:
-        print(f"[TTS Upload] Unexpected error: {e}\n{traceback.format_exc()}")
-        upload_status = "drive_upload_error"
+        try:
+            # Run sync Drive upload in thread pool
+            loop = asyncio.get_event_loop()
+            uploaded = await loop.run_in_executor(None, upload_to_drive)
+            
+            file_id = uploaded.get("id")
+            web_link = uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
+            upload_status = "success"
+            
+        except RetryError as e:
+            print(f"[TTS Upload] Failed after all retries: {e}")
+            print(f"[TTS Upload] Last error: {e.last_error}")
+            upload_status = f"drive_upload_failed_after_{retry_count}_attempts"
+            
+        except Exception as e:
+            print(f"[TTS Upload] Unexpected error: {e}\n{traceback.format_exc()}")
+            upload_status = "drive_upload_error"
     
     # Always log to database, even if upload failed
     try:
