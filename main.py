@@ -100,6 +100,40 @@ def chat(input: UserInput):
     reply, _, quick_reply_data = handle_user_message(user_id, input.message, session)
     return {"reply": reply, "quick_reply": quick_reply_data}
 
+@app.get("/debug/storage")
+def debug_storage():
+    """Debug endpoint to check storage configuration"""
+    from utils.storage_config import STORAGE_BACKEND, TTS_USE_MEMORY, TTS_USE_DRIVE
+    return {
+        "storage_backend": STORAGE_BACKEND.value,
+        "tts_use_memory": TTS_USE_MEMORY,
+        "tts_use_drive": TTS_USE_DRIVE,
+        "port": os.getenv("PORT"),
+        "render_external_url": os.getenv("RENDER_EXTERNAL_URL"),
+        "base_url": os.getenv("BASE_URL"),
+        "home_exists": os.path.exists("/home")
+    }
+
+@app.post("/debug/tts")
+def debug_tts(input: UserInput):
+    """Debug endpoint to test TTS generation"""
+    try:
+        from services.tts_service import generate_tts_response
+        from utils.storage_config import TTS_USE_MEMORY
+        
+        result = generate_tts_response("test-user", input.message)
+        return {
+            "success": True,
+            "storage_backend": "memory" if TTS_USE_MEMORY else "local",
+            "result": result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "storage_backend": "memory" if TTS_USE_MEMORY else "local"
+        }
+
 # ── misc endpoints -----------------------------------------------------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():

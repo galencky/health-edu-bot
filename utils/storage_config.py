@@ -23,6 +23,12 @@ def get_storage_backend() -> StorageBackend:
         os.getenv("PORT") and not os.path.exists("/home")  # Generic cloud indicator
     )
     
+    # TEMP: Force memory storage for debugging
+    port = os.getenv("PORT")
+    if port and port != "10001":  # Render typically assigns different ports
+        print(f"🚨 [STORAGE] Detected cloud deployment (PORT={port}), forcing memory storage")
+        return StorageBackend.MEMORY
+    
     if is_cloud:
         # Use Google Drive if configured, otherwise memory
         if os.getenv("GOOGLE_DRIVE_FOLDER_ID") and os.getenv("GOOGLE_CREDS_B64"):

@@ -120,6 +120,8 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
         action_type = validate_action_type(action_type)
         gemini_output_url = sanitize_text(gemini_output_url, max_length=500) if gemini_output_url else None
         
+        print(f"🔍 [DB] About to log - Action: '{action_type}', Gemini: {gemini_call}")
+        
         async with get_async_db_session() as session:
             log = ChatLog(
                 user_id=user_id,
