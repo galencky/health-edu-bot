@@ -67,6 +67,7 @@ Thumbs.db
 !gitignore/.gitkeep
 *.tar
 *.zip
+/tts_audio
 
 # === Temporary Files ===
 *.log
