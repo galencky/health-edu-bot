@@ -17,7 +17,6 @@ from linebot.exceptions import LineBotApiError
 from handlers.logic_handler import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.logging import log_chat, upload_voicemail
-from utils.database import update_voicemail_translation
 from utils.google_drive_service import upload_stt_translation_log
 from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
@@ -114,8 +113,9 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             audio_filename = session.get("stt_audio_filename")
             if audio_filename:
                 try:
-                    # Update database with translation
-                    update_success = await update_voicemail_translation(user_id, audio_filename, translated)
+                    # Update database with translation (use sync version)
+                    from utils.database import _update_voicemail_translation_sync
+                    update_success = _update_voicemail_translation_sync(user_id, audio_filename, translated)
                     if update_success:
                         print(f"✅ [STT] Updated voicemail translation in database")
                     
