@@ -120,7 +120,8 @@ def validate_action_type(action_type: Optional[str]) -> Optional[str]:
         'edu', 'chat', 'translate', 'tts', 'email', 
         'modify', 'voicemail', 'new', 'help', 'other',
         'sync reply', 'medchat_audio', 'gemini reply', 'medchat', 
-        'exception', 'audio', 'text', 'voice'
+        'exception', 'audio', 'text', 'voice',
+        'speak', 'medchat audio'  # Additional variants
     }
     
     action_type = action_type.lower().strip()

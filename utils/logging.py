@@ -189,14 +189,19 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
     except Exception as db_error:
         print(f"❌ [TTS] Failed to log to database: {db_error}")
     
-    # Delete local file after successful Drive upload
-    if web_link and upload_status == "success":
+    # Delete local file after successful Drive upload ONLY if using memory storage
+    # If using local storage, we need to keep the files to serve them!
+    from utils.storage_config import TTS_USE_MEMORY
+    
+    if web_link and upload_status == "success" and TTS_USE_MEMORY:
         try:
             if os.path.exists(audio_path):
                 os.remove(audio_path)
-                print(f"🗑️ [TTS] Deleted local file after Drive upload: {os.path.basename(audio_path)}")
+                print(f"🗑️ [TTS] Deleted local file after Drive upload (memory storage mode): {os.path.basename(audio_path)}")
         except Exception as e:
             print(f"⚠️ [TTS] Failed to delete local file: {e}")
+    elif web_link and upload_status == "success":
+        print(f"📁 [TTS] Keeping local file for serving (local storage mode): {os.path.basename(audio_path)}")
 
 
 async def _async_upload_voicemail(local_path: str, user_id: str, transcription: str = None, translation: str = None) -> str:
