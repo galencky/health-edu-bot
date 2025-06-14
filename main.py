@@ -3,6 +3,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Response, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import os
 from pathlib import Path
@@ -11,9 +12,12 @@ from handlers.session_manager import get_user_session, cleanup_expired_sessions
 from handlers.logic_handler import handle_user_message
 from utils.paths import TTS_AUDIO_DIR
 from utils.auth import verify_api_key
-from utils.validators import sanitize_text
+from utils.validators import sanitize_text, sanitize_filename
+from utils.storage_config import TTS_USE_MEMORY
+from utils.memory_storage import memory_storage
 import asyncio
 from contextlib import asynccontextmanager
+import io
 
 # BUG FIX: Background task for session cleanup
 # Previously: Sessions never expired, causing memory leaks
@@ -26,10 +30,31 @@ async def periodic_session_cleanup():
         except Exception as e:
             print(f"Error during session cleanup: {e}")
 
+# Background task for memory storage cleanup (if using memory backend)
+async def periodic_memory_cleanup():
+    """Run memory storage cleanup every 30 minutes"""
+    if not TTS_USE_MEMORY:
+        return
+    
+    while True:
+        await asyncio.sleep(1800)  # 30 minutes
+        try:
+            memory_storage.cleanup_old_files(max_age_seconds=3600)  # Remove files older than 1 hour
+            info = memory_storage.get_info()
+            print(f"📊 Memory storage: {info['files']} files, {info['total_size_mb']:.1f} MB")
+        except Exception as e:
+            print(f"Error during memory cleanup: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     cleanup_task = asyncio.create_task(periodic_session_cleanup())
+    
+    # Start memory cleanup if using memory backend
+    memory_cleanup_task = None
+    if TTS_USE_MEMORY:
+        memory_cleanup_task = asyncio.create_task(periodic_memory_cleanup())
+        print("🧠 Using in-memory storage for TTS files")
     
     # Test database connection
     try:
@@ -45,8 +70,12 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     cleanup_task.cancel()
+    if memory_cleanup_task:
+        memory_cleanup_task.cancel()
     try:
         await cleanup_task
+        if memory_cleanup_task:
+            await memory_cleanup_task
     except asyncio.CancelledError:
         pass
 
@@ -83,6 +112,27 @@ def root():
 @app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return Response(content='{"status": "ok"}', media_type="application/json")
+
+# ── audio endpoint for memory storage ---------------------------------
+@app.get("/audio/{filename}")
+async def get_audio(filename: str):
+    """Serve audio files from memory storage (for ephemeral deployments)"""
+    if not TTS_USE_MEMORY:
+        raise HTTPException(404, "Audio endpoint not available in this deployment")
+    
+    try:
+        # Sanitize filename
+        safe_filename = sanitize_filename(filename)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
+    
+    # Get from memory
+    result = memory_storage.get(safe_filename)
+    if not result:
+        raise HTTPException(404, "Audio file not found")
+    
+    data, content_type = result
+    return StreamingResponse(io.BytesIO(data), media_type=content_type)
 
 # ── local dev ----------------------------------------------------------test#
 if __name__ == "__main__":

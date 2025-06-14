@@ -7,6 +7,8 @@ from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.rate_limiter import rate_limit, tts_limiter
+from utils.storage_config import TTS_USE_MEMORY, TTS_USE_DRIVE
+from utils.memory_storage import memory_storage
 
 import os, time, wave
 from google import genai
@@ -127,22 +129,43 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     if not pcm:
         raise ValueError("TTS response contains empty audio data")
     
-    _wave_file(path, pcm)
-
     # Calculate duration (ms)
     dur_ms = int(len(pcm) / (24_000 * 2) * 1000)
 
-    # Build public URL
-    base = os.getenv("BASE_URL")
-    if not base or "YOUR_DOMAIN" in base:
-        raise RuntimeError(
-            "BASE_URL environment variable is not set correctly. "
-            "Cannot generate valid audio URL for LINE."
-        )
-
-    url = f"{base}/static/{fn}"
-
-    # Log to Google Drive & Sheets (in background)
-    log_tts_async(user_id, text, path, url)
+    # Save based on storage backend
+    if TTS_USE_MEMORY:
+        # Convert PCM to WAV in memory
+        import io
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wf:
+            wf.setnchannels(1)  # mono
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(24000)
+            wf.writeframes(pcm)
+        
+        wav_data = wav_buffer.getvalue()
+        memory_storage.save(safe_fn, wav_data, "audio/wav")
+        
+        # For memory storage, we'll serve from a different endpoint
+        base = os.getenv("BASE_URL")
+        if not base:
+            raise RuntimeError("BASE_URL environment variable is not set")
+        url = f"{base}/audio/{safe_fn}"
+        
+    else:
+        # Save to disk (local or for Drive upload)
+        _wave_file(str(path), pcm)
+        
+        # Build public URL
+        base = os.getenv("BASE_URL")
+        if not base or "YOUR_DOMAIN" in base:
+            raise RuntimeError(
+                "BASE_URL environment variable is not set correctly. "
+                "Cannot generate valid audio URL for LINE."
+            )
+        url = f"{base}/static/{safe_fn}"
+        
+        # Log to Google Drive & Sheets (in background)
+        log_tts_async(user_id, text, str(path), url)
 
     return url, dur_ms

@@ -373,16 +373,15 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
             TextSendMessage(text="⚠️ 語音轉文字失敗，請稍後重試。")
         )
         return
-    finally:
-        # BUG FIX: Always clean up local file after processing
-        # Previously: Local files accumulated on disk
+
+    if not transcription:
+        # Clean up file if transcription is empty
         try:
             if local_filename.exists():
                 local_filename.unlink()
-        except Exception as cleanup_error:
-            print(f"[CLEANUP ERROR] Failed to delete {local_filename}: {cleanup_error}")
-
-    if not transcription:
+                print(f"[CLEANUP] Deleted file after empty transcription: {local_filename}")
+        except Exception:
+            pass
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="⚠️ 轉錄內容為空，無法處理。")
@@ -397,6 +396,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     session["_prev_mode"] = session.get("mode") or "edu"  # remember current mode
     
     # 4. Upload to Drive and log to database
+    # Note: upload_voicemail will delete the file after successful upload
     drive_link = None
     try:
         drive_link = upload_voicemail(
@@ -407,6 +407,13 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         )
     except Exception as e:
         print(f"[Voicemail upload/log failed] {e}")
+        # Clean up file if upload fails
+        try:
+            if local_filename.exists():
+                local_filename.unlink()
+                print(f"[CLEANUP] Deleted file after upload failure: {local_filename}")
+        except Exception as cleanup_error:
+            print(f"[CLEANUP ERROR] Failed to delete {local_filename}: {cleanup_error}")
         # Continue even if upload fails
 
     reply_lines = [

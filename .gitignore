@@ -2,7 +2,10 @@
 .env
 .env.local
 .env.*.local
+.env.production
 credentials.json
+*.pem
+*.key
 
 # === Python ===
 __pycache__/
