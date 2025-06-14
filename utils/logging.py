@@ -62,11 +62,8 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
     upload_status = "pending"
     retry_count = 0
     
-    # Skip Drive upload if using memory storage
-    if TTS_USE_MEMORY:
-        print(f"📝 [TTS] Using memory storage, skipping Drive upload")
-        upload_status = "memory_storage"
-    else:
+    # Handle Drive upload for both memory and disk storage
+    if os.getenv("GOOGLE_DRIVE_FOLDER_ID"):
         # Define upload function with retry decorator
         @exponential_backoff(
             max_retries=3,
@@ -101,36 +98,60 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
                 "parents": [folder_id]
             }
             
-            from googleapiclient.http import MediaFileUpload
+            from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
             media = None
             try:
-                # Check if file exists and is accessible
-                if not os.path.exists(audio_path):
+                # Handle memory storage - get data from memory
+                if TTS_USE_MEMORY:
+                    from utils.memory_storage import memory_storage
+                    import io
+                    
+                    audio_data = memory_storage.get(filename)
+                    if not audio_data:
+                        raise FileNotFoundError(f"Audio file not found in memory: {filename}")
+                    
+                    # Create a BytesIO object for upload
+                    audio_buffer = io.BytesIO(audio_data)
+                    file_size = len(audio_data)
+                    
+                # Handle disk storage - check if file exists
+                elif not os.path.exists(audio_path):
                     raise FileNotFoundError(f"Audio file not found: {audio_path}")
+                else:
+                    # Get file size for disk storage
+                    file_size = os.path.getsize(audio_path)
                 
-                # Check file size
-                file_size = os.path.getsize(audio_path)
                 print(f"[TTS Upload] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
                 
                 if file_size == 0:
-                    raise ValueError(f"Audio file is empty: {audio_path}")
+                    raise ValueError(f"Audio file is empty")
                 
-                # Create media upload - use resumable for files > 5MB, otherwise simple upload
-                if file_size > 5 * 1024 * 1024:  # 5MB
-                    media = MediaFileUpload(
-                        audio_path, 
+                # Create media upload
+                if TTS_USE_MEMORY:
+                    # For memory storage, use MediaIoBaseUpload
+                    media = MediaIoBaseUpload(
+                        audio_buffer,
                         mimetype=mimetype,
-                        resumable=True,
-                        chunksize=1024*1024  # 1MB chunks for better reliability
+                        resumable=(file_size > 5 * 1024 * 1024)
                     )
-                    print(f"[TTS Upload] Using resumable upload for large file")
+                    print(f"[TTS Upload] Using memory upload")
                 else:
-                    media = MediaFileUpload(
-                        audio_path, 
-                        mimetype=mimetype,
-                        resumable=False
-                    )
-                    print(f"[TTS Upload] Using simple upload for small file")
+                    # For disk storage, use MediaFileUpload
+                    if file_size > 5 * 1024 * 1024:  # 5MB
+                        media = MediaFileUpload(
+                            audio_path, 
+                            mimetype=mimetype,
+                            resumable=True,
+                            chunksize=1024*1024  # 1MB chunks for better reliability
+                        )
+                        print(f"[TTS Upload] Using resumable upload for large file")
+                    else:
+                        media = MediaFileUpload(
+                            audio_path, 
+                            mimetype=mimetype,
+                            resumable=False
+                        )
+                        print(f"[TTS Upload] Using simple upload for small file")
                 
                 # Upload file
                 if media._resumable:
