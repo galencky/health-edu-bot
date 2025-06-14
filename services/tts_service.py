@@ -134,6 +134,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
 
     # Save based on storage backend
     if TTS_USE_MEMORY:
+        print(f"🔍 [TTS] Using memory storage for {safe_fn}")
         # Convert PCM to WAV in memory
         import io
         wav_buffer = io.BytesIO()
@@ -152,6 +153,9 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
             raise RuntimeError("BASE_URL environment variable is not set")
         url = f"{base}/audio/{safe_fn}"
         
+        # Log to database (no physical file to upload to Drive)
+        log_tts_async(user_id, text, safe_fn, url)
+        
     else:
         # Save to disk (local or for Drive upload)
         _wave_file(str(path), pcm)
@@ -165,7 +169,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
             )
         url = f"{base}/static/{safe_fn}"
         
-        # Log to Google Drive & Sheets (in background)
+        # Log to Google Drive & database (in background)
         log_tts_async(user_id, text, str(path), url)
 
     return url, dur_ms
