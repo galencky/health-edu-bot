@@ -397,6 +397,8 @@ def log_tts_async(user_id, text, audio_path, audio_url):
     Fire-and-forget async logging for TTS generation with Drive upload.
     Creates a new event loop in a thread to handle the async operations.
     """
+    print(f"🔍 [TTS LOG] Starting TTS logging for user {user_id[:10]}..., file: {os.path.basename(audio_path) if '/' in str(audio_path) else audio_path}")
+    
     def _worker():
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
