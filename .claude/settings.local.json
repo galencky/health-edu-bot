@@ -18,7 +18,8 @@
       "Bash(rg:*)",
       "Bash(pip install:*)",
       "Bash(ss:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
