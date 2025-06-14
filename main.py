@@ -114,6 +114,18 @@ def debug_storage():
         "home_exists": os.path.exists("/home")
     }
 
+@app.get("/debug/validator/{action_type}")
+def debug_validator(action_type: str):
+    """Debug endpoint to test action_type validator"""
+    from utils.validators import validate_action_type
+    
+    validated = validate_action_type(action_type)
+    return {
+        "input": action_type,
+        "validated": validated,
+        "is_other": validated == "other"
+    }
+
 @app.post("/debug/tts")
 def debug_tts(input: UserInput):
     """Debug endpoint to test TTS generation"""
