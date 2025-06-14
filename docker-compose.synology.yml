@@ -56,14 +56,6 @@ services:
           memory: 256M
           cpus: '0.1'
     
-    # Health check using wget (available in Alpine)
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:10001/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    
     # Logging configuration (important for Synology monitoring)
     logging:
       driver: "json-file"
