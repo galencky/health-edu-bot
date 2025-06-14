@@ -5,6 +5,7 @@ load_dotenv()   # ← ensure .env is loaded here
 import os
 import smtplib
 from email.message import EmailMessage
+from .validators import validate_email, sanitize_text
 
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
@@ -30,6 +31,15 @@ galen147258369@gmail.com
 
 def send_email(to_email: str, subject: str, body: str) -> bool:
     if not to_email or not subject or not body:
+        return False
+    
+    # Validate and sanitize inputs
+    try:
+        to_email = validate_email(to_email)
+        subject = sanitize_text(subject, max_length=200)
+        body = sanitize_text(body, max_length=50000)
+    except ValueError as e:
+        print(f"❌ Email validation failed: {e}")
         return False
 
     msg = EmailMessage()

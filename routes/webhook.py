@@ -18,9 +18,14 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
         #print("[WEBHOOK] Raw body:", body_str)
         #print("[WEBHOOK] Signature:", x_line_signature)
         handler.handle(body_str, x_line_signature)
+    except ValueError as e:
+        # Invalid signature - likely not from LINE
+        print(f"[WEBHOOK] Invalid signature: {x_line_signature}")
+        raise HTTPException(400, "Invalid signature")
     except Exception as e:
+        # Log full error internally but return generic message
         print("[WEBHOOK] Exception:", traceback.format_exc())
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, "Bad request")
     return "OK"
 
 # Register text message handler

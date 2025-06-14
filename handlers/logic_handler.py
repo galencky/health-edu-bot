@@ -16,6 +16,7 @@ import re
 import dns.resolver
 from typing import Tuple
 from services.tts_service import synthesize
+from utils.validators import sanitize_text, validate_email, validate_language_code
 
 # ── Gemini helpers ───────────────────────────────────────────────────
 from services.gemini_service import (
@@ -314,42 +315,25 @@ def handle_user_message(
         return "📧 請輸入您要寄送至的 email 地址：", gemini_called, None
 
     if session.get("awaiting_email"):
-        # BUG FIX: Enhanced email validation to prevent header injection
-        # Previously: Basic regex allowed potentially malicious input
-        import email.utils
-        import html
-        
-        # First, basic format validation
-        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-        if not re.fullmatch(email_pattern, raw):
+        # Validate email using secure validator
+        try:
+            validated_email = validate_email(raw)
+        except ValueError as e:
             return "⚠️ 無效 email 格式，請重新輸入，例如：example@gmail.com", gemini_called, None
         
-        # BUG FIX: Validate email address to prevent header injection
-        try:
-            # This will raise an exception if the email is invalid
-            parsed_email = email.utils.parseaddr(raw)
-            if not parsed_email[1] or parsed_email[1] != raw:
-                return "⚠️ 無效 email 格式，請重新輸入。", gemini_called, None
-                
-            # Additional check for newlines and other control characters
-            if any(char in raw for char in ['\n', '\r', '\x00']):
-                return "⚠️ Email 地址包含無效字符，請重新輸入。", gemini_called, None
-                
-        except Exception:
-            return "⚠️ 無效 email 格式，請重新輸入。", gemini_called
-            
-        domain = raw.split("@")[1]
+        # Check MX record for domain
+        domain = validated_email.split("@")[1]
         if not _has_mx_record(domain):
             return "⚠️ 此 email 網域無法接收郵件，請重新確認。", gemini_called, None
             
         session["awaiting_email"] = False
-        # BUG FIX: Escape email for display to prevent XSS
-        safe_email = html.escape(raw)
-        if send_last_txt_email(user_id, raw, session):
+        
+        # Send email with validated address
+        if send_last_txt_email(user_id, validated_email, session):
             quick_reply = {
                 "items": create_quick_reply_items([("🆕 新對話", "new")])
             }
-            return f"✅ 已成功寄出衛教內容至 {safe_email}", gemini_called, quick_reply
+            return f"✅ 已成功寄出衛教內容至 {validated_email}", gemini_called, quick_reply
         return "⚠️ 寄送失敗，請稍後再試。", gemini_called, None
 
     # --- first-time zh-TW sheet ----------------------------------------
