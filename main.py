@@ -28,6 +28,18 @@ async def periodic_session_cleanup():
 async def lifespan(app: FastAPI):
     # Startup
     cleanup_task = asyncio.create_task(periodic_session_cleanup())
+    
+    # Test database connection
+    try:
+        from utils.database import get_async_db_engine
+        from sqlalchemy import text
+        engine = get_async_db_engine()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        print("✅ [DB] Successfully connected to Neon database")
+    except Exception as e:
+        print(f"⚠️  [DB] Database connection failed: {e}")
+    
     yield
     # Shutdown
     cleanup_task.cancel()

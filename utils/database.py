@@ -123,7 +123,7 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
             )
             session.add(log)
             await session.commit()
-            print(f"✅ [DB] Chat log saved to Neon DB - User: {user_id[:10]}..., Action: {action_type or 'chat'}")
+            print(f"✅ [DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
             return True
     except Exception as e:
         print(f"❌ [DB] Failed to log chat to Neon database: {e}")
@@ -147,8 +147,7 @@ async def log_tts_to_db(user_id, text, audio_filename, audio_url, drive_link=Non
             )
             session.add(log)
             await session.commit()
-            drive_status = "☁️ uploaded" if drive_link else "💾 local only"
-            print(f"✅ [DB] TTS log saved to Neon DB - User: {user_id[:10]}..., File: {audio_filename}, Status: {status}, Drive: {drive_status}")
+            print(f"✅ [DB] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}")
             return True
     except Exception as e:
         print(f"❌ [DB] Failed to log TTS to Neon database: {e}")
@@ -171,10 +170,7 @@ async def log_voicemail_to_db(user_id, audio_filename, transcription, translatio
             )
             session.add(log)
             await session.commit()
-            drive_status = "☁️ uploaded" if drive_link else "💾 local only"
-            transcription_preview = transcription[:30] + "..." if transcription and len(transcription) > 30 else transcription
-            print(f"✅ [DB] Voicemail log saved to Neon DB - User: {user_id[:10]}..., File: {audio_filename}, Drive: {drive_status}")
-            print(f"    📝 Transcription: {transcription_preview}")
+            print(f"✅ [DB] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}")
             return True
     except Exception as e:
         print(f"❌ [DB] Failed to log voicemail to Neon database: {e}")
@@ -194,7 +190,7 @@ def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=
                 gemini_output_url=gemini_output_url
             )
             session.add(log)
-            print(f"✅ [DB-SYNC] Chat log saved to Neon DB - User: {user_id[:10]}..., Action: {action_type or 'chat'}")
+            print(f"✅ [DB-SYNC] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
             return True
     except Exception as e:
         print(f"❌ [DB-SYNC] Failed to log chat to Neon database: {e}")
@@ -213,8 +209,7 @@ def _log_tts_to_db_sync(user_id, text, audio_filename, audio_url, drive_link=Non
                 status=status
             )
             session.add(log)
-            drive_status = "☁️ uploaded" if drive_link else "💾 local only"
-            print(f"✅ [DB-SYNC] TTS log saved to Neon DB - User: {user_id[:10]}..., File: {audio_filename}, Status: {status}, Drive: {drive_status}")
+            print(f"✅ [DB-SYNC] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}")
             return True
     except Exception as e:
         print(f"❌ [DB-SYNC] Failed to log TTS to Neon database: {e}")
@@ -232,10 +227,7 @@ def _log_voicemail_to_db_sync(user_id, audio_filename, transcription, translatio
                 drive_link=drive_link
             )
             session.add(log)
-            drive_status = "☁️ uploaded" if drive_link else "💾 local only"
-            transcription_preview = transcription[:30] + "..." if transcription and len(transcription) > 30 else transcription
-            print(f"✅ [DB-SYNC] Voicemail log saved to Neon DB - User: {user_id[:10]}..., File: {audio_filename}, Drive: {drive_status}")
-            print(f"    📝 Transcription: {transcription_preview}")
+            print(f"✅ [DB-SYNC] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}")
             return True
     except Exception as e:
         print(f"❌ [DB-SYNC] Failed to log voicemail to Neon database: {e}")
