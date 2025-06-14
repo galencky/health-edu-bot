@@ -106,9 +106,12 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
                     from utils.memory_storage import memory_storage
                     import io
                     
-                    audio_data = memory_storage.get(filename)
-                    if not audio_data:
+                    result = memory_storage.get(filename)
+                    if not result:
                         raise FileNotFoundError(f"Audio file not found in memory: {filename}")
+                    
+                    # Extract audio data from tuple (data, content_type)
+                    audio_data, _ = result
                     
                     # Create a BytesIO object for upload
                     audio_buffer = io.BytesIO(audio_data)
