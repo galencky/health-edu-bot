@@ -188,6 +188,15 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
             print(f"⚠️ [TTS] Database logging failed but no exception thrown")
     except Exception as db_error:
         print(f"❌ [TTS] Failed to log to database: {db_error}")
+    
+    # Delete local file after successful Drive upload
+    if web_link and upload_status == "success":
+        try:
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+                print(f"🗑️ [TTS] Deleted local file after Drive upload: {os.path.basename(audio_path)}")
+        except Exception as e:
+            print(f"⚠️ [TTS] Failed to delete local file: {e}")
 
 
 async def _async_upload_voicemail(local_path: str, user_id: str, transcription: str = None, translation: str = None) -> str:
@@ -316,6 +325,14 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
             except Exception as e:
                 print(f"❌ [Voicemail] Failed to log to database: {e}")
                 # Don't fail the upload if DB logging fails
+        
+        # Delete local file after successful Drive upload
+        try:
+            if os.path.exists(local_path):
+                os.remove(local_path)
+                print(f"🗑️ [Voicemail] Deleted local file after Drive upload: {os.path.basename(local_path)}")
+        except Exception as e:
+            print(f"⚠️ [Voicemail] Failed to delete local file: {e}")
         
         return web_link
         

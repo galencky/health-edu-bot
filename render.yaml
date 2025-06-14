@@ -1,0 +1,49 @@
+services:
+  # Web service for the FastAPI application
+  - type: web
+    name: mededbot
+    runtime: python
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      mkdir -p tts_audio voicemail logs
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    
+    # Health check configuration
+    healthCheckPath: /ping
+    
+    # Environment variables (set these in Render dashboard)
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      
+      # Required environment variables (must be set in dashboard)
+      # - GEMINI_API_KEY
+      # - LINE_CHANNEL_ACCESS_TOKEN
+      # - LINE_CHANNEL_SECRET
+      # - DATABASE_URL
+      # - GMAIL_ADDRESS
+      # - GMAIL_APP_PASSWORD
+      # - BASE_URL (will be your Render URL)
+      
+      # Optional
+      # - GOOGLE_DRIVE_FOLDER_ID
+      # - GOOGLE_CREDS_B64
+      # - LOG_LEVEL
+    
+    # Auto-deploy from GitHub
+    autoDeploy: true
+    
+    # Region (choose closest to your users)
+    region: singapore  # or oregon, frankfurt, ohio
+    
+    # Plan
+    plan: free  # or starter ($7/month)
+
+# Database (optional - can use external Neon.tech)
+# databases:
+#   - name: mededbot-db
+#     databaseName: mededbot
+#     user: mededbot
+#     region: singapore
+#     plan: free
