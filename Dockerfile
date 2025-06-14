@@ -36,7 +36,8 @@ COPY --chown=appuser:appuser . .
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/tts_audio /app/voicemail /app/logs && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app && \
+    chmod 775 /app/tts_audio /app/voicemail /app/logs
 
 # Switch to non-root user
 USER appuser

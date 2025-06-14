@@ -33,18 +33,21 @@ services:
       # Server configuration
       #- BASE_URL=${BASE_URL}
     
-    # Synology NAS volume mounts (adjust paths based on your setup)
+    # Synology NAS volume mounts with proper permissions
     volumes:
-      # Persistent data directories
-      - /volume1/docker/mededbot/tts_audio:/app/tts_audio
-      - /volume1/docker/mededbot/voicemail:/app/voicemail
-      - /volume1/docker/mededbot/logs:/app/logs
+      # Persistent data directories (read-write with specific permissions)
+      - /volume1/docker/mededbot/tts_audio:/app/tts_audio:rw
+      - /volume1/docker/mededbot/voicemail:/app/voicemail:rw
+      - /volume1/docker/mededbot/logs:/app/logs:rw
       
-      # Optional: Mount .env file for easier configuration
+      # Configuration files (read-only)
       - /volume1/docker/mededbot/.env:/app/.env:ro
       
       # Optional: Mount credentials file instead of using base64
-      #- /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
+      #- /volume1/docker/mededbot/credentials/service-account.json:/app/credentials.json:ro
+    
+    # User mapping for proper permissions
+    user: "1000:1000"
     
     # Resource limits for Synology NAS
     deploy:
