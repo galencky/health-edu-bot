@@ -109,29 +109,19 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             session["stt_last_translation"] = translated          # NEW
             session["mode"] = "chat"                              # keep this line
             
-            # Update voicemail log with translation
-            audio_filename = session.get("stt_audio_filename")
-            if audio_filename:
-                try:
-                    # Update database with translation (use sync version)
-                    from utils.database import _update_voicemail_translation_sync
-                    update_success = _update_voicemail_translation_sync(user_id, audio_filename, translated)
-                    if update_success:
-                        print(f"✅ [STT] Updated voicemail translation in database")
-                    
-                    # Upload text file to Google Drive
-                    drive_link, _ = upload_stt_translation_log(user_id, original_text, translated, user_input)
-                    if drive_link:
-                        print(f"✅ [STT] Uploaded translation text to Drive: {drive_link}")
-                except Exception as upload_error:
-                    print(f"⚠️ [STT] Failed to update/upload translation: {upload_error}")
-                    # Don't fail the translation if logging fails
+            # Upload text file to Google Drive for STT translation
+            try:
+                drive_link, _ = upload_stt_translation_log(user_id, original_text, translated, user_input)
+                if drive_link:
+                    print(f"✅ [STT] Uploaded translation text to Drive: {drive_link}")
+            except Exception as upload_error:
+                print(f"⚠️ [STT] Failed to upload translation: {upload_error}")
+                # Don't fail the translation if logging fails
             
         except Exception as e:
             # On failure, clear state and inform user
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
-            session.pop("stt_audio_filename", None)  # Clean up filename too
             err_reply = f"⚠️ 翻譯失敗：{e}"
             try:
                 line_bot_api.reply_message(
@@ -422,7 +412,6 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
 
     # 5. Store transcription & set flag, then send prompt
     session["stt_transcription"] = transcription
-    session["stt_audio_filename"] = filename  # Store filename for later update
     session["awaiting_stt_translation"] = True
     session["started"]                 = True          # NEW: fixes “speak”-first bug
     session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt

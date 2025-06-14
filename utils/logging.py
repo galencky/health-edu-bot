@@ -6,7 +6,7 @@ import os
 import asyncio
 import traceback
 from datetime import datetime
-from utils.database import log_chat_to_db, log_tts_to_db, log_voicemail_to_db
+from utils.database import log_chat_to_db, log_tts_to_db
 from utils.google_drive_service import get_drive_service, upload_gemini_log as _upload_gemini_log_original
 from utils.retry_utils import exponential_backoff, RetryError
 
@@ -347,21 +347,7 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
             file_id = uploaded.get("id")
             web_link = f"https://drive.google.com/file/d/{file_id}/view"
         
-        # Log to database if transcription is provided
-        if transcription is not None:
-            try:
-                db_success = await log_voicemail_to_db(
-                    user_id=user_id,
-                    audio_filename=os.path.basename(local_path),
-                    transcription=transcription,
-                    translation=translation,
-                    drive_link=web_link
-                )
-                if not db_success:
-                    print(f"⚠️ [Voicemail] Database logging failed but no exception thrown")
-            except Exception as e:
-                print(f"❌ [Voicemail] Failed to log to database: {e}")
-                # Don't fail the upload if DB logging fails
+        # Skip voicemail_logs table - we only log to chat_logs now
         
         # Delete local file after successful Drive upload
         try:
@@ -378,20 +364,7 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         error_msg = f"Failed to upload voicemail after all retries: {e.last_error}"
         print(f"[Voicemail Upload] {error_msg}")
         
-        # Still try to log to database with failure status
-        if transcription is not None:
-            try:
-                db_success = await log_voicemail_to_db(
-                    user_id=user_id,
-                    audio_filename=os.path.basename(local_path),
-                    transcription=transcription,
-                    translation=translation,
-                    drive_link=None  # No drive link since upload failed
-                )
-                if not db_success:
-                    print(f"⚠️ [Voicemail] Failed to log upload failure to database")
-            except Exception as e:
-                print(f"❌ [Voicemail] Failed to log upload failure to database: {e}")
+        # Skip voicemail_logs table - we only log to chat_logs now
         
         raise RuntimeError(error_msg) from e
 
