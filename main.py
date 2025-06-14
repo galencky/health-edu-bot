@@ -58,7 +58,7 @@ def chat(input: UserInput):
     return {"reply": reply, "quick_reply": quick_reply_data}
 
 # ── misc endpoints -----------------------------------------------------
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {
         "message": "✅ FastAPI LINE + Gemini bot is running.",
