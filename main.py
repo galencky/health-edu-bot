@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Response, HTTPException
+from fastapi import FastAPI, Response, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
@@ -10,6 +10,8 @@ from routes.webhook import webhook_router
 from handlers.session_manager import get_user_session, cleanup_expired_sessions
 from handlers.logic_handler import handle_user_message
 from utils.paths import TTS_AUDIO_DIR
+from utils.auth import verify_api_key
+from utils.validators import sanitize_text
 import asyncio
 from contextlib import asynccontextmanager
 

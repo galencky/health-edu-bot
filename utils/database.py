@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, DateTime, Boolean, Text, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager, contextmanager
+from .validators import sanitize_user_id, sanitize_text, validate_action_type, validate_audio_filename
 
 # Try to import async SQLAlchemy components
 try:
@@ -106,25 +107,35 @@ async def get_async_db_session():
 
 # Async helper functions for logging (with sync fallback)
 async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=False, gemini_output_url=None):
-    """Log chat interaction to database asynchronously"""
+    """Log chat interaction to database asynchronously with input validation"""
     if not ASYNC_AVAILABLE:
         # Fallback to sync version
         return _log_chat_to_db_sync(user_id, message, reply, action_type, gemini_call, gemini_output_url)
     
     try:
+        # Validate and sanitize inputs
+        user_id = sanitize_user_id(user_id)
+        message = sanitize_text(message) if message else None
+        reply = sanitize_text(reply, max_length=1000) if reply else None
+        action_type = validate_action_type(action_type)
+        gemini_output_url = sanitize_text(gemini_output_url, max_length=500) if gemini_output_url else None
+        
         async with get_async_db_session() as session:
             log = ChatLog(
                 user_id=user_id,
                 message=message,
-                reply=reply[:1000] if reply else None,  # Limit reply length
+                reply=reply,
                 action_type=action_type,
-                gemini_call=gemini_call,
+                gemini_call=bool(gemini_call),
                 gemini_output_url=gemini_output_url
             )
             session.add(log)
             await session.commit()
             print(f"✅ [DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
             return True
+    except ValueError as e:
+        print(f"❌ [DB] Validation error: {e}")
+        return False
     except Exception as e:
         print(f"❌ [DB] Failed to log chat to Neon database: {e}")
         return False
@@ -178,20 +189,30 @@ async def log_voicemail_to_db(user_id, audio_filename, transcription, translatio
 
 # Sync fallback functions
 def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=False, gemini_output_url=None):
-    """Sync fallback for chat logging"""
+    """Sync fallback for chat logging with validation"""
     try:
+        # Validate and sanitize inputs
+        user_id = sanitize_user_id(user_id)
+        message = sanitize_text(message) if message else None
+        reply = sanitize_text(reply, max_length=1000) if reply else None
+        action_type = validate_action_type(action_type)
+        gemini_output_url = sanitize_text(gemini_output_url, max_length=500) if gemini_output_url else None
+        
         with get_db_session_sync() as session:
             log = ChatLog(
                 user_id=user_id,
                 message=message,
-                reply=reply[:1000] if reply else None,
+                reply=reply,
                 action_type=action_type,
-                gemini_call=gemini_call,
+                gemini_call=bool(gemini_call),
                 gemini_output_url=gemini_output_url
             )
             session.add(log)
             print(f"✅ [DB-SYNC] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
             return True
+    except ValueError as e:
+        print(f"❌ [DB-SYNC] Validation error: {e}")
+        return False
     except Exception as e:
         print(f"❌ [DB-SYNC] Failed to log chat to Neon database: {e}")
         return False

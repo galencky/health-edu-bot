@@ -11,6 +11,7 @@ import threading
 
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
+from utils.rate_limiter import rate_limit, gemini_limiter, RateLimitExceeded
 
 # BUG FIX: Add timeout configuration for API calls with retry mechanism
 # Previously: No timeout, requests could hang indefinitely
@@ -94,19 +95,23 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
         return response.candidates[0].content.parts[0].text
     return ""
 
+@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")  # Global rate limit
 def call_zh(prompt: str, system_prompt: str = zh_prompt) -> str:
     """Call Gemini with zh_prompt, return answer string."""
     return _call_genai(prompt, sys_prompt=system_prompt, temp=0.25)
 
+@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def call_translate(zh_text: str, target_lang: str) -> str:
     """Call Gemini to translate, return answer string."""
     sys_prompt = translate_prompt_template.format(lang=target_lang)
     return _call_genai(zh_text, sys_prompt=sys_prompt, temp=0.25)
 
+@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def plainify(text: str) -> str:
     """Call Gemini to plainify text, return answer string."""
     return _call_genai(text, sys_prompt=plainify_prompt, temp=0.25)
 
+@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def confirm_translate(plain_zh: str, target_lang: str) -> str:
     """Call Gemini to translate and confirm, return answer string."""
     sys_prompt = confirm_translate_prompt.format(lang=target_lang)

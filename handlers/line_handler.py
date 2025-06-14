@@ -22,6 +22,7 @@ from services.stt_service import transcribe_audio_file
 from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import new_commands, create_quick_reply_items, VOICE_TRANSLATION_OPTIONS, TTS_OPTIONS, COMMON_LANGUAGES
 from utils.retry_utils import exponential_backoff, RetryError
+from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 
 # -----------------------------------------------
 # Custom prompt for voicemail translation
@@ -277,10 +278,30 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         return
 
     # 2. Save locally under ./voicemail/ with robust error handling
+    # Validate user_id to prevent path traversal
+    try:
+        safe_user_id = sanitize_user_id(user_id)
+    except ValueError as e:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⚠️ 系統錯誤：無效的用戶ID")
+        )
+        return
+    
     save_dir = VOICEMAIL_DIR
     save_dir.mkdir(exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    local_filename = save_dir / f"{user_id}_{timestamp}.m4a"
+    filename = f"{safe_user_id}_{timestamp}.m4a"
+    
+    # Create safe path to prevent directory traversal
+    try:
+        local_filename = Path(create_safe_path(str(save_dir), filename))
+    except ValueError as e:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⚠️ 系統錯誤：無法儲存語音檔案")
+        )
+        return
 
     # Enhanced file saving with chunked writing and connection stability
     total_size = 0

@@ -5,6 +5,8 @@ load_dotenv()
 
 from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
+from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
+from utils.rate_limiter import rate_limit, tts_limiter
 
 import os, time, wave
 from google import genai
@@ -45,6 +47,7 @@ def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):
         wf.writeframes(pcm)
 
 # Public TTS function
+@rate_limit(tts_limiter, key_func=lambda text, user_id, voice_name="Kore": user_id)
 def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, int]:
     """
     Synthesizes speech using Gemini API.
@@ -66,9 +69,21 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         print(f"[TTS WARNING] Text too long ({len(text)} chars), truncating to {MAX_TTS_LENGTH}")
         text = text[:MAX_TTS_LENGTH] + "..."
     
+    # Validate user_id to prevent path traversal
+    try:
+        user_id = sanitize_user_id(user_id)
+    except ValueError as e:
+        raise ValueError(f"Invalid user ID: {e}")
+    
     ts   = time.strftime("%Y%m%d_%H%M%S")
     fn   = f"{user_id}_{ts}.wav"
-    path = TTS_AUDIO_DIR / fn
+    
+    # Create safe path to prevent directory traversal
+    try:
+        safe_fn = sanitize_filename(fn)
+        path = create_safe_path(str(TTS_AUDIO_DIR), safe_fn)
+    except ValueError as e:
+        raise ValueError(f"Invalid filename: {e}")
 
     try:
         # Generate audio using Gemini
