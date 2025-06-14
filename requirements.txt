@@ -22,7 +22,7 @@ beautifulsoup4==4.12.3     # extract Gemini grounding references
 # --- database dependencies for Neon DB logging ------------------------
 sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
-asyncpg==0.29.0
+asyncpg>=0.29.0
 
 # ----------------------------------------------------------------------
 # Everything below is pulled in automatically by the libraries above
