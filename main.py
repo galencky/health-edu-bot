@@ -45,6 +45,27 @@ async def periodic_memory_cleanup():
         except Exception as e:
             print(f"Error during memory cleanup: {e}")
 
+# Background task for disk cleanup (if using local storage)
+async def periodic_disk_cleanup():
+    """Run disk cleanup every hour for local storage"""
+    if TTS_USE_MEMORY:
+        return  # Only run for local storage
+    
+    from utils.cleanup import cleanup_old_tts_files, get_directory_size
+    
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            # Remove files older than 24 hours
+            deleted = cleanup_old_tts_files(TTS_AUDIO_DIR, max_age_hours=24)
+            
+            # Check directory size
+            size_bytes, file_count = get_directory_size(TTS_AUDIO_DIR)
+            size_mb = size_bytes / 1024 / 1024
+            print(f"📊 TTS directory: {file_count} files, {size_mb:.1f} MB")
+        except Exception as e:
+            print(f"Error during disk cleanup: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -55,6 +76,12 @@ async def lifespan(app: FastAPI):
     if TTS_USE_MEMORY:
         memory_cleanup_task = asyncio.create_task(periodic_memory_cleanup())
         print("🧠 Using in-memory storage for TTS files")
+    
+    # Start disk cleanup if using local storage
+    disk_cleanup_task = None
+    if not TTS_USE_MEMORY:
+        disk_cleanup_task = asyncio.create_task(periodic_disk_cleanup())
+        print("💾 Using local disk storage for TTS files")
     
     # Test database connection
     try:
@@ -72,10 +99,14 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     if memory_cleanup_task:
         memory_cleanup_task.cancel()
+    if disk_cleanup_task:
+        disk_cleanup_task.cancel()
     try:
         await cleanup_task
         if memory_cleanup_task:
             await memory_cleanup_task
+        if disk_cleanup_task:
+            await disk_cleanup_task
     except asyncio.CancelledError:
         pass
 
