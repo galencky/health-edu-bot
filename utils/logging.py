@@ -16,6 +16,7 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     Log chat interaction to database asynchronously.
     If gemini_call is "yes", also uploads detailed log to Drive.
     """
+    print(f"🔍 [LOGGING] _async_log_chat called with action_type='{action_type}', gemini_call='{gemini_call}'")
     drive_url = None
     
     if gemini_call == "yes":
@@ -370,6 +371,8 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
     Synchronous wrapper for log_chat for use in sync contexts.
     Creates a new event loop in a thread to avoid blocking.
     """
+    print(f"🔍 [LOGGING] log_chat_sync called with action_type='{action_type}', gemini_call='{gemini_call}'")
+    
     def _worker():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

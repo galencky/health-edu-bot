@@ -131,9 +131,10 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
                 gemini_call=bool(gemini_call),
                 gemini_output_url=gemini_output_url
             )
+            print(f"🔍 [DB] Created ChatLog object with action_type='{log.action_type}'")
             session.add(log)
             await session.commit()
-            print(f"✅ [DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
+            print(f"✅ [DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}, Saved action: {log.action_type}")
             return True
     except ValueError as e:
         print(f"❌ [DB] Validation error: {e}")
