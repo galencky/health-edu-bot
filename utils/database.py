@@ -257,6 +257,58 @@ def _log_voicemail_to_db_sync(user_id, audio_filename, transcription, translatio
         print(f"❌ [DB-SYNC] Failed to log voicemail to Neon database: {e}")
         return False
 
+async def update_voicemail_translation(user_id, audio_filename, translation):
+    """Update an existing voicemail log with translation"""
+    if not ASYNC_AVAILABLE:
+        # Fallback to sync version
+        return _update_voicemail_translation_sync(user_id, audio_filename, translation)
+    
+    try:
+        async with get_async_db_session() as session:
+            # Find the most recent voicemail log for this user
+            result = await session.execute(
+                select(VoicemailLog)
+                .where(VoicemailLog.user_id == user_id)
+                .where(VoicemailLog.audio_filename == audio_filename)
+                .order_by(VoicemailLog.timestamp.desc())
+                .limit(1)
+            )
+            voicemail_log = result.scalar_one_or_none()
+            
+            if voicemail_log:
+                voicemail_log.translation = translation
+                await session.commit()
+                print(f"✅ [DB] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
+                return True
+            else:
+                print(f"⚠️ [DB] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
+                return False
+    except Exception as e:
+        print(f"❌ [DB] Failed to update voicemail translation: {e}")
+        return False
+
+def _update_voicemail_translation_sync(user_id, audio_filename, translation):
+    """Sync fallback for updating voicemail translation"""
+    try:
+        with get_db_session_sync() as session:
+            # Find the most recent voicemail log for this user
+            voicemail_log = session.query(VoicemailLog)\
+                .filter(VoicemailLog.user_id == user_id)\
+                .filter(VoicemailLog.audio_filename == audio_filename)\
+                .order_by(VoicemailLog.timestamp.desc())\
+                .first()
+            
+            if voicemail_log:
+                voicemail_log.translation = translation
+                print(f"✅ [DB-SYNC] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
+                return True
+            else:
+                print(f"⚠️ [DB-SYNC] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
+                return False
+    except Exception as e:
+        print(f"❌ [DB-SYNC] Failed to update voicemail translation: {e}")
+        return False
+
 # Backward compatibility: sync wrapper functions
 def get_db_engine():
     """Legacy sync engine getter - for migration purposes only"""

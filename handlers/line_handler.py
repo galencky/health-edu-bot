@@ -17,6 +17,8 @@ from linebot.exceptions import LineBotApiError
 from handlers.logic_handler import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.logging import log_chat, upload_voicemail
+from utils.database import update_voicemail_translation
+from utils.google_drive_service import upload_stt_translation_log
 from services.gemini_service import references_to_flex, _call_genai
 from services.stt_service import transcribe_audio_file
 from utils.paths import VOICEMAIL_DIR
@@ -107,10 +109,29 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             translated = _call_genai(original_text, sys_prompt=sys_prompt, temp=0)
             session["stt_last_translation"] = translated          # NEW
             session["mode"] = "chat"                              # keep this line
+            
+            # Update voicemail log with translation
+            audio_filename = session.get("stt_audio_filename")
+            if audio_filename:
+                try:
+                    # Update database with translation
+                    update_success = await update_voicemail_translation(user_id, audio_filename, translated)
+                    if update_success:
+                        print(f"✅ [STT] Updated voicemail translation in database")
+                    
+                    # Upload text file to Google Drive
+                    drive_link, _ = upload_stt_translation_log(user_id, original_text, translated, user_input)
+                    if drive_link:
+                        print(f"✅ [STT] Uploaded translation text to Drive: {drive_link}")
+                except Exception as upload_error:
+                    print(f"⚠️ [STT] Failed to update/upload translation: {upload_error}")
+                    # Don't fail the translation if logging fails
+            
         except Exception as e:
             # On failure, clear state and inform user
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
+            session.pop("stt_audio_filename", None)  # Clean up filename too
             err_reply = f"⚠️ 翻譯失敗：{e}"
             try:
                 line_bot_api.reply_message(
@@ -133,6 +154,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
 
         session.pop("awaiting_stt_translation", None)
         session.pop("stt_transcription", None)
+        session.pop("stt_audio_filename", None)  # Clean up filename too
 
         # Add quick reply for TTS
         quick_reply = QuickReply(items=create_quick_reply_items(TTS_OPTIONS))
@@ -144,6 +166,16 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             )
         except LineBotApiError:
             pass
+        
+        # Log the translation action
+        log_chat(
+            user_id,
+            f"[STT Translation Request] {user_input}",
+            translated[:200],
+            session,
+            action_type="translate",
+            gemini_call="yes"
+        )
 
         return  # important: stop here and do not fall through
 
@@ -390,6 +422,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
 
     # 5. Store transcription & set flag, then send prompt
     session["stt_transcription"] = transcription
+    session["stt_audio_filename"] = filename  # Store filename for later update
     session["awaiting_stt_translation"] = True
     session["started"]                 = True          # NEW: fixes “speak”-first bug
     session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt
