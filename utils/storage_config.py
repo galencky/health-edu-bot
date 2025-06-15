@@ -13,6 +13,12 @@ def get_storage_backend() -> StorageBackend:
     if os.getenv("USE_MEMORY_STORAGE", "").lower() == "true":
         return StorageBackend.MEMORY
     
+    # Check if Google Drive is configured
+    has_drive_config = bool(
+        os.getenv("GOOGLE_DRIVE_FOLDER_ID") and 
+        (os.getenv("GOOGLE_CREDS_B64") or os.path.exists("credentials.json"))
+    )
+    
     # Check if we're on cloud platform (ephemeral filesystem)
     # Render, Heroku, Railway, etc. typically don't have persistent local storage
     is_cloud = (
@@ -31,11 +37,14 @@ def get_storage_backend() -> StorageBackend:
     
     if is_cloud:
         # Use Google Drive if configured, otherwise memory
-        if os.getenv("GOOGLE_DRIVE_FOLDER_ID") and os.getenv("GOOGLE_CREDS_B64"):
+        if has_drive_config:
             return StorageBackend.GOOGLE_DRIVE
         return StorageBackend.MEMORY
     
     # Local development or persistent filesystem
+    # Use Google Drive if configured, otherwise local
+    if has_drive_config:
+        return StorageBackend.GOOGLE_DRIVE
     return StorageBackend.LOCAL
 
 # Get current backend

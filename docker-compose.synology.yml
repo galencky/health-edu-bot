@@ -40,7 +40,7 @@ services:
       - /volume1/docker/mededbot-v4/.env:/app/.env:ro
       
       # Optional: Mount credentials file for Google Drive backup
-      - /volume1/docker/mededbot-v4/credentials/service-account.json:/app/credentials.json:ro
+      #- /volume1/docker/mededbot-v4/credentials/service-account.json:/app/credentials.json:ro
       
       # Optional: Mount logs directory if you want persistent logs
       #- /volume1/docker/mededbot-v4/logs:/app/logs:rw

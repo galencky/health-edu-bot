@@ -56,4 +56,5 @@ EXPOSE 8080
 
 # Use exec form for proper signal handling
 # 0.0.0.0 allows external connections (required for Docker/Synology)
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info}"]
+# Use Python to run uvicorn with custom logging config
+CMD ["sh", "-c", "python -c \"import uvicorn; from utils.uvicorn_logging import get_uvicorn_log_config; uvicorn.run('main:app', host='0.0.0.0', port=int('${PORT:-8080}'), workers=1, log_config=get_uvicorn_log_config())\""]

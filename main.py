@@ -214,6 +214,15 @@ async def get_audio(filename: str):
 # ── local dev ----------------------------------------------------------test#
 if __name__ == "__main__":
     import uvicorn, os
+    from utils.uvicorn_logging import get_uvicorn_log_config
+    
     port = int(os.getenv("PORT", 10001))   # default 10001
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    log_config = get_uvicorn_log_config()
+    
+    uvicorn.run(
+        "main:app", 
+        host="0.0.0.0", 
+        port=port,
+        log_config=log_config
+    )
 
