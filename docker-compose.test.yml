@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  logtest:
+    image: python:3.11-alpine
+    container_name: logtest
+    command: python -u /app/test_logs.py
+    volumes:
+      - ./test_logs.py:/app/test_logs.py:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"

@@ -17,7 +17,9 @@ RUN apk add --no-cache \
     # Runtime dependencies (permanent)
     ca-certificates \
     # Health check tool
-    wget
+    wget \
+    # Ensure unbuffered output
+    coreutils
 
 # Create non-root user for security (Alpine syntax)
 # Using UID/GID 1000 for Synology compatibility
@@ -57,5 +59,4 @@ EXPOSE 8080
 
 # Use exec form for proper signal handling
 # 0.0.0.0 allows external connections (required for Docker/Synology)
-# Force unbuffered output for Container Manager
-CMD ["sh", "-c", "python -u -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info} --access-log"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info}"]

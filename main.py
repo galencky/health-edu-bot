@@ -2,11 +2,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import sys
-# Force unbuffered output for Container Manager
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(line_buffering=True)
-if hasattr(sys.stderr, 'reconfigure'):
-    sys.stderr.reconfigure(line_buffering=True)
+
+# Force unbuffered output for Docker logs
+sys.stdout.flush()
+sys.stderr.flush()
 
 from fastapi import FastAPI, Response, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
@@ -35,7 +34,7 @@ async def periodic_session_cleanup():
         try:
             cleanup_expired_sessions()  # This is not async
         except Exception as e:
-            print(f"Error during session cleanup: {e}")
+            print(f"Error during session cleanup: {e}", flush=True)
 
 # Background task for memory storage cleanup (if using memory backend)
 async def periodic_memory_cleanup():
@@ -48,9 +47,9 @@ async def periodic_memory_cleanup():
         try:
             memory_storage.cleanup_old_files(max_age_seconds=3600)  # Remove files older than 1 hour
             info = memory_storage.get_info()
-            print(f"📊 Memory storage: {info['files']} files, {info['total_size_mb']:.1f} MB")
+            print(f"📊 Memory storage: {info['files']} files, {info['total_size_mb']:.1f} MB", flush=True)
         except Exception as e:
-            print(f"Error during memory cleanup: {e}")
+            print(f"Error during memory cleanup: {e}", flush=True)
 
 # Background task for disk cleanup (if using local storage)
 async def periodic_disk_cleanup():
@@ -69,9 +68,9 @@ async def periodic_disk_cleanup():
             # Check directory size
             size_bytes, file_count = get_directory_size(TTS_AUDIO_DIR)
             size_mb = size_bytes / 1024 / 1024
-            print(f"📊 TTS directory: {file_count} files, {size_mb:.1f} MB")
+            print(f"📊 TTS directory: {file_count} files, {size_mb:.1f} MB", flush=True)
         except Exception as e:
-            print(f"Error during disk cleanup: {e}")
+            print(f"Error during disk cleanup: {e}", flush=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -82,13 +81,13 @@ async def lifespan(app: FastAPI):
     memory_cleanup_task = None
     if TTS_USE_MEMORY:
         memory_cleanup_task = asyncio.create_task(periodic_memory_cleanup())
-        print("🧠 Using in-memory storage for TTS files")
+        print("🧠 Using in-memory storage for TTS files", flush=True)
     
     # Start disk cleanup if using local storage
     disk_cleanup_task = None
     if not TTS_USE_MEMORY:
         disk_cleanup_task = asyncio.create_task(periodic_disk_cleanup())
-        print("💾 Using local disk storage for TTS files")
+        print("💾 Using local disk storage for TTS files", flush=True)
     
     # Test database connection
     try:
@@ -97,9 +96,9 @@ async def lifespan(app: FastAPI):
         engine = get_async_db_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        print("✅ [DB] Successfully connected to Neon database")
+        print("✅ [DB] Successfully connected to Neon database", flush=True)
     except Exception as e:
-        print(f"⚠️  [DB] Database connection failed: {e}")
+        print(f"⚠️  [DB] Database connection failed: {e}", flush=True)
     
     yield
     # Shutdown
