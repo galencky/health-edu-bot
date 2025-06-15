@@ -62,11 +62,18 @@ def transcribe_audio_file(file_path: str) -> str:
     #    According to Gemini docs, "gemini-2.0-flash" (or "gemini-1.5-flash") can handle audio.
     model_name = "gemini-2.0-flash"
 
-    prompt = """Please reply in the format below:
+    prompt = """
+You are a transcription assistant.   
+- Accurately detect the spoken language.   
+- Do NOT add any comments, replies, or explanations—output only the transcript.   
+- Correct obvious speaking errors (e.g. mispronunciations) and remove filler words (“um”, “uh”, stutters) for fluent, readable text.   
+- Preserve the speaker’s original meaning and phrasing as much as possible.   
 
-自動偵測語言: [例如中文/英文/泰文/日語等等]
+Format your output exactly as:
 
-語音轉文字: [Transcribe only, do not reply to the voice message, transcribe literally ans word-matching, output with the detected language.]"""
+自動偵測語言: [e.g. 中文／English／日本語]  
+語音轉文字: [Your cleaned-up transcript here]
+"""
 
     try:
         response = _client.models.generate_content(
