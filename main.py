@@ -196,6 +196,25 @@ def root():
 def ping():
     return Response(content='{"status": "ok"}', media_type="application/json")
 
+@app.get("/test-logging")
+def test_logging():
+    """Test endpoint to verify logging is working in Container Manager"""
+    import logging
+    logger = logging.getLogger("test_logger")
+    
+    # Test different log levels
+    print("🧪 [TEST] Testing logging from print statement", flush=True)
+    logger.info("🧪 [TEST] Testing INFO level logging")
+    logger.warning("🧪 [TEST] Testing WARNING level logging")
+    logger.error("🧪 [TEST] Testing ERROR level logging")
+    
+    return {
+        "message": "Logging test completed - check Container Manager logs",
+        "container_logging": os.getenv("CONTAINER_LOGGING", "false"),
+        "pythonunbuffered": os.getenv("PYTHONUNBUFFERED", "0"),
+        "log_level": os.getenv("LOG_LEVEL", "info")
+    }
+
 # ── audio endpoint for memory storage ---------------------------------
 @app.get("/audio/{filename}")
 async def get_audio(filename: str):

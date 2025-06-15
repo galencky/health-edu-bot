@@ -18,6 +18,8 @@ services:
       - PORT=8080  # Using 8080 to enable memory storage mode
       - LOG_LEVEL=info
       - USE_MEMORY_STORAGE=true  # Explicitly enable memory storage
+      - CONTAINER_LOGGING=true  # Enable container-friendly logging
+      - PYTHONUNBUFFERED=1  # Ensure unbuffered output for real-time logs
       # Database URL for Neon PostgreSQL
       #- DATABASE_URL=${DATABASE_URL}
       # LINE Bot configuration

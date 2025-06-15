@@ -1,65 +1,100 @@
 # Synology Container Manager Logs Fix
 
-## The Issue
-Synology Container Manager may not show logs when:
-1. Custom log filtering is applied
-2. Log format doesn't match expected JSON structure
-3. Health check logs are filtered
+## The Issue (RESOLVED)
+Previously, Synology Container Manager didn't show logs due to:
+1. Custom log filtering suppressing output
+2. Log propagation disabled in uvicorn configuration
+3. Health check logs being filtered by default
 
-## Solution Options
+## Solution Implemented
 
-### Option 1: Keep All Logs (Recommended for Container Manager)
-Remove custom logging to see all logs in Container Manager:
+### ✅ Container-Friendly Logging
+The application now automatically detects container environments and uses appropriate logging:
 
-```bash
-# No custom filtering - all logs visible
-sudo docker-compose -f docker-compose.synology.yml up -d --build
+- **Container Mode**: When `CONTAINER_LOGGING=true` (default in docker-compose files)
+  - No log filtering applied
+  - Log propagation enabled (`propagate: True`)
+  - Container-friendly log format with process ID and timestamp
+  - All logs visible in Container Manager
+
+- **Local Development**: When `CONTAINER_LOGGING=false`
+  - Health check filtering available via `FILTER_HEALTH_CHECKS=true`
+  - Original logging behavior preserved
+
+### 🔧 Environment Variables
+The following environment variables control logging behavior:
+
+```yaml
+environment:
+  - CONTAINER_LOGGING=true      # Enable container-friendly logging (default)
+  - PYTHONUNBUFFERED=1         # Ensure real-time log output
+  - LOG_LEVEL=info             # Control verbosity
+  - FILTER_HEALTH_CHECKS=false # Disable health check filtering (default)
 ```
 
-### Option 2: Filter Logs Only in SSH
-Keep full logs for Container Manager, but filter when viewing via SSH:
+### 📋 Configuration Status
+- ✅ **docker-compose.synology.yml**: Optimized for Container Manager
+- ✅ **docker-compose.yml**: Updated with container logging
+- ✅ **Dockerfile**: Already had `PYTHONUNBUFFERED=1`
+- ✅ **uvicorn_logging.py**: Container-aware configuration
 
-```bash
-# View filtered logs in SSH
-sudo docker logs -f mededbot-v4 2>&1 | grep -v "HEAD / HTTP"
+## Testing the Fix
 
-# Or create an alias
-alias mededlogs='sudo docker logs -f mededbot-v4 2>&1 | grep -v "HEAD / HTTP"'
-```
+### 🧪 Logging Test Endpoint
+Visit `http://your-nas-ip:10002/test-logging` to generate test log entries and verify logging is working.
 
-### Option 3: Use Synology Log Center
-1. Go to **Log Center** in DSM
-2. Create a filter rule for Docker logs
-3. Filter out health check patterns
+### 📝 Deploy and Test Steps
+1. **Rebuild the container**:
+   ```bash
+   sudo docker-compose -f docker-compose.synology.yml down
+   sudo docker-compose -f docker-compose.synology.yml up -d --build
+   ```
 
-## Current Configuration
-The current setup uses standard logging without filtering to ensure compatibility with Container Manager. Health check logs will appear but can be ignored or filtered when viewing.
+2. **Check Container Manager logs**:
+   - Open Container Manager → Select mededbot-v4 → Details → Log tab
+   - You should now see startup logs, health checks, and application logs
+
+3. **Test logging**:
+   ```bash
+   # Generate test logs via endpoint
+   curl http://localhost:10002/test-logging
+   
+   # Or check startup logs
+   sudo docker logs mededbot-v4
+   ```
 
 ## Viewing Logs
 
-### Container Manager (GUI)
+### Container Manager (GUI) ✅ 
 1. Open Container Manager
-2. Click on container → Details → Log tab
-3. All logs including health checks will be visible
+2. Click on container → Details → Log tab  
+3. **All logs now visible** including startup, health checks, and application events
 
-### SSH (Filtered)
+### SSH (Optional Filtering)
 ```bash
-# Basic filtered view
+# View all logs (recommended - same as Container Manager)
+sudo docker logs -f mededbot-v4
+
+# Optional: Filter out health checks if preferred
 sudo docker logs -f mededbot-v4 | grep -Ev "(HEAD|GET) / HTTP"
 
-# Show only important logs
-sudo docker logs -f mededbot-v4 | grep -E "(User|Gemini|ERROR|WARNING|✅|📧|🎯)"
-
-# Show last 50 non-health-check entries
-sudo docker logs mededbot-v4 2>&1 | grep -v "HEAD / HTTP" | tail -50
+# Show only application logs
+sudo docker logs -f mededbot-v4 | grep -E "(User|Gemini|ERROR|WARNING|✅|📧|🎯|🧪)"
 ```
 
 ## Log Patterns to Look For
+- `🧪 [TEST]` - Test logging entries  
+- `✅ [DB]` - Database operations
+- `🧠 Using in-memory storage` - Storage mode confirmation
 - `User [user_id]:` - User messages
 - `Gemini reply:` - AI responses  
-- `✅ [DB]` - Database operations
 - `📧 Email sent` - Email notifications
-- `ERROR` - Error messages
-- `WARNING` - Warning messages
+- `ERROR` / `WARNING` - Error/warning messages
 - `🎯 STT result` - Speech recognition
 - `🔊 TTS generated` - Text-to-speech
+- HTTP access logs - Now visible in Container Manager
+
+## Performance Notes
+- **Logging Enabled**: Full visibility for debugging and monitoring
+- **Performance Impact**: Minimal overhead from logging I/O
+- **Disable Later**: Set `CONTAINER_LOGGING=false` and rebuild to reduce logging when stable

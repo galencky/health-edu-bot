@@ -17,6 +17,8 @@ services:
     environment:
       - PORT=10001
       - LOG_LEVEL=info
+      - CONTAINER_LOGGING=true  # Enable container-friendly logging
+      - PYTHONUNBUFFERED=1  # Ensure unbuffered output for real-time logs
       # Add your actual environment variables here:
       # - LINE_CHANNEL_ACCESS_TOKEN=your_token
       # - LINE_CHANNEL_SECRET=your_secret
