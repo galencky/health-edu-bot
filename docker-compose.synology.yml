@@ -62,7 +62,7 @@ services:
     
     # Override health check for better reliability
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=2", "--timeout=10", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=2", "--timeout=10", "-O", "-", "http://localhost:8080/health"]
       interval: 60s       # Check every minute instead of 45s
       timeout: 20s        # Longer timeout for NAS
       start_period: 120s  # Give more time to start

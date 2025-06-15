@@ -232,7 +232,7 @@ def root():
 def ping():
     return Response(content='{"status": "ok"}', media_type="application/json")
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     """Lightweight health check endpoint optimized for container health checks"""
     try:
