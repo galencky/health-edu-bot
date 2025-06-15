@@ -19,7 +19,8 @@ RUN apk add --no-cache \
     wget
 
 # Create non-root user for security (Alpine syntax)
-RUN addgroup -S appuser && adduser -S appuser -G appuser
+# Using UID/GID 1000 for Synology compatibility
+RUN addgroup -g 1000 -S appuser && adduser -u 1000 -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app

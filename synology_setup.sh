@@ -17,7 +17,7 @@ APP_GID=1000  # Default Docker group
 
 echo "📁 Creating directory structure..."
 # Create all required directories
-mkdir -p "$DOCKER_ROOT"/{source,tts_audio,voicemail,logs,credentials}
+mkdir -p "$DOCKER_ROOT"/{tts_audio,voicemail,logs,credentials}
 
 echo "🔧 Setting permissions..."
 # Set ownership to Docker user (UID 1000 is standard for containers)
@@ -145,12 +145,12 @@ echo ""
 echo "✅ Setup completed successfully!"
 echo ""
 echo "📋 Next steps:"
-echo "1. Copy your project files to: $DOCKER_ROOT/source/"
+echo "1. Copy your project files to: $DOCKER_ROOT/"
 echo "2. Edit the .env file at: $DOCKER_ROOT/.env"
 echo "3. If using file-based Google auth, place service-account.json in: $DOCKER_ROOT/credentials/"
 echo "4. Build and run the container:"
-echo "   cd $DOCKER_ROOT/source"
-echo "   docker-compose -f docker-compose.synology.yml up -d"
+echo "   cd $DOCKER_ROOT"
+echo "   docker-compose -f docker-compose.synology.yml up -d --build"
 echo ""
 echo "🔧 Maintenance:"
 echo "- Cleanup old files: $DOCKER_ROOT/cleanup_old_audio.sh"

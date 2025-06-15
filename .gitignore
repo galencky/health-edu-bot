@@ -68,6 +68,8 @@ Thumbs.db
 *.tar
 *.zip
 /tts_audio
+/markdowns/
+/.claude/
 
 # === Temporary Files ===
 *.log

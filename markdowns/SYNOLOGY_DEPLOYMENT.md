@@ -1,321 +1,262 @@
-# Synology NAS Docker Deployment Guide
+# 🚀 Synology NAS Deployment Guide for MedEdBot
 
-This guide provides step-by-step instructions for deploying MedEdBot on your Synology NAS using Docker Container Manager.
+This guide will help you deploy MedEdBot on your Synology NAS using Docker/Container Manager.
 
 ## 📋 Prerequisites
 
-- Synology NAS with DSM 7.0+ 
-- Docker package installed from Package Center
-- At least 1GB RAM available for the container
-- Access to Synology File Station and Container Manager
+- Synology NAS with DSM 7.0 or later
+- Container Manager installed from Package Center
+- SSH access enabled
+- At least 1GB free RAM
+- Port 10001 available
 
-## 🏗️ Directory Structure Setup
+## 🛠️ Step-by-Step Deployment
 
-### 1. Create Directory Structure on Synology
+### Step 1: Enable SSH Access
 
-Using File Station, create the following directory structure:
+1. Open **Control Panel** → **Terminal & SNMP**
+2. Check **Enable SSH service**
+3. Apply settings
 
-```
-/volume1/docker/mededbot/
-├── source/              # Your project files
-├── tts_audio/          # TTS generated audio files
-├── voicemail/          # Voice message files  
-├── logs/               # Application logs
-├── .env                # Environment variables
-└── credentials.json    # Google service account (optional)
-```
+### Step 2: Prepare the Environment
 
-### 2. Create Required Directories
-
-```bash
-# SSH into your Synology NAS and run:
-sudo mkdir -p /volume1/docker/mededbot/{source,tts_audio,voicemail,logs}
-sudo chown -R 1000:1000 /volume1/docker/mededbot
-```
-
-## 📁 File Transfer
-
-### Upload Project Files
-
-1. **Using File Station:**
-   - Upload all project files to `/volume1/docker/mededbot/source/`
-   - Ensure all files including `Dockerfile`, `requirements.txt`, etc. are present
-
-2. **Using SSH/SCP:**
+1. **SSH into your Synology NAS:**
    ```bash
-   scp -r /path/to/Mededbot/* user@synology-ip:/volume1/docker/mededbot/source/
+   ssh admin@your-nas-ip
    ```
 
-## ⚙️ Environment Configuration
-
-### Create .env File
-
-Create `/volume1/docker/mededbot/.env` with your configuration:
-
-```env
-# === Database Configuration ===
-DATABASE_URL=postgresql://username:password@host/database?ssl=require
-
-# === LINE Bot Configuration ===
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_CHANNEL_SECRET=your_line_channel_secret
-
-# === Google AI Configuration ===
-GEMINI_API_KEY=your_gemini_api_key
-
-# === Email Configuration ===
-GMAIL_ADDRESS=your_email@gmail.com
-GMAIL_APP_PASSWORD=your_app_password
-
-# === Google Drive Configuration ===
-GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id
-GOOGLE_CREDS_B64=your_base64_encoded_credentials
-
-# === Server Configuration ===
-BASE_URL=https://your-domain.com
-# Or for local testing: BASE_URL=http://your-nas-ip:10001
-
-# === Optional: Application Settings ===
-PORT=10001
-LOG_LEVEL=info
-```
-
-## 🐳 Docker Deployment
-
-### Method 1: Using Container Manager (Recommended)
-
-1. **Open Container Manager** in DSM
-2. **Go to Image** → **Add** → **Add from URL**
-3. **Build custom image:**
-   - Click **Add** → **Create Docker image**
-   - Select `/volume1/docker/mededbot/source` as source folder
-   - Name: `mededbot`
-   - Build the image
-
-4. **Create Container:**
-   - Go to **Container** → **Create**
-   - Select `mededbot` image
-   - Configure as follows:
-
-#### Container Settings:
-- **Container Name:** `mededbot`
-- **Execution Command:** Keep default
-- **Enable auto-restart:** ✅
-
-#### Port Settings:
-- **Local Port:** `10001` 
-- **Container Port:** `10001`
-- **Type:** `TCP`
-
-#### Volume Settings:
-```
-Host Path                               Container Path      Type
-/volume1/docker/mededbot/tts_audio     /app/tts_audio      rw
-/volume1/docker/mededbot/voicemail     /app/voicemail      rw  
-/volume1/docker/mededbot/logs          /app/logs           rw
-/volume1/docker/mededbot/.env          /app/.env           ro
-```
-
-#### Environment Variables:
-Import from `/volume1/docker/mededbot/.env` or set manually:
-- `PORT=10001`
-- `LOG_LEVEL=info`
-- (Add all other variables from .env file)
-
-#### Resource Limitations:
-- **Memory Limit:** `1GB`
-- **CPU Priority:** `Normal`
-
-### Method 2: Using Docker Compose
-
-1. **Upload docker-compose.synology.yml** to `/volume1/docker/mededbot/`
-
-2. **SSH into Synology:**
+2. **Run the setup script:**
    ```bash
-   cd /volume1/docker/mededbot/source
-   docker-compose -f docker-compose.synology.yml up -d
+   sudo curl -L https://raw.githubusercontent.com/yourusername/mededbot/main/synology_setup.sh -o /tmp/setup.sh
+   sudo bash /tmp/setup.sh
    ```
 
-## 🔧 Network Configuration
+   This script will:
+   - Create necessary directories
+   - Set proper permissions (UID/GID 1000)
+   - Create .env template
+   - Set up maintenance scripts
 
-### Port Forwarding (Optional)
+### Step 3: Copy Project Files
 
-If you want external access:
+1. **Using File Station (GUI):**
+   - Open File Station
+   - Navigate to `/docker/mededbot/`
+   - Upload all project files (excluding .git, __pycache__, etc.)
 
-1. **Router Configuration:**
-   - Forward external port (e.g., 8080) to Synology IP:10001
-
-2. **Synology Firewall:**
-   - Control Panel → Security → Firewall
-   - Create rule to allow port 10001
-
-3. **Update BASE_URL:**
-   ```env
-   BASE_URL=https://your-domain.com:8080
-   ```
-
-## 🏥 Health Monitoring
-
-### Container Health Check
-
-The container includes built-in health monitoring:
-- **Endpoint:** `http://localhost:10001/`
-- **Interval:** 30 seconds
-- **Timeout:** 10 seconds
-- **Retries:** 3
-
-### Synology Monitoring
-
-1. **Container Manager:**
-   - Check container status in **Container** tab
-   - View logs in **Log** tab
-
-2. **Log Files:**
-   - Application logs: `/volume1/docker/mededbot/logs/`
-   - Container logs: Container Manager → Container → **Details** → **Log**
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-#### 1. Container Won't Start
-```bash
-# Check container logs
-docker logs mededbot
-
-# Common causes:
-# - Missing environment variables
-# - Port conflicts
-# - Permission issues
-```
-
-#### 2. Database Connection Issues
-```bash
-# Test database connectivity
-docker exec -it mededbot python -c "
-import os
-from utils.database import get_async_db_engine
-print('DB URL:', os.getenv('DATABASE_URL')[:50] + '...')
-"
-```
-
-#### 3. Google Drive Upload Issues
-```bash
-# Check Google credentials
-docker exec -it mededbot python -c "
-import os
-print('Creds available:', bool(os.getenv('GOOGLE_CREDS_B64')))
-print('Folder ID:', os.getenv('GOOGLE_DRIVE_FOLDER_ID'))
-"
-```
-
-#### 4. Permission Issues
-```bash
-# Fix directory permissions
-sudo chown -R 1000:1000 /volume1/docker/mededbot
-sudo chmod -R 755 /volume1/docker/mededbot
-```
-
-### Log Analysis
-
-#### View Container Logs:
-```bash
-# Follow logs in real-time
-docker logs -f mededbot
-
-# View recent logs
-docker logs --tail 100 mededbot
-```
-
-#### Key Log Messages:
-- `✅ [DB]` = Database operations successful
-- `❌ [DB]` = Database operations failed
-- `☁️ uploaded` = Google Drive upload successful
-- `💾 local only` = File saved locally, Drive upload failed
-
-## 🚀 Verification
-
-### Test Deployment
-
-1. **Health Check:**
+2. **Using SCP (Command Line):**
    ```bash
-   curl http://your-nas-ip:10001/
-   # Should return: {"message": "✅ FastAPI LINE + Gemini bot is running.", ...}
+   # From your local machine
+   scp -r /path/to/mededbot/* admin@nas-ip:/volume1/docker/mededbot/
    ```
 
-2. **Test Chat Endpoint:**
+### Step 4: Configure Environment
+
+1. **Edit the .env file:**
    ```bash
-   curl -X POST http://your-nas-ip:10001/chat \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Hello"}'
+   sudo nano /volume1/docker/mededbot/.env
    ```
 
-3. **Check Database:**
-   - Use the provided `view_logs.py` script
-   - Or query your Neon database directly
+2. **Required configurations:**
+   - `DATABASE_URL` - Your PostgreSQL connection string
+   - `LINE_CHANNEL_ACCESS_TOKEN` - From LINE Developers Console
+   - `LINE_CHANNEL_SECRET` - From LINE Developers Console
+   - `GEMINI_API_KEY` - From Google AI Studio
+   - `GMAIL_ADDRESS` - Your Gmail address
+   - `GMAIL_APP_PASSWORD` - Gmail app-specific password
+   - `BASE_URL` - Set to `http://your-nas-ip:10001`
 
-### LINE Webhook Setup
+3. **Optional Google Drive setup:**
+   - `GOOGLE_DRIVE_FOLDER_ID` - Your Drive folder ID
+   - Either:
+     - `GOOGLE_CREDS_B64` - Base64 encoded service account JSON
+     - Or place `service-account.json` in `/volume1/docker/mededbot/credentials/`
 
-Update your LINE Bot webhook URL to:
+### Step 5: Build and Run
+
+1. **Navigate to project directory:**
+   ```bash
+   cd /volume1/docker/mededbot
+   ```
+
+2. **Build and start the container:**
+   ```bash
+   sudo docker-compose -f docker-compose.synology.yml up -d --build
+   ```
+
+3. **Check logs:**
+   ```bash
+   sudo docker-compose -f docker-compose.synology.yml logs -f
+   ```
+
+### Step 6: Verify Deployment
+
+1. **Test health endpoint:**
+   ```bash
+   curl http://localhost:10001/
+   ```
+   
+   Should return:
+   ```json
+   {
+     "message": "✅ FastAPI LINE + Gemini bot is running.",
+     "timestamp": "2024-XX-XX XX:XX:XX"
+   }
+   ```
+
+2. **Check container status in Container Manager:**
+   - Open Container Manager
+   - Go to Container tab
+   - Verify "mededbot" is running
+
+### Step 7: Configure LINE Webhook
+
+1. Go to [LINE Developers Console](https://developers.line.biz/)
+2. Select your channel
+3. Update webhook URL to:
+   - Local testing: `http://your-nas-ip:10001/webhook`
+   - With DDNS/domain: `https://your-domain.com:10001/webhook`
+4. Enable webhooks
+5. Verify webhook
+
+## 🔧 Storage Configuration
+
+The deployment automatically uses **disk storage mode** when PORT=10001, storing files in:
+- `/volume1/docker/mededbot/tts_audio/` - Text-to-speech audio files
+- `/volume1/docker/mededbot/voicemail/` - Voice message files
+- `/volume1/docker/mededbot/logs/` - Application logs
+
+## 🛡️ Security Recommendations
+
+### Firewall Configuration
+
+1. Open **Control Panel** → **Security** → **Firewall**
+2. Create new rule:
+   - Port: 10001
+   - Protocol: TCP
+   - Source IP: Your local network (e.g., 192.168.1.0/24)
+   - Action: Allow
+
+### Reverse Proxy (Optional)
+
+For HTTPS access:
+
+1. **Control Panel** → **Login Portal** → **Advanced** → **Reverse Proxy**
+2. Create new rule:
+   - Source: `https://bot.yourdomain.com:443`
+   - Destination: `http://localhost:10001`
+   - Enable HSTS and HTTP/2
+
+## 🔄 Maintenance
+
+### View Logs
+```bash
+# Container logs
+sudo docker logs mededbot
+
+# Application logs
+ls -la /volume1/docker/mededbot/logs/
 ```
-https://your-domain.com/webhook
+
+### Update Application
+```bash
+cd /volume1/docker/mededbot
+git pull  # If using git
+sudo docker-compose -f docker-compose.synology.yml up -d --build
 ```
 
-Or for testing:
-```
-http://your-nas-ip:10001/webhook
-```
-
-## 📊 Performance Tuning
-
-### Resource Optimization
-
-#### For Low-End NAS (2-4GB RAM):
-```yaml
-deploy:
-  resources:
-    limits:
-      memory: 512M
-      cpus: '0.3'
+### Cleanup Old Files
+```bash
+# Run the cleanup script (removes TTS files older than 7 days)
+sudo /volume1/docker/mededbot/cleanup_old_audio.sh
 ```
 
-#### For High-End NAS (8GB+ RAM):
-```yaml
-deploy:
-  resources:
-    limits:
-      memory: 2G
-      cpus: '1.0'
+### Backup Data
+```bash
+# Run the backup script
+sudo /volume1/docker/mededbot/backup_data.sh
 ```
 
-### Storage Considerations
+## 📊 Resource Monitoring
 
-- **TTS Audio:** ~50KB per file, auto-cleanup recommended
-- **Voicemail:** ~100KB per file, persistent storage
-- **Logs:** ~1MB per day, rotation configured (10MB max)
+Monitor in Container Manager:
+- CPU usage (should be < 20% average)
+- Memory usage (should be < 500MB)
+- Network I/O
 
-## 🔐 Security Best Practices
+## 🐛 Troubleshooting
 
-1. **Use non-root user** (already configured in Dockerfile)
-2. **Restrict container permissions** (no-new-privileges)
-3. **Firewall configuration** (limit access to necessary ports)
-4. **Regular updates** (rebuild container with latest dependencies)
-5. **Environment variable security** (use .env file, not environment variables in compose)
+### Container Won't Start
+```bash
+# Check logs
+sudo docker logs mededbot
 
-## 📱 Mobile Access
+# Verify permissions
+ls -la /volume1/docker/mededbot/
 
-Configure Synology QuickConnect or VPN for secure mobile access to your bot logs and monitoring.
+# Test database connection
+sudo docker exec mededbot python -c "import os; print(os.getenv('DATABASE_URL'))"
+```
 
----
+### Permission Errors
+```bash
+# Fix ownership
+sudo chown -R 1000:1000 /volume1/docker/mededbot/
+sudo chmod 775 /volume1/docker/mededbot/{tts_audio,voicemail,logs}
+```
+
+### Port Already in Use
+```bash
+# Check what's using port 10001
+sudo netstat -tulpn | grep 10001
+
+# Stop conflicting service or change port in .env and docker-compose
+```
+
+### Can't Access from Network
+1. Check firewall rules
+2. Verify BASE_URL in .env
+3. Ensure container is running: `docker ps`
+
+## 📝 Quick Commands Reference
+
+```bash
+# Start
+sudo docker-compose -f docker-compose.synology.yml up -d
+
+# Stop
+sudo docker-compose -f docker-compose.synology.yml down
+
+# Restart
+sudo docker-compose -f docker-compose.synology.yml restart
+
+# View logs
+sudo docker-compose -f docker-compose.synology.yml logs -f
+
+# Update and rebuild
+git pull
+sudo docker-compose -f docker-compose.synology.yml up -d --build
+
+# Shell access
+sudo docker exec -it mededbot sh
+```
+
+## ✅ Success Checklist
+
+- [ ] Container shows "Running" in Container Manager
+- [ ] Health check returns success at `http://nas-ip:10001/`
+- [ ] No permission errors in logs
+- [ ] LINE webhook verified and working
+- [ ] Test message receives response
+- [ ] Audio files created in `/volume1/docker/mededbot/tts_audio/`
+- [ ] Database operations show "✅ [DB]" in logs
 
 ## 🆘 Support
 
 If you encounter issues:
-
 1. Check container logs first
-2. Verify environment variables
-3. Test database connectivity
-4. Review Synology system logs
-5. Create an issue with detailed error messages
+2. Verify all environment variables are set
+3. Ensure proper file permissions (UID/GID 1000)
+4. Test each component individually
 
-The deployment is optimized for Synology NAS with automatic restarts, health monitoring, and efficient resource usage.
+Remember: The key for Synology deployment is proper permissions. When in doubt, check ownership and permissions!
