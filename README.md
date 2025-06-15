@@ -121,7 +121,7 @@ A LINE chatbot that provides medical education content and real-time medical cha
 
 5. **Initialize database**
    ```bash
-   python init_db.py
+   python scripts/init_db.py
    ```
 
 6. **Run the application**

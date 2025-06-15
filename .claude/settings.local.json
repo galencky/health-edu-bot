@@ -26,7 +26,10 @@
       "Bash(git push:*)",
       "Bash(cp:*)",
       "Bash(git checkout:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(test:*)"
     ],
     "deny": []
   }

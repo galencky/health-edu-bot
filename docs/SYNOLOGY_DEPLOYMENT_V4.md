@@ -28,7 +28,7 @@ This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Co
 2. **Run the setup script:**
    ```bash
    # Note: The script will create directories in /volume1/docker/mededbot-v4/
-   sudo curl -L https://raw.githubusercontent.com/yourusername/mededbot/main/synology_setup.sh -o /tmp/setup.sh
+   sudo curl -L https://raw.githubusercontent.com/yourusername/mededbot/main/scripts/synology_setup.sh -o /tmp/setup.sh
    sudo bash /tmp/setup.sh
    ```
 
