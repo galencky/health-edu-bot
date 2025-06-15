@@ -45,15 +45,15 @@ USER appuser
 
 # Health check for container monitoring (using wget instead of curl)
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-10001}/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/ || exit 1
 
 # Default environment variables (can be overridden)
-ENV PORT=10001 \
+ENV PORT=8080 \
     LOG_LEVEL=info
 
 # Expose port (Synology typically uses this for port mapping)
-EXPOSE 10001
+EXPOSE 8080
 
 # Use exec form for proper signal handling
 # 0.0.0.0 allows external connections (required for Docker/Synology)
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10001} --workers 1 --log-level ${LOG_LEVEL:-info}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info}"]

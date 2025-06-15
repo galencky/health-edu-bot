@@ -1,6 +1,6 @@
-# 🚀 Synology NAS Deployment Guide for MedEdBot V4
+# 🚀 Synology NAS Deployment Guide for MedEdBot V4 (Memory Storage)
 
-This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Container Manager with external port 10002.
+This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Container Manager with memory storage mode (like Render) and Google Drive backup.
 
 ## 📋 Prerequisites
 
@@ -35,8 +35,8 @@ This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Co
    This script will:
    - Create directories in `/volume1/docker/mededbot-v4/`
    - Set proper permissions (UID/GID 1000)
-   - Create .env template with PORT=10001 (internal)
-   - Set up maintenance scripts
+   - Create .env template with PORT=8080 (for memory storage)
+   - Set up backup scripts (no cleanup needed for memory storage)
 
 ### Step 3: Copy Project Files
 
@@ -72,13 +72,13 @@ This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Co
    - `GMAIL_ADDRESS` - Your Gmail address
    - `GMAIL_APP_PASSWORD` - Gmail app-specific password
    - `BASE_URL` - Set to `http://your-nas-ip:10002` (external port!)
-   - `PORT=10001` - Keep this as 10001 (internal port for disk storage)
+   - `PORT=8080` - Keep this as 8080 (internal port for memory storage)
+   - `USE_MEMORY_STORAGE=true` - Explicitly enable memory storage
 
-3. **Optional Google Drive setup:**
-   - `GOOGLE_DRIVE_FOLDER_ID` - Your Drive folder ID
-   - If using credentials file:
-     - Place `credentials.json` in `/volume1/docker/mededbot-v4/credentials/`
-     - Remove or comment out `GOOGLE_CREDS_B64` in .env
+3. **Required Google Drive setup (for memory storage backup):**
+   - `GOOGLE_DRIVE_FOLDER_ID` - Your Drive folder ID (REQUIRED)
+   - Place `service-account.json` in `/volume1/docker/mededbot-v4/credentials/`
+   - The docker-compose already mounts this file
 
 ### Step 5: Build and Run
 
@@ -128,12 +128,13 @@ This guide will help you deploy MedEdBot V4 on your Synology NAS using Docker/Co
 4. Enable webhooks
 5. Verify webhook
 
-## 🔧 Port Configuration Details
+## 🔧 Configuration Details
 
 - **External Port**: 10002 (what users/LINE accesses)
-- **Internal Port**: 10001 (keeps disk storage mode active)
-- **Why?**: Internal PORT=10001 ensures disk storage mode is used
-- **Storage Location**: `/volume1/docker/mededbot-v4/`
+- **Internal Port**: 8080 (enables memory storage mode)
+- **Storage Mode**: Memory (RAM) with Google Drive backup
+- **Memory Limits**: 100 files max, 24-hour TTL
+- **Google Drive**: All files automatically backed up
 
 ## 🛡️ Security Recommendations
 
@@ -174,10 +175,10 @@ cd /volume1/docker/mededbot-v4
 sudo docker-compose -f docker-compose.synology.yml up -d --build
 ```
 
-### Cleanup Old Files
+### Memory Storage Notes
 ```bash
-# Run the cleanup script (removes TTS files older than 7 days)
-sudo /volume1/docker/mededbot-v4/cleanup_old_audio.sh
+# No cleanup needed - files are in memory with automatic TTL
+# All files are backed up to Google Drive automatically
 ```
 
 ### Backup Data
@@ -186,14 +187,14 @@ sudo /volume1/docker/mededbot-v4/cleanup_old_audio.sh
 sudo /volume1/docker/mededbot-v4/backup_data.sh
 ```
 
-## 📊 Storage Locations
+## 📊 Storage Configuration
 
-All data is stored in disk mode at:
-- **TTS Audio**: `/volume1/docker/mededbot-v4/tts_audio/`
-- **Voicemail**: `/volume1/docker/mededbot-v4/voicemail/`
-- **Logs**: `/volume1/docker/mededbot-v4/logs/`
+Memory storage mode (like Render):
+- **TTS Audio**: Stored in RAM, backed up to Google Drive
+- **Voicemail**: Stored in RAM, backed up to Google Drive  
+- **Logs**: Optional persistent mount at `/volume1/docker/mededbot-v4/logs/`
 - **Config**: `/volume1/docker/mededbot-v4/.env`
-- **Credentials**: `/volume1/docker/mededbot-v4/credentials/`
+- **Credentials**: `/volume1/docker/mededbot-v4/credentials/service-account.json`
 
 ## 🐛 Troubleshooting
 
@@ -211,9 +212,10 @@ sudo docker ps | grep mededbot
 
 ### Permission Errors
 ```bash
-# Fix ownership
+# Fix ownership for config files
 sudo chown -R 1000:1000 /volume1/docker/mededbot-v4/
-sudo chmod 775 /volume1/docker/mededbot-v4/{tts_audio,voicemail,logs}
+sudo chmod 755 /volume1/docker/mededbot-v4/credentials
+sudo chmod 644 /volume1/docker/mededbot-v4/credentials/service-account.json
 ```
 
 ### Port Conflicts
@@ -256,19 +258,22 @@ sudo docker exec -it mededbot sh
 ## ✅ Success Checklist
 
 - [ ] Container shows "Running" in Container Manager
-- [ ] Port mapping shows 10002 → 10001
+- [ ] Port mapping shows 10002 → 8080
 - [ ] Health check returns success at `http://nas-ip:10002/`
+- [ ] Logs show "🧠 Memory storage: True"
+- [ ] Logs show "☁️ Drive storage: True" (Google Drive enabled)
 - [ ] No permission errors in logs
 - [ ] LINE webhook verified at port 10002
 - [ ] Test message receives response
-- [ ] Audio files created in `/volume1/docker/mededbot-v4/tts_audio/`
+- [ ] Files being uploaded to Google Drive
 - [ ] Database operations show "✅ [DB]" in logs
 
 ## 🆘 Important Notes
 
-1. **Internal PORT must stay 10001** in .env to maintain disk storage mode
+1. **Internal PORT must be 8080** in .env to enable memory storage mode
 2. **External access uses port 10002** for all services
 3. **BASE_URL must use port 10002** for correct audio file serving
-4. **Old service on port 10001** remains unaffected
+4. **Google Drive is REQUIRED** for file backup in memory mode
+5. **Memory limits**: 100 files max, 24-hour TTL
 
-Remember: The key is the port mapping - external 10002 maps to internal 10001, keeping disk storage active!
+Remember: Memory storage mode means no local file storage - everything is in RAM and backed up to Google Drive!

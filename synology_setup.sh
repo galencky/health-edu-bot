@@ -16,8 +16,8 @@ APP_UID=1000  # Default Docker user
 APP_GID=1000  # Default Docker group
 
 echo "📁 Creating directory structure..."
-# Create all required directories
-mkdir -p "$DOCKER_ROOT"/{tts_audio,voicemail,logs,credentials}
+# Create only necessary directories for memory storage mode
+mkdir -p "$DOCKER_ROOT"/{credentials,logs}
 
 echo "🔧 Setting permissions..."
 # Set ownership to Docker user (UID 1000 is standard for containers)
@@ -27,9 +27,7 @@ chown -R $APP_UID:$APP_GID "$DOCKER_ROOT"
 # 755 for directories (read/write/execute for owner, read/execute for others)
 find "$DOCKER_ROOT" -type d -exec chmod 755 {} \;
 
-# Special permissions for data directories
-chmod 775 "$DOCKER_ROOT/tts_audio"
-chmod 775 "$DOCKER_ROOT/voicemail"
+# Special permissions for logs directory (optional)
 chmod 775 "$DOCKER_ROOT/logs"
 
 # Ensure the directories are writable by the container
@@ -68,12 +66,12 @@ BASE_URL=http://your-nas-ip:10002
 # BASE_URL=https://your-domain.com
 
 # === Application Settings ===
-PORT=10001
+PORT=8080  # Using 8080 to enable memory storage mode
 LOG_LEVEL=info
 
 # === Storage Configuration ===
-# Force local disk storage (default for Synology)
-# USE_MEMORY_STORAGE=false
+# Force memory storage (like Render deployment)
+USE_MEMORY_STORAGE=true
 EOF
     echo "✅ Created .env template"
 else
@@ -88,13 +86,11 @@ version: '3.8'
 services:
   mededbot:
     volumes:
-      # Use absolute paths for Synology
-      - $DOCKER_ROOT/tts_audio:/app/tts_audio
-      - $DOCKER_ROOT/voicemail:/app/voicemail
-      - $DOCKER_ROOT/logs:/app/logs
+      # Use absolute paths for Synology (memory storage mode)
       - $DOCKER_ROOT/.env:/app/.env:ro
-      # Optional: Mount credentials file
-      # - $DOCKER_ROOT/credentials/service-account.json:/app/credentials.json:ro
+      - $DOCKER_ROOT/credentials/service-account.json:/app/credentials.json:ro
+      # Optional: Mount logs directory
+      # - $DOCKER_ROOT/logs:/app/logs
     
     # Ensure proper user mapping
     user: "$APP_UID:$APP_GID"
@@ -111,14 +107,8 @@ EOF
 
 echo "📊 Creating maintenance scripts..."
 
-# Create cleanup script
-cat > "$DOCKER_ROOT/cleanup_old_audio.sh" << 'EOF'
-#!/bin/bash
-# Cleanup TTS audio files older than 7 days
-find /volume1/docker/mededbot-v4/tts_audio -name "*.wav" -mtime +7 -delete
-echo "Cleaned up old TTS audio files"
-EOF
-chmod +x "$DOCKER_ROOT/cleanup_old_audio.sh"
+# Note: No cleanup script needed for memory storage mode
+echo "ℹ️  Memory storage mode - audio files are stored in RAM and backed up to Google Drive"
 
 # Create backup script
 cat > "$DOCKER_ROOT/backup_data.sh" << 'EOF'
@@ -153,9 +143,10 @@ echo "   cd $DOCKER_ROOT"
 echo "   docker-compose -f docker-compose.synology.yml up -d --build"
 echo ""
 echo "🔧 Maintenance:"
-echo "- Cleanup old files: $DOCKER_ROOT/cleanup_old_audio.sh"
 echo "- Backup logs: $DOCKER_ROOT/backup_data.sh"
+echo "- Audio files are stored in memory and backed up to Google Drive"
 echo ""
-echo "📁 Directory permissions set to:"
-echo "- Owner: UID=$APP_UID, GID=$APP_GID (Docker default user)"
-echo "- Permissions: 755 (directories), 775 (data folders)"
+echo "📁 Memory Storage Mode:"
+echo "- Files stored in RAM (100 file limit, 24hr TTL)"
+echo "- All files backed up to Google Drive automatically"
+echo "- No local audio/voicemail directories needed"

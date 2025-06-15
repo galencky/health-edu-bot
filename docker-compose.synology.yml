@@ -6,17 +6,18 @@ version: '3.8'
 services:
   mededbot:
     build: .
-    container_name: mededbot
+    container_name: mededbot-v4
     restart: unless-stopped
     
-    # Port mapping: external 10002 -> internal 10001 (keeps disk storage mode)
+    # Port mapping: external 10002 -> internal 8080 (enables memory storage mode)
     ports:
-      - "10002:10001"
+      - "10002:8080"
     
     # Environment variables (use Synology's environment variable management)
     environment:
-      - PORT=10001
+      - PORT=8080  # Using 8080 to enable memory storage mode
       - LOG_LEVEL=info
+      - USE_MEMORY_STORAGE=true  # Explicitly enable memory storage
       # Database URL for Neon PostgreSQL
       #- DATABASE_URL=${DATABASE_URL}
       # LINE Bot configuration
@@ -33,31 +34,29 @@ services:
       # Server configuration
       #- BASE_URL=${BASE_URL}
     
-    # Synology NAS volume mounts with proper permissions
+    # Synology NAS volume mounts for memory storage mode
     volumes:
-      # Persistent data directories (read-write with specific permissions)
-      - /volume1/docker/mededbot-v4/tts_audio:/app/tts_audio:rw
-      - /volume1/docker/mededbot-v4/voicemail:/app/voicemail:rw
-      - /volume1/docker/mededbot-v4/logs:/app/logs:rw
-      
-      # Configuration files (read-only)
+      # Only mount config files (no data directories needed for memory storage)
       - /volume1/docker/mededbot-v4/.env:/app/.env:ro
       
-      # Optional: Mount credentials file instead of using base64
-      #- /volume1/docker/mededbot-v4/credentials/service-account.json:/app/credentials.json:ro
+      # Optional: Mount credentials file for Google Drive backup
+      - /volume1/docker/mededbot-v4/credentials/service-account.json:/app/credentials.json:ro
+      
+      # Optional: Mount logs directory if you want persistent logs
+      #- /volume1/docker/mededbot-v4/logs:/app/logs:rw
     
     # User mapping for proper permissions
     user: "1000:1000"
     
     # Resource limits for Synology NAS
-    deploy:
-      resources:
-        limits:
-          memory: 1G      # Adjust based on your NAS RAM
-          cpus: '0.5'     # Adjust based on your NAS CPU
-        reservations:
-          memory: 256M
-          cpus: '0.1'
+    #deploy:
+    #  resources:
+    #    limits:
+    #      memory: 1G      # Adjust based on your NAS RAM
+    #      cpus: '0.5'     # Adjust based on your NAS CPU
+    #    reservations:
+    #      memory: 256M
+    #      cpus: '0.1'
     
     # Logging configuration (important for Synology monitoring)
     logging:
@@ -71,14 +70,14 @@ services:
       - no-new-privileges:true
     
     # Network configuration
-    networks:
-      - mededbot-network
+    #networks:
+    #  - mededbot-network
 
 # Custom network for better isolation
-networks:
-  mededbot-network:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
+#networks:
+#  mededbot-network:
+#    driver: bridge
+#    ipam:
+#      driver: default
+#      config:
+#        - subnet: 172.20.0.0/16
