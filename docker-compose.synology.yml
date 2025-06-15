@@ -9,9 +9,9 @@ services:
     container_name: mededbot
     restart: unless-stopped
     
-    # Port mapping (adjust external port as needed for Synology)
+    # Port mapping: external 10002 -> internal 10001 (keeps disk storage mode)
     ports:
-      - "10001:10001"
+      - "10002:10001"
     
     # Environment variables (use Synology's environment variable management)
     environment:
@@ -36,15 +36,15 @@ services:
     # Synology NAS volume mounts with proper permissions
     volumes:
       # Persistent data directories (read-write with specific permissions)
-      - /volume1/docker/mededbot/tts_audio:/app/tts_audio:rw
-      - /volume1/docker/mededbot/voicemail:/app/voicemail:rw
-      - /volume1/docker/mededbot/logs:/app/logs:rw
+      - /volume1/docker/mededbot-v4/tts_audio:/app/tts_audio:rw
+      - /volume1/docker/mededbot-v4/voicemail:/app/voicemail:rw
+      - /volume1/docker/mededbot-v4/logs:/app/logs:rw
       
       # Configuration files (read-only)
-      - /volume1/docker/mededbot/.env:/app/.env:ro
+      - /volume1/docker/mededbot-v4/.env:/app/.env:ro
       
       # Optional: Mount credentials file instead of using base64
-      #- /volume1/docker/mededbot/credentials/service-account.json:/app/credentials.json:ro
+      #- /volume1/docker/mededbot-v4/credentials/service-account.json:/app/credentials.json:ro
     
     # User mapping for proper permissions
     user: "1000:1000"

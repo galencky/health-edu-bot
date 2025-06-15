@@ -11,7 +11,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Variables
-DOCKER_ROOT="/volume1/docker/mededbot"
+DOCKER_ROOT="/volume1/docker/mededbot-v4"
 APP_UID=1000  # Default Docker user
 APP_GID=1000  # Default Docker group
 
@@ -62,8 +62,8 @@ GOOGLE_CREDS_B64=your_base64_encoded_credentials
 # Option 2: Mount credentials.json file instead
 
 # === Server Configuration ===
-# For local network access:
-BASE_URL=http://your-nas-ip:10001
+# For local network access (external port 10002):
+BASE_URL=http://your-nas-ip:10002
 # For external access (with domain):
 # BASE_URL=https://your-domain.com
 
@@ -115,7 +115,7 @@ echo "📊 Creating maintenance scripts..."
 cat > "$DOCKER_ROOT/cleanup_old_audio.sh" << 'EOF'
 #!/bin/bash
 # Cleanup TTS audio files older than 7 days
-find /volume1/docker/mededbot/tts_audio -name "*.wav" -mtime +7 -delete
+find /volume1/docker/mededbot-v4/tts_audio -name "*.wav" -mtime +7 -delete
 echo "Cleaned up old TTS audio files"
 EOF
 chmod +x "$DOCKER_ROOT/cleanup_old_audio.sh"
@@ -126,7 +126,7 @@ cat > "$DOCKER_ROOT/backup_data.sh" << 'EOF'
 # Backup logs and important data
 BACKUP_DIR="/volume1/backup/mededbot/$(date +%Y%m%d)"
 mkdir -p "$BACKUP_DIR"
-cp -r /volume1/docker/mededbot/logs "$BACKUP_DIR/"
+cp -r /volume1/docker/mededbot-v4/logs "$BACKUP_DIR/"
 tar -czf "$BACKUP_DIR/logs.tar.gz" -C "$BACKUP_DIR" logs
 rm -rf "$BACKUP_DIR/logs"
 echo "Backup completed to $BACKUP_DIR"
@@ -137,7 +137,7 @@ echo "🚨 Setting up Synology-specific configurations..."
 
 # Check if firewall needs configuration
 if synoservice --status synofirewall | grep -q "enabled"; then
-    echo "⚠️  Firewall is enabled. Remember to allow port 10001 in:"
+    echo "⚠️  Firewall is enabled. Remember to allow port 10002 in:"
     echo "   Control Panel → Security → Firewall → Edit Rules"
 fi
 
