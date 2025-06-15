@@ -1,6 +1,13 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import sys
+# Force unbuffered output for Container Manager
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(line_buffering=True)
+
 from fastapi import FastAPI, Response, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse

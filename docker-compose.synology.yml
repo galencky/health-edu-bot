@@ -64,6 +64,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+        labels: "container_name"
     
     # Security options
     security_opt:

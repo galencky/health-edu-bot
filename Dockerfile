@@ -6,6 +6,7 @@ FROM python:3.11-alpine
 # Set environment variables for Python
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONIOENCODING=utf-8 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
@@ -56,5 +57,5 @@ EXPOSE 8080
 
 # Use exec form for proper signal handling
 # 0.0.0.0 allows external connections (required for Docker/Synology)
-# Use Python to run uvicorn with custom logging config
-CMD ["sh", "-c", "python -c \"import uvicorn; from utils.uvicorn_logging import get_uvicorn_log_config; uvicorn.run('main:app', host='0.0.0.0', port=int('${PORT:-8080}'), workers=1, log_config=get_uvicorn_log_config())\""]
+# Force unbuffered output for Container Manager
+CMD ["sh", "-c", "python -u -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info} --access-log"]
