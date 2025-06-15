@@ -8,9 +8,10 @@ from collections import OrderedDict
 class MemoryStorage:
     """Thread-safe in-memory storage with LRU eviction"""
     
-    def __init__(self, max_files: int = 100, max_size_mb: int = 500):
-        self.max_files = max_files
-        self.max_size_bytes = max_size_mb * 1024 * 1024
+    def __init__(self, max_files: int = None, max_size_mb: int = 1024):
+        self.max_files = max_files  # None means no file number limit
+        self.max_size_bytes = max_size_mb * 1024 * 1024  # 1GB total storage limit
+        self.cleanup_threshold_bytes = 262144000  # Start cleanup when exceeding 250MB
         self.files: OrderedDict[str, Tuple[bytes, float, str]] = OrderedDict()  # filename -> (data, timestamp, content_type)
         self.total_size = 0
         self.lock = Lock()
@@ -28,12 +29,21 @@ class MemoryStorage:
                 return False
             
             # Evict old files if necessary
-            while (len(self.files) >= self.max_files or 
-                   self.total_size + len(data) > self.max_size_bytes):
+            # Check if we exceed cleanup threshold or will exceed max size
+            while ((self.total_size + len(data) > self.cleanup_threshold_bytes) or 
+                   (self.total_size + len(data) > self.max_size_bytes)):
                 if not self.files:
                     break
                 oldest_key = next(iter(self.files))
                 self.remove(oldest_key)
+                
+            # Also check file limit if it's set
+            if self.max_files is not None:
+                while len(self.files) >= self.max_files:
+                    if not self.files:
+                        break
+                    oldest_key = next(iter(self.files))
+                    self.remove(oldest_key)
             
             # Store file
             self.files[filename] = (data, time.time(), content_type)
@@ -70,18 +80,21 @@ class MemoryStorage:
         with self.lock:
             return filename in self.files
     
-    def get_info(self) -> Dict[str, int]:
+    def get_info(self) -> Dict[str, any]:
         """Get storage statistics"""
         with self.lock:
-            return {
+            info = {
                 "files": len(self.files),
                 "total_size_mb": self.total_size / (1024 * 1024),
-                "max_files": self.max_files,
-                "max_size_mb": self.max_size_bytes / (1024 * 1024)
+                "max_size_mb": self.max_size_bytes / (1024 * 1024),
+                "cleanup_threshold_mb": self.cleanup_threshold_bytes / (1024 * 1024)
             }
+            if self.max_files is not None:
+                info["max_files"] = self.max_files
+            return info
     
-    def cleanup_old_files(self, max_age_seconds: int = 3600):
-        """Remove files older than max_age_seconds"""
+    def cleanup_old_files(self, max_age_seconds: int = 86400):
+        """Remove files older than max_age_seconds (default: 24 hours)"""
         with self.lock:
             current_time = time.time()
             files_to_remove = []
@@ -96,5 +109,9 @@ class MemoryStorage:
             if files_to_remove:
                 print(f"🧹 Cleaned up {len(files_to_remove)} old files from memory")
 
-# Global instance
+# Global instance with updated configuration
+# - Total storage limit: 1GB (1024MB)
+# - Cleanup threshold: 250MB (starts removing oldest files when exceeded)
+# - No file number limit (removed the 100 files max)
+# - 24hr TTL (via cleanup_old_files method)
 memory_storage = MemoryStorage()
