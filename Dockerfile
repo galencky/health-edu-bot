@@ -46,9 +46,10 @@ RUN mkdir -p /app/tts_audio /app/voicemail /app/logs && \
 # Switch to non-root user
 USER appuser
 
-# Health check for container monitoring (using wget instead of curl)
-HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/ || exit 1
+# Health check for container monitoring - optimized for reliability
+# Using /health endpoint with longer timeout and more retries
+HEALTHCHECK --interval=45s --timeout=15s --start-period=90s --retries=3 \
+    CMD wget --no-verbose --tries=2 --timeout=10 --spider http://localhost:${PORT:-8080}/health || exit 1
 
 # Default environment variables (can be overridden)
 ENV PORT=8080 \

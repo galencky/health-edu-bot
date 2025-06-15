@@ -24,17 +24,53 @@ from utils.memory_storage import memory_storage
 import asyncio
 from contextlib import asynccontextmanager
 import io
+from datetime import datetime
 
-# BUG FIX: Background task for session cleanup
+# BUG FIX: Background task for session cleanup with rate limiter cleanup
 # Previously: Sessions never expired, causing memory leaks
 async def periodic_session_cleanup():
     """Run session cleanup every hour"""
     while True:
         await asyncio.sleep(3600)  # 1 hour
         try:
-            cleanup_expired_sessions()  # This is not async
+            # Run session cleanup in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, cleanup_expired_sessions)
+            
+            # Cleanup rate limiter memory to prevent memory leaks
+            await cleanup_rate_limiter_memory()
+            
+            print(f"🧹 Session and rate limiter cleanup completed", flush=True)
         except Exception as e:
-            print(f"Error during session cleanup: {e}", flush=True)
+            print(f"❌ Error during cleanup: {e}", flush=True)
+
+async def cleanup_rate_limiter_memory():
+    """Clean up old rate limiter entries to prevent memory leaks"""
+    try:
+        from utils.rate_limiter import (
+            gemini_limiter, tts_limiter, email_limiter, webhook_limiter
+        )
+        
+        # Clean up all global rate limiters
+        total_removed = 0
+        limiters = [
+            ("Gemini", gemini_limiter),
+            ("TTS", tts_limiter), 
+            ("Email", email_limiter),
+            ("Webhook", webhook_limiter)
+        ]
+        
+        for name, limiter in limiters:
+            removed = limiter.cleanup_old_entries(max_age_seconds=7200)  # 2 hours
+            total_removed += removed
+            if removed > 0:
+                print(f"🧹 {name} rate limiter: removed {removed} old entries", flush=True)
+        
+        if total_removed > 0:
+            print(f"🧹 Rate limiter cleanup: {total_removed} total entries removed", flush=True)
+        
+    except Exception as e:
+        print(f"⚠️ Rate limiter cleanup error: {e}", flush=True)
 
 # Background task for memory storage cleanup (if using memory backend)
 async def periodic_memory_cleanup():
@@ -195,6 +231,29 @@ def root():
 @app.api_route("/ping", methods=["GET", "HEAD"])
 def ping():
     return Response(content='{"status": "ok"}', media_type="application/json")
+
+@app.get("/health")
+async def health_check():
+    """Lightweight health check endpoint optimized for container health checks"""
+    try:
+        # Quick memory check
+        from utils.memory_storage import memory_storage
+        memory_info = memory_storage.get_info()
+        
+        # Quick session count check
+        from handlers.session_manager import get_session_count
+        session_count = get_session_count()
+        
+        # Basic response - don't do heavy operations in health check
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "memory_files": memory_info["files"],
+            "active_sessions": session_count
+        }
+    except Exception:
+        # Don't expose internal errors in health check
+        return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/test-logging")
 def test_logging():

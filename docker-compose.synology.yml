@@ -50,15 +50,23 @@ services:
     # User mapping for proper permissions
     user: "1000:1000"
     
-    # Resource limits for Synology NAS
-    #deploy:
-    #  resources:
-    #    limits:
-    #      memory: 1G      # Adjust based on your NAS RAM
-    #      cpus: '0.5'     # Adjust based on your NAS CPU
-    #    reservations:
-    #      memory: 256M
-    #      cpus: '0.1'
+    # Resource limits for Synology NAS (uncomment to enable)
+    deploy:
+      resources:
+        limits:
+          memory: 1G      # Prevent memory exhaustion
+          cpus: '1.0'     # Allow more CPU for better performance
+        reservations:
+          memory: 512M    # Reserve more memory for stability
+          cpus: '0.2'
+    
+    # Override health check for better reliability
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=2", "--timeout=10", "--spider", "http://localhost:8080/health"]
+      interval: 60s       # Check every minute instead of 45s
+      timeout: 20s        # Longer timeout for NAS
+      start_period: 120s  # Give more time to start
+      retries: 3
     
     # Logging configuration (important for Synology monitoring)
     logging:

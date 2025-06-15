@@ -66,6 +66,37 @@ class RateLimiter:
                 timestamps.popleft()
             
             return max(0, self.max_requests - len(timestamps))
+    
+    def cleanup_old_entries(self, max_age_seconds: int = 7200) -> int:
+        """
+        Clean up old entries to prevent memory leaks
+        
+        Args:
+            max_age_seconds: Remove keys with no recent activity (default: 2 hours)
+            
+        Returns:
+            int: Number of keys removed
+        """
+        removed_count = 0
+        with self.lock:
+            now = time.time()
+            keys_to_remove = []
+            
+            for key, timestamps in self.requests.items():
+                # Remove old timestamps from this key
+                while timestamps and timestamps[0] < now - self.window_seconds:
+                    timestamps.popleft()
+                
+                # If no timestamps remain or all are very old, mark for removal
+                if not timestamps or (timestamps and timestamps[-1] < now - max_age_seconds):
+                    keys_to_remove.append(key)
+            
+            # Remove empty/old keys
+            for key in keys_to_remove:
+                del self.requests[key]
+                removed_count += 1
+        
+        return removed_count
 
 # Global rate limiters for different services
 gemini_limiter = RateLimiter(max_requests=30, window_seconds=60)  # 30 requests per minute

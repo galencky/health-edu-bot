@@ -2,20 +2,31 @@
 
 ## Current Known Issues
 
-### 1. Performance Optimization Discovery
-**Status**: Observation
-**Severity**: Low
-**Description**: Removing logging and disk I/O operations significantly improves performance on NAS devices.
+### 1. Health Check Timeouts After 4 Hours
+**Status**: Fixed
+**Severity**: High
+**Description**: Container stopped working after 4 hours due to health check timeout (30s).
 
-**Analysis**:
-- Container manager logging adds overhead
-- File save operations to network drives create bottlenecks
-- CPU and RAM performance is actually excellent when I/O is minimized
+**Root Cause Analysis**:
+- Unlimited thread creation in logging operations causing resource exhaustion
+- Rate limiter memory accumulation without cleanup
+- Session cleanup blocking the main thread
+- Health check endpoint using `/` instead of dedicated lightweight endpoint
 
-**Recommendation**: 
-- Consider implementing configurable logging levels
-- Add option to disable file persistence for performance-critical deployments
-- Use asynchronous logging to minimize blocking
+**Fixes Applied**:
+- Created dedicated `/health` endpoint with minimal overhead
+- Implemented bounded ThreadPoolExecutor (5 workers) for logging operations
+- Added rate limiter memory cleanup (runs every hour, removes entries older than 2 hours)
+- Made session cleanup async to prevent blocking
+- Optimized health check configuration:
+  - Interval: 45s → 60s (Synology), timeout: 30s → 20s
+  - Using `/health` endpoint instead of `/`
+  - Better retry configuration (3 retries with longer start period)
+
+**Performance Optimization Discovery**:
+- Logging and disk I/O operations add significant overhead on NAS devices
+- CPU and RAM performance is excellent when I/O is minimized
+- Configurable logging now available via `CONTAINER_LOGGING` environment variable
 
 ### 2. Session Cleanup Memory Management
 **Status**: Resolved

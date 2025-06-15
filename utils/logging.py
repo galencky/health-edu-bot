@@ -6,9 +6,14 @@ import os
 import asyncio
 import traceback
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from utils.database import log_chat_to_db, log_tts_to_db
 from utils.google_drive_service import get_drive_service, upload_gemini_log as _upload_gemini_log_original
 from utils.retry_utils import exponential_backoff, RetryError
+
+# Global thread pool executor to limit thread creation
+# This prevents unlimited thread spawning that could cause resource exhaustion
+_logging_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="logging-")
 
 
 async def _async_log_chat(user_id, message, reply, session, action_type=None, gemini_call=None):
@@ -21,10 +26,10 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     
     if gemini_call == "yes":
         try:
-            # Run Drive upload in thread pool since it's sync
+            # Run Drive upload in bounded thread pool since it's sync
             loop = asyncio.get_event_loop()
             drive_url, _ = await loop.run_in_executor(
-                None, 
+                _logging_executor, 
                 _upload_gemini_log_original, 
                 user_id, 
                 session, 
@@ -189,9 +194,9 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
                         print(f"[TTS Upload] Failed to close media file descriptor: {e}")
     
         try:
-            # Run sync Drive upload in thread pool
+            # Run sync Drive upload in bounded thread pool
             loop = asyncio.get_event_loop()
-            uploaded = await loop.run_in_executor(None, upload_to_drive)
+            uploaded = await loop.run_in_executor(_logging_executor, upload_to_drive)
             
             file_id = uploaded.get("id")
             web_link = uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
@@ -337,9 +342,9 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
                     print(f"[Voicemail Upload] Failed to close media file descriptor: {e}")
     
     try:
-        # Run sync Drive upload in thread pool
+        # Run sync Drive upload in bounded thread pool
         loop = asyncio.get_event_loop()
-        uploaded = await loop.run_in_executor(None, upload_with_retry)
+        uploaded = await loop.run_in_executor(_logging_executor, upload_with_retry)
         
         # Get Drive link
         web_link = uploaded.get("webViewLink")
@@ -392,8 +397,8 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
         finally:
             loop.close()
     
-    import threading
-    threading.Thread(target=_worker, daemon=True).start()
+    # Use bounded thread pool executor instead of unlimited threading
+    _logging_executor.submit(_worker)
 
 
 def log_tts_async(user_id, text, audio_path, audio_url):
@@ -417,8 +422,8 @@ def log_tts_async(user_id, text, audio_path, audio_url):
         finally:
             loop.close()
     
-    import threading
-    threading.Thread(target=_worker, daemon=True).start()
+    # Use bounded thread pool executor instead of unlimited threading
+    _logging_executor.submit(_worker)
 
 
 def upload_voicemail_sync(local_path: str, user_id: str, transcription: str = None, translation: str = None) -> str:
