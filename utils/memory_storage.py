@@ -28,22 +28,13 @@ class MemoryStorage:
                 print(f"⚠️ File {filename} too large ({len(data)} bytes)")
                 return False
             
-            # Evict old files if necessary
-            # Check if we exceed cleanup threshold or will exceed max size
-            while ((self.total_size + len(data) > self.cleanup_threshold_bytes) or 
-                   (self.total_size + len(data) > self.max_size_bytes)):
+            # Simple eviction: remove oldest files until we have space
+            while (self.total_size + len(data) > self.max_size_bytes or 
+                   (self.max_files and len(self.files) >= self.max_files)):
                 if not self.files:
                     break
                 oldest_key = next(iter(self.files))
                 self.remove(oldest_key)
-                
-            # Also check file limit if it's set
-            if self.max_files is not None:
-                while len(self.files) >= self.max_files:
-                    if not self.files:
-                        break
-                    oldest_key = next(iter(self.files))
-                    self.remove(oldest_key)
             
             # Store file
             self.files[filename] = (data, time.time(), content_type)
@@ -108,6 +99,13 @@ class MemoryStorage:
             
             if files_to_remove:
                 print(f"🧹 Cleaned up {len(files_to_remove)} old files from memory")
+    
+    def clear_all(self):
+        """Clear all files from memory storage"""
+        with self.lock:
+            self.files.clear()
+            self.total_size = 0
+            print("🗑️ Cleared all files from memory storage")
 
 # Global instance with updated configuration
 # - Total storage limit: 1GB (1024MB)

@@ -115,23 +115,21 @@ def validate_action_type(action_type: Optional[str]) -> Optional[str]:
     if not action_type:
         return None
     
-    original_action = action_type
     # Keep original case for allowed actions
     allowed_actions = {
         'edu', 'chat', 'translate', 'tts', 'email', 
         'modify', 'voicemail', 'new', 'help', 'other',
         'sync reply', 'medchat_audio', 'Gemini reply', 'medchat', 
         'exception', 'audio', 'text', 'voice',
-        'speak', 'medchat audio'  # Additional variants
+        'speak', 'medchat audio'
     }
     
-    action_type = action_type.strip()  # Only strip whitespace, don't lowercase
+    action_type = action_type.strip()
     
+    # Return 'other' for unknown actions without logging
     if action_type not in allowed_actions:
-        print(f"🔍 [VALIDATOR] Unknown action_type: '{original_action}' -> 'other'")
         return 'other'
     
-    print(f"✅ [VALIDATOR] Valid action_type: '{original_action}'")
     return action_type
 
 def create_safe_path(base_dir: str, filename: str) -> str:

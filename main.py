@@ -214,7 +214,6 @@ if __name__ == "__main__":
         log_config=log_config,
         # Keepalive settings for long-running NAS deployment
         timeout_keep_alive=75,  # Keep connections alive longer
-        limit_max_requests=1000,  # Recycle workers after 1000 requests
         access_log=False  # Reduce I/O on NAS
     )
 

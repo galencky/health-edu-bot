@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from urllib.parse import urlparse
-from sqlalchemy import Column, String, DateTime, Boolean, Text, Integer
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Integer, create_engine, select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager, contextmanager
@@ -107,6 +107,47 @@ async def get_async_db_session():
             raise
         finally:
             await session.close()
+
+# Sync database functions for fallback
+def get_sync_db_engine():
+    """Get sync database engine"""
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL not found in environment variables")
+    
+    # Parse the URL to extract components
+    parsed = urlparse(database_url)
+    
+    # Construct sync connection string
+    sync_url = f"postgresql://{parsed.username}:{parsed.password}@{parsed.hostname}{parsed.path}?sslmode=require"
+    
+    # Simple configuration like the old stable version
+    engine = create_engine(
+        sync_url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=3600,      # Recycle connections every hour
+        echo=False  # Set to True for debugging
+    )
+    return engine
+
+@contextmanager
+def get_db_session_sync():
+    """Provide a sync transactional scope for database operations"""
+    engine = get_sync_db_engine()
+    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+    
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 # Async helper functions for logging (with sync fallback)
 async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=False, gemini_output_url=None):
