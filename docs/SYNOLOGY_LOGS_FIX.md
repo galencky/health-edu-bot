@@ -40,8 +40,8 @@ environment:
 
 ## Testing the Fix
 
-### 🧪 Logging Test Endpoint
-Visit `http://your-nas-ip:10002/test-logging` to generate test log entries and verify logging is working.
+### 🧪 Testing Logs
+Check the container logs directly to verify logging is working properly.
 
 ### 📝 Deploy and Test Steps
 1. **Rebuild the container**:
@@ -56,10 +56,7 @@ Visit `http://your-nas-ip:10002/test-logging` to generate test log entries and v
 
 3. **Test logging**:
    ```bash
-   # Generate test logs via endpoint
-   curl http://localhost:10002/test-logging
-   
-   # Or check startup logs
+   # Check startup logs and application logs
    sudo docker logs mededbot-v4
    ```
 

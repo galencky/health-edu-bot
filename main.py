@@ -17,7 +17,6 @@ from routes.webhook import webhook_router
 from handlers.session_manager import get_user_session, cleanup_expired_sessions
 from handlers.logic_handler import handle_user_message
 from utils.paths import TTS_AUDIO_DIR
-from utils.auth import verify_api_key
 from utils.validators import sanitize_text, sanitize_filename
 from utils.storage_config import TTS_USE_MEMORY
 from utils.memory_storage import memory_storage
@@ -173,51 +172,8 @@ def chat(input: UserInput):
     reply, _, quick_reply_data = handle_user_message(user_id, input.message, session)
     return {"reply": reply, "quick_reply": quick_reply_data}
 
-@app.get("/debug/storage")
-def debug_storage():
-    """Debug endpoint to check storage configuration"""
-    from utils.storage_config import STORAGE_BACKEND, TTS_USE_MEMORY, TTS_USE_DRIVE
-    return {
-        "storage_backend": STORAGE_BACKEND.value,
-        "tts_use_memory": TTS_USE_MEMORY,
-        "tts_use_drive": TTS_USE_DRIVE,
-        "port": os.getenv("PORT"),
-        "render_external_url": os.getenv("RENDER_EXTERNAL_URL"),
-        "base_url": os.getenv("BASE_URL"),
-        "home_exists": os.path.exists("/home")
-    }
 
-@app.get("/debug/validator/{action_type}")
-def debug_validator(action_type: str):
-    """Debug endpoint to test action_type validator"""
-    from utils.validators import validate_action_type
-    
-    validated = validate_action_type(action_type)
-    return {
-        "input": action_type,
-        "validated": validated,
-        "is_other": validated == "other"
-    }
 
-@app.post("/debug/tts")
-def debug_tts(input: UserInput):
-    """Debug endpoint to test TTS generation"""
-    try:
-        from services.tts_service import generate_tts_response
-        from utils.storage_config import TTS_USE_MEMORY
-        
-        result = generate_tts_response("test-user", input.message)
-        return {
-            "success": True,
-            "storage_backend": "memory" if TTS_USE_MEMORY else "local",
-            "result": result
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "storage_backend": "memory" if TTS_USE_MEMORY else "local"
-        }
 
 # ── misc endpoints -----------------------------------------------------
 @app.api_route("/", methods=["GET", "HEAD"])
@@ -255,24 +211,6 @@ async def health_check():
         # Don't expose internal errors in health check
         return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-@app.get("/test-logging")
-def test_logging():
-    """Test endpoint to verify logging is working in Container Manager"""
-    import logging
-    logger = logging.getLogger("test_logger")
-    
-    # Test different log levels
-    print("🧪 [TEST] Testing logging from print statement", flush=True)
-    logger.info("🧪 [TEST] Testing INFO level logging")
-    logger.warning("🧪 [TEST] Testing WARNING level logging")
-    logger.error("🧪 [TEST] Testing ERROR level logging")
-    
-    return {
-        "message": "Logging test completed - check Container Manager logs",
-        "container_logging": os.getenv("CONTAINER_LOGGING", "false"),
-        "pythonunbuffered": os.getenv("PYTHONUNBUFFERED", "0"),
-        "log_level": os.getenv("LOG_LEVEL", "info")
-    }
 
 # ── audio endpoint for memory storage ---------------------------------
 @app.get("/audio/{filename}")

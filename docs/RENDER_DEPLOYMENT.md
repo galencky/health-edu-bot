@@ -48,7 +48,6 @@ In the Render dashboard, add these environment variables:
 | `GOOGLE_CREDS_B64` | Base64 encoded service account | `eyJ0eXBlIj...` |
 | `LOG_LEVEL` | Logging level | `info` |
 | `RENDER` | Set to enable Render optimizations | `true` |
-| `CHAT_API_KEY` | API key for /chat endpoint | `your-secure-key` |
 
 ### 4. Configure LINE Webhook
 
