@@ -88,181 +88,181 @@ def handle_line_message(event: MessageEvent[TextMessage]):
 
             # a) Cancel or "new" path
             if text_lower == "new":
+                session.pop("awaiting_stt_translation", None)
+                session.pop("stt_transcription", None)
+
+                try:
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(
+                            text="✅ 已取消翻譯",
+                            quick_reply=QuickReply(items=create_quick_reply_items(["new"]))
+                        )
+                    )
+                except LineBotApiError:
+                    pass
+                return
+            
+            # b) "translate_voice" - prompt for language selection
+            if text_lower == "translate_voice":
+                try:
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(
+                            text="🌐 請選擇翻譯語言：",
+                            quick_reply=QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
+                        )
+                    )
+                except LineBotApiError:
+                    pass
+                return
+
+            # c) Otherwise, treat `user_input` as the target language
+            original_text = session.get("stt_transcription", "")
+            sys_prompt = voicemail_prompt.format(lang=user_input)
+
+            try:
+                # Call Gemini with our custom voicemail_prompt
+                translated = _call_genai(original_text, sys_prompt=sys_prompt, temp=0)
+                session["stt_last_translation"] = translated          # NEW
+                session["mode"] = "chat"                              # keep this line
+                
+                # Upload text file to Google Drive for STT translation
+                try:
+                    drive_link, _ = upload_stt_translation_log(user_id, original_text, translated, user_input)
+                    if drive_link:
+                        print(f"✅ [STT] Uploaded translation text to Drive: {drive_link}")
+                except Exception as upload_error:
+                    print(f"⚠️ [STT] Failed to upload translation: {upload_error}")
+                    # Don't fail the translation if logging fails
+                
+            except Exception as e:
+                # On failure, clear state and inform user
+                session.pop("awaiting_stt_translation", None)
+                session.pop("stt_transcription", None)
+                err_reply = f"⚠️ 翻譯失敗：{e}"
+                try:
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        TextSendMessage(text=err_reply)
+                    )
+                except LineBotApiError:
+                    pass
+                return
+            
+            # *** HERE: switch into chat mode so TTS works next ***
+            session["mode"] = "chat"
+            session["started"] = True   
+
+            # Build and send the translation reply
+            reply_lines = [
+                "🌐 翻譯結果：",
+                translated
+            ]
+
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
+            session.pop("stt_audio_filename", None)  # Clean up filename too
 
+            # Add quick reply for TTS
+            quick_reply = QuickReply(items=create_quick_reply_items(TTS_OPTIONS))
+            
             try:
                 line_bot_api.reply_message(
                     event.reply_token,
-                    TextSendMessage(
-                        text="✅ 已取消翻譯",
-                        quick_reply=QuickReply(items=create_quick_reply_items(["new"]))
+                    TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
+                )
+            except LineBotApiError:
+                pass
+            
+            # Log the translation action
+            log_chat(
+                user_id,
+                f"[STT Translation Request] {user_input}",
+                translated[:200],
+                session,
+                action_type="translate",
+                gemini_call="yes"
+            )
+
+            return  # important: stop here and do not fall through
+
+        # ───────────────────────────────────────────────────────────────────
+        # 2) Normal bot flow (no STT‐translation in progress)
+        # ───────────────────────────────────────────────────────────────────
+        reply, gemini_called, quick_reply_data = handle_user_message(user_id, user_input, session)
+
+        if session.get("mode") == "chat":
+            # If TTS audio is queued, send it first
+            if session.get("tts_audio_url"):
+                bubbles.append(
+                    AudioSendMessage(
+                        original_content_url=session.pop("tts_audio_url"),
+                        duration=session.pop("tts_audio_dur", 0)
                     )
                 )
-            except LineBotApiError:
-                pass
-            return
-        
-        # b) "translate_voice" - prompt for language selection
-        if text_lower == "translate_voice":
+            # Add quick reply if available
+            if quick_reply_data:
+                bubbles.append(TextSendMessage(
+                    text=reply,
+                    quick_reply=QuickReply(items=quick_reply_data["items"])
+                ))
+            else:
+                bubbles.append(TextSendMessage(text=reply))
+        else:
+            # Only show content when it's newly generated/modified (gemini_called=True)
+            if gemini_called:
+                zh = session.get("zh_output") or ""
+                tr = session.get("translated_output") or ""
+                
+                if zh or tr:
+                    zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
+                    tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
+                    for c in (*zh_chunks, *tr_chunks):
+                        bubbles.append(TextSendMessage(text=c))
+
+                    # BUG FIX: Show references when content is displayed
+                    refs = session.get("references") or []
+                    flex = references_to_flex(refs)
+                    if flex:
+                        bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
+
+                    if len(zh_chunks) + len(tr_chunks) > 3:
+                        bubbles.append(TextSendMessage(
+                            text="⚠️ 內容過長，僅部分顯示。如需完整內容請點擊下方按鈕：",
+                            quick_reply=QuickReply(items=create_quick_reply_items([("📧 寄送", "mail")]))
+                        ))
+            
+            # Add quick reply if available
+            if quick_reply_data:
+                bubbles.append(TextSendMessage(
+                    text=reply,
+                    quick_reply=QuickReply(items=quick_reply_data["items"])
+                ))
+            else:
+                bubbles.append(TextSendMessage(text=reply))
+
+        try:
+            line_bot_api.reply_message(event.reply_token, bubbles)
+        except LineBotApiError as exc:
             try:
                 line_bot_api.reply_message(
                     event.reply_token,
-                    TextSendMessage(
-                        text="🌐 請選擇翻譯語言：",
-                        quick_reply=QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
-                    )
+                    TextSendMessage(text=f"⚠️ 發送訊息失敗：{exc}")
                 )
-            except LineBotApiError:
-                pass
-            return
+            except Exception as e:
+                print(f"[LINE] Failed to send error message: {e}")
 
-        # c) Otherwise, treat `user_input` as the target language
-        original_text = session.get("stt_transcription", "")
-        sys_prompt = voicemail_prompt.format(lang=user_input)
-
-        try:
-            # Call Gemini with our custom voicemail_prompt
-            translated = _call_genai(original_text, sys_prompt=sys_prompt, temp=0)
-            session["stt_last_translation"] = translated          # NEW
-            session["mode"] = "chat"                              # keep this line
-            
-            # Upload text file to Google Drive for STT translation
-            try:
-                drive_link, _ = upload_stt_translation_log(user_id, original_text, translated, user_input)
-                if drive_link:
-                    print(f"✅ [STT] Uploaded translation text to Drive: {drive_link}")
-            except Exception as upload_error:
-                print(f"⚠️ [STT] Failed to upload translation: {upload_error}")
-                # Don't fail the translation if logging fails
-            
-        except Exception as e:
-            # On failure, clear state and inform user
-            session.pop("awaiting_stt_translation", None)
-            session.pop("stt_transcription", None)
-            err_reply = f"⚠️ 翻譯失敗：{e}"
-            try:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=err_reply)
-                )
-            except LineBotApiError:
-                pass
-            return
-        
-        # *** HERE: switch into chat mode so TTS works next ***
-        session["mode"] = "chat"
-        session["started"] = True   
-
-        # Build and send the translation reply
-        reply_lines = [
-            "🌐 翻譯結果：",
-            translated
-        ]
-
-        session.pop("awaiting_stt_translation", None)
-        session.pop("stt_transcription", None)
-        session.pop("stt_audio_filename", None)  # Clean up filename too
-
-        # Add quick reply for TTS
-        quick_reply = QuickReply(items=create_quick_reply_items(TTS_OPTIONS))
-        
-        try:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
+        # Log if not in chat‐mode (MedChat logs itself)
+        if session.get("mode") != "chat":
+            log_chat(
+                user_id,
+                user_input,
+                reply[:200],
+                session,
+                action_type="Gemini reply" if gemini_called else "sync reply",
+                gemini_call="yes" if gemini_called else "no",
             )
-        except LineBotApiError:
-            pass
-        
-        # Log the translation action
-        log_chat(
-            user_id,
-            f"[STT Translation Request] {user_input}",
-            translated[:200],
-            session,
-            action_type="translate",
-            gemini_call="yes"
-        )
-
-        return  # important: stop here and do not fall through
-
-    # ───────────────────────────────────────────────────────────────────
-    # 2) Normal bot flow (no STT‐translation in progress)
-    # ───────────────────────────────────────────────────────────────────
-    reply, gemini_called, quick_reply_data = handle_user_message(user_id, user_input, session)
-
-    if session.get("mode") == "chat":
-        # If TTS audio is queued, send it first
-        if session.get("tts_audio_url"):
-            bubbles.append(
-                AudioSendMessage(
-                    original_content_url=session.pop("tts_audio_url"),
-                    duration=session.pop("tts_audio_dur", 0)
-                )
-            )
-        # Add quick reply if available
-        if quick_reply_data:
-            bubbles.append(TextSendMessage(
-                text=reply,
-                quick_reply=QuickReply(items=quick_reply_data["items"])
-            ))
-        else:
-            bubbles.append(TextSendMessage(text=reply))
-    else:
-        # Only show content when it's newly generated/modified (gemini_called=True)
-        if gemini_called:
-            zh = session.get("zh_output") or ""
-            tr = session.get("translated_output") or ""
-            
-            if zh or tr:
-                zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
-                tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
-                for c in (*zh_chunks, *tr_chunks):
-                    bubbles.append(TextSendMessage(text=c))
-
-                # BUG FIX: Show references when content is displayed
-                refs = session.get("references") or []
-                flex = references_to_flex(refs)
-                if flex:
-                    bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
-
-                if len(zh_chunks) + len(tr_chunks) > 3:
-                    bubbles.append(TextSendMessage(
-                        text="⚠️ 內容過長，僅部分顯示。如需完整內容請點擊下方按鈕：",
-                        quick_reply=QuickReply(items=create_quick_reply_items([("📧 寄送", "mail")]))
-                    ))
-        
-        # Add quick reply if available
-        if quick_reply_data:
-            bubbles.append(TextSendMessage(
-                text=reply,
-                quick_reply=QuickReply(items=quick_reply_data["items"])
-            ))
-        else:
-            bubbles.append(TextSendMessage(text=reply))
-
-    try:
-        line_bot_api.reply_message(event.reply_token, bubbles)
-    except LineBotApiError as exc:
-        try:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"⚠️ 發送訊息失敗：{exc}")
-            )
-        except Exception as e:
-            print(f"[LINE] Failed to send error message: {e}")
-
-    # Log if not in chat‐mode (MedChat logs itself)
-    if session.get("mode") != "chat":
-        log_chat(
-            user_id,
-            user_input,
-            reply[:200],
-            session,
-            action_type="Gemini reply" if gemini_called else "sync reply",
-            gemini_call="yes" if gemini_called else "no",
-        )
     except Exception as e:
         # Catch any unhandled exceptions and return gracefully
         print(f"[LINE] Unhandled error in handle_line_message: {e}")
