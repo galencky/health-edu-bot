@@ -136,12 +136,18 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  [DB] Database connection failed: {e}", flush=True)
     
     yield
-    # Shutdown
+    
+    # Graceful shutdown with comprehensive resource cleanup
+    print("🛑 Starting graceful shutdown...", flush=True)
+    
+    # Cancel background tasks
     cleanup_task.cancel()
     if memory_cleanup_task:
         memory_cleanup_task.cancel()
     if disk_cleanup_task:
         disk_cleanup_task.cancel()
+    
+    # Wait for tasks to complete
     try:
         await cleanup_task
         if memory_cleanup_task:
@@ -150,6 +156,31 @@ async def lifespan(app: FastAPI):
             await disk_cleanup_task
     except asyncio.CancelledError:
         pass
+    
+    # Shutdown thread pool executors to prevent resource leaks
+    try:
+        from utils.logging import _logging_executor
+        print("📝 Shutting down logging executor...", flush=True)
+        _logging_executor.shutdown(wait=True)
+    except Exception as e:
+        print(f"⚠️ Failed to shutdown logging executor: {e}", flush=True)
+    
+    # Final session cleanup to free memory
+    try:
+        final_removed = cleanup_expired_sessions()
+        print(f"🗑️ Final cleanup: removed {final_removed} sessions", flush=True)
+    except Exception as e:
+        print(f"⚠️ Final session cleanup failed: {e}", flush=True)
+    
+    # Clear memory storage
+    if TTS_USE_MEMORY:
+        try:
+            memory_storage.clear_all()
+            print("🧠 Cleared all memory storage", flush=True)
+        except Exception as e:
+            print(f"⚠️ Failed to clear memory storage: {e}", flush=True)
+    
+    print("✅ Graceful shutdown completed", flush=True)
 
 app = FastAPI(lifespan=lifespan)
 

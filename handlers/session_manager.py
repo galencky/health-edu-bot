@@ -17,6 +17,8 @@ _lock = threading.RLock()  # Reentrant lock for thread safety
 # Configuration
 SESSION_EXPIRY_HOURS = 24
 MAX_SESSION_SIZE = 100000  # Maximum size of session data in bytes
+MAX_TOTAL_SESSIONS = 10000  # Global limit to prevent memory exhaustion
+CLEANUP_TRIGGER_THRESHOLD = 8000  # Trigger cleanup at 80% capacity
 
 def _create_new_session() -> dict:
     """Create a new session with default values"""
@@ -81,6 +83,10 @@ def get_user_session(user_id: str) -> dict:
     This is the main function to use for all session access.
     """
     with _lock:
+        # Check if we need to cleanup old sessions to prevent memory exhaustion
+        if len(_sessions) >= CLEANUP_TRIGGER_THRESHOLD:
+            _emergency_cleanup_sessions()
+        
         # Update last access time
         _session_last_access[user_id] = datetime.now()
         
@@ -94,6 +100,26 @@ def get_user_session(user_id: str) -> dict:
         _check_session_size(session)
         
         return session
+
+def _emergency_cleanup_sessions():
+    """
+    Emergency cleanup when approaching session limits.
+    Removes oldest sessions to prevent memory exhaustion.
+    """
+    print(f"⚠️ Emergency session cleanup triggered. Current sessions: {len(_sessions)}")
+    
+    if len(_sessions) >= MAX_TOTAL_SESSIONS:
+        # Remove oldest 20% of sessions
+        remove_count = len(_sessions) // 5
+        
+        # Sort by last access time (oldest first)
+        sorted_sessions = sorted(_session_last_access.items(), key=lambda x: x[1])
+        
+        for user_id, _ in sorted_sessions[:remove_count]:
+            _sessions.pop(user_id, None)
+            _session_last_access.pop(user_id, None)
+        
+        print(f"✅ Emergency cleanup completed. Removed {remove_count} sessions. Current: {len(_sessions)}")
 
 # Async wrapper for compatibility
 async def get_user_session_async(user_id: str) -> dict:
@@ -110,21 +136,35 @@ def cleanup_expired_sessions() -> int:
     with _lock:
         now = datetime.now()
         expired_users = []
+        large_sessions = []
         
-        # Find expired sessions
+        # Find expired sessions and oversized sessions
         for user_id, last_access in _session_last_access.items():
             if now - last_access > timedelta(hours=SESSION_EXPIRY_HOURS):
                 expired_users.append(user_id)
+            elif user_id in _sessions:
+                # Check for sessions that might be consuming too much memory
+                session = _sessions[user_id]
+                total_size = sum(len(str(v).encode('utf-8')) for v in session.values() if v)
+                if total_size > MAX_SESSION_SIZE * 2:  # Remove sessions 2x the limit
+                    large_sessions.append(user_id)
         
-        # Remove expired sessions
-        for user_id in expired_users:
+        # Remove expired and oversized sessions
+        all_to_remove = expired_users + large_sessions
+        for user_id in all_to_remove:
             _sessions.pop(user_id, None)
             _session_last_access.pop(user_id, None)
         
         if expired_users:
             print(f"✅ Cleaned up {len(expired_users)} expired sessions")
+        if large_sessions:
+            print(f"✅ Cleaned up {len(large_sessions)} oversized sessions")
         
-        return len(expired_users)
+        # Emergency cleanup if still too many sessions
+        if len(_sessions) > CLEANUP_TRIGGER_THRESHOLD:
+            _emergency_cleanup_sessions()
+        
+        return len(all_to_remove)
 
 def reset_user_session(user_id: str) -> None:
     """Reset a user's session to initial state"""

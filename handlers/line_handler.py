@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import time
+import asyncio
 from pathlib import Path
 from linebot import LineBotApi
 from linebot.models import (
@@ -32,6 +33,10 @@ voicemail_prompt = """ You are a medical translation assistant fluent in {lang}.
 
 # BUG FIX: Added file size limits to prevent disk exhaustion attacks
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for audio files
+
+# Concurrency limits to prevent resource exhaustion
+AUDIO_PROCESSING_SEMAPHORE = asyncio.Semaphore(3)  # Max 3 concurrent audio uploads
+GEMINI_CONCURRENCY_SEMAPHORE = asyncio.Semaphore(5)  # Max 5 concurrent Gemini calls
 
 # Instantiate LINE client
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
@@ -245,7 +250,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         )
 
 
-def handle_audio_message(event: MessageEvent[AudioMessage]):
+async def handle_audio_message(event: MessageEvent[AudioMessage]):
     """
     1) Download LINE voicemail → save as ./voicemail/<user>_<ts>.m4a
     2) Upload to Drive (optional link in reply)
@@ -253,22 +258,24 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     4) Store transcription in session, set awaiting_stt_translation=True
     5) Reply with “原始轉錄：<text>\n請輸入欲翻譯之語言；若無，請輸入「無」或「new」。\n(Drive link)”
     """
-    user_id     = event.source.user_id
-    message_id  = event.message.id
-    session     = get_user_session(user_id)
+    # Use semaphore to limit concurrent audio processing
+    async with AUDIO_PROCESSING_SEMAPHORE:
+        user_id     = event.source.user_id
+        message_id  = event.message.id
+        session     = get_user_session(user_id)
 
-    # 🚫  Block audio uploads while editing Education sheets
-    if session.get("mode") == "edu":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text=(
-                    "⚠️ 目前在『衛教』模式，無法使用語音翻譯。\n"
-                    "若要啟用語音功能，請先輸入 new 開啟新聊天。"
+        # 🚫  Block audio uploads while editing Education sheets
+        if session.get("mode") == "edu":
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text=(
+                        "⚠️ 目前在『衛教』模式，無法使用語音翻譯。\n"
+                        "若要啟用語音功能，請先輸入 new 開啟新聊天。"
+                    )
                 )
             )
-        )
-        return
+            return
 
     # 1. Download the raw audio from LINE with retry logic
     @exponential_backoff(

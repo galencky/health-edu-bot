@@ -12,6 +12,7 @@ import threading
 from bs4 import BeautifulSoup
 from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
 from utils.rate_limiter import rate_limit, gemini_limiter, RateLimitExceeded
+from utils.circuit_breaker import gemini_circuit_breaker, CircuitBreakerError
 
 # BUG FIX: Add timeout configuration for API calls with retry mechanism
 # Previously: No timeout, requests could hang indefinitely
@@ -59,38 +60,48 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
         part for part in generate_content_config.system_instruction if part is not None
     ]
     
-    # BUG FIX: Wrap API call with timeout and retry mechanism
-    # Previously: Could hang indefinitely, no retries
+    # BUG FIX: Wrap API call with timeout and retry mechanism + circuit breaker
+    # Previously: Could hang indefinitely, no retries, no protection from cascade failures
     import concurrent.futures
     
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    _client.models.generate_content,
-                    model=_model,
-                    contents=contents,
-                    config=generate_content_config,
-                )
-                response = future.result(timeout=API_TIMEOUT_SECONDS)
-                # Store in thread-local storage to prevent race conditions
-                _thread_local.last_response = response
-                break  # Success, exit retry loop
-        except concurrent.futures.TimeoutError:
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_DELAY)
-                continue
-            else:
-                raise TimeoutError(f"Gemini API call timed out after {API_TIMEOUT_SECONDS} seconds (tried {MAX_RETRIES + 1} times)")
-        except Exception as e:
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_DELAY) 
-                continue
-            else:
-                raise Exception(f"Gemini API error: {str(e)}")
+    def _make_protected_api_call():
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        _client.models.generate_content,
+                        model=_model,
+                        contents=contents,
+                        config=generate_content_config,
+                    )
+                    response = future.result(timeout=API_TIMEOUT_SECONDS)
+                    # Store in thread-local storage to prevent race conditions
+                    _thread_local.last_response = response
+                    return response  # Success, return response
+            except concurrent.futures.TimeoutError:
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_DELAY)
+                    continue
+                else:
+                    raise TimeoutError(f"Gemini API call timed out after {API_TIMEOUT_SECONDS} seconds (tried {MAX_RETRIES + 1} times)")
+            except Exception as e:
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_DELAY) 
+                    continue
+                else:
+                    raise Exception(f"Gemini API error: {str(e)}")
+    
+    # Use circuit breaker to protect against cascade failures
+    try:
+        response = gemini_circuit_breaker.call(_make_protected_api_call)
+    except CircuitBreakerError:
+        # Circuit breaker is open, return graceful degradation message
+        return "⚠️ AI 服務暫時過載，請稍等片刻後再試。系統正在自動恢復中。"
+    except Exception as e:
+        print(f"❌ [GEMINI] API call failed: {e}")
+        return "⚠️ AI 服務暫時無法使用，請稍後再試。"
     
     # Standard output: answer as text string
-    response = getattr(_thread_local, 'last_response', None)
     if response and response.candidates and response.candidates[0].content.parts:
         return response.candidates[0].content.parts[0].text
     return ""

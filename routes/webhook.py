@@ -5,6 +5,7 @@ from linebot.models import MessageEvent, TextMessage, AudioMessage  # <-- import
 from handlers.line_handler import handle_line_message, handle_audio_message  # <-- import new handler
 from linebot import WebhookHandler
 import os
+import asyncio
 import traceback
 
 webhook_router = APIRouter()
@@ -12,12 +13,19 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 @webhook_router.post("/webhook")
 async def webhook(request: Request, x_line_signature: str = Header(None)):
-    body = await request.body()
+    # Add timeout protection to prevent hanging webhooks
     try:
-        body_str = body.decode()
-        #print("[WEBHOOK] Raw body:", body_str)
-        #print("[WEBHOOK] Signature:", x_line_signature)
-        handler.handle(body_str, x_line_signature)
+        async with asyncio.timeout(30.0):  # 30 second timeout
+            body = await request.body()
+            body_str = body.decode()
+            #print("[WEBHOOK] Raw body:", body_str)
+            #print("[WEBHOOK] Signature:", x_line_signature)
+            handler.handle(body_str, x_line_signature)
+            return "OK"
+    except asyncio.TimeoutError:
+        print("[WEBHOOK] Request timed out after 30 seconds")
+        # Return OK to LINE to prevent retries, but log the timeout
+        return "OK"
     except ValueError as e:
         # Invalid signature - likely not from LINE
         print(f"[WEBHOOK] Invalid signature: {x_line_signature}")
@@ -26,7 +34,6 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
         # Log full error internally but return generic message
         print("[WEBHOOK] Exception:", traceback.format_exc())
         raise HTTPException(400, "Bad request")
-    return "OK"
 
 # Register text message handler
 handler.add(MessageEvent, message=TextMessage)(handle_line_message)
