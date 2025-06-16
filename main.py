@@ -28,100 +28,30 @@ from datetime import datetime
 # BUG FIX: Background task for session cleanup with rate limiter cleanup
 # Previously: Sessions never expired, causing memory leaks
 async def periodic_session_cleanup():
-    """Run session cleanup every hour"""
+    """Run session cleanup every hour - simple and stable like old version"""
     while True:
-        await asyncio.sleep(3600)  # 1 hour
+        await asyncio.sleep(3600)  # 1 hour - same as stable old version
         try:
-            # Run session cleanup in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, cleanup_expired_sessions)
-            
-            # Cleanup rate limiter memory to prevent memory leaks
-            await cleanup_rate_limiter_memory()
-            
-            print(f"🧹 Session and rate limiter cleanup completed", flush=True)
+            # Simple cleanup without thread pool complexity
+            cleanup_expired_sessions()
+            print(f"🧹 Session cleanup completed", flush=True)
         except Exception as e:
-            print(f"❌ Error during cleanup: {e}", flush=True)
+            print(f"Error during session cleanup: {e}", flush=True)
 
-async def cleanup_rate_limiter_memory():
-    """Clean up old rate limiter entries to prevent memory leaks"""
-    try:
-        from utils.rate_limiter import (
-            gemini_limiter, tts_limiter, email_limiter, webhook_limiter
-        )
-        
-        # Clean up all global rate limiters
-        total_removed = 0
-        limiters = [
-            ("Gemini", gemini_limiter),
-            ("TTS", tts_limiter), 
-            ("Email", email_limiter),
-            ("Webhook", webhook_limiter)
-        ]
-        
-        for name, limiter in limiters:
-            removed = limiter.cleanup_old_entries(max_age_seconds=7200)  # 2 hours
-            total_removed += removed
-            if removed > 0:
-                print(f"🧹 {name} rate limiter: removed {removed} old entries", flush=True)
-        
-        if total_removed > 0:
-            print(f"🧹 Rate limiter cleanup: {total_removed} total entries removed", flush=True)
-        
-    except Exception as e:
-        print(f"⚠️ Rate limiter cleanup error: {e}", flush=True)
+# Removed complex rate limiter cleanup - not needed in stable old version
 
-# Background task for memory storage cleanup (if using memory backend)
-async def periodic_memory_cleanup():
-    """Run memory storage cleanup every 30 minutes"""
-    if not TTS_USE_MEMORY:
-        return
-    
-    while True:
-        await asyncio.sleep(1800)  # 30 minutes
-        try:
-            memory_storage.cleanup_old_files(max_age_seconds=3600)  # Remove files older than 1 hour
-            info = memory_storage.get_info()
-            print(f"📊 Memory storage: {info['files']} files, {info['total_size_mb']:.1f} MB", flush=True)
-        except Exception as e:
-            print(f"Error during memory cleanup: {e}", flush=True)
-
-# Background task for disk cleanup (if using local storage)
-async def periodic_disk_cleanup():
-    """Run disk cleanup every hour for local storage"""
-    if TTS_USE_MEMORY:
-        return  # Only run for local storage
-    
-    from utils.cleanup import cleanup_old_tts_files, get_directory_size
-    
-    while True:
-        await asyncio.sleep(3600)  # 1 hour
-        try:
-            # Remove files older than 24 hours
-            deleted = cleanup_old_tts_files(TTS_AUDIO_DIR, max_age_hours=24)
-            
-            # Check directory size
-            size_bytes, file_count = get_directory_size(TTS_AUDIO_DIR)
-            size_mb = size_bytes / 1024 / 1024
-            print(f"📊 TTS directory: {file_count} files, {size_mb:.1f} MB", flush=True)
-        except Exception as e:
-            print(f"Error during disk cleanup: {e}", flush=True)
+# Removed complex memory and disk cleanup tasks - not needed in stable old version
+# The old version just relied on simple periodic cleanup which works fine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup - Keep it simple like the old stable version
     cleanup_task = asyncio.create_task(periodic_session_cleanup())
     
-    # Start memory cleanup if using memory backend
-    memory_cleanup_task = None
+    # Only one additional cleanup task based on storage mode
     if TTS_USE_MEMORY:
-        memory_cleanup_task = asyncio.create_task(periodic_memory_cleanup())
         print("🧠 Using in-memory storage for TTS files", flush=True)
-    
-    # Start disk cleanup if using local storage
-    disk_cleanup_task = None
-    if not TTS_USE_MEMORY:
-        disk_cleanup_task = asyncio.create_task(periodic_disk_cleanup())
+    else:
         print("💾 Using local disk storage for TTS files", flush=True)
     
     # Test database connection
@@ -137,23 +67,15 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Graceful shutdown with comprehensive resource cleanup
+    # Graceful shutdown - simple like old version
     print("🛑 Starting graceful shutdown...", flush=True)
     
-    # Cancel background tasks
+    # Cancel the single cleanup task
     cleanup_task.cancel()
-    if memory_cleanup_task:
-        memory_cleanup_task.cancel()
-    if disk_cleanup_task:
-        disk_cleanup_task.cancel()
     
-    # Wait for tasks to complete
+    # Wait for task to complete
     try:
         await cleanup_task
-        if memory_cleanup_task:
-            await memory_cleanup_task
-        if disk_cleanup_task:
-            await disk_cleanup_task
     except asyncio.CancelledError:
         pass
     
@@ -289,6 +211,10 @@ if __name__ == "__main__":
         "main:app", 
         host="0.0.0.0", 
         port=port,
-        log_config=log_config
+        log_config=log_config,
+        # Keepalive settings for long-running NAS deployment
+        timeout_keep_alive=75,  # Keep connections alive longer
+        limit_max_requests=1000,  # Recycle workers after 1000 requests
+        access_log=False  # Reduce I/O on NAS
     )
 

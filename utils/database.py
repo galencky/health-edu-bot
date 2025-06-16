@@ -72,14 +72,14 @@ def get_async_db_engine():
     # Construct async connection string
     async_url = f"postgresql+asyncpg://{parsed.username}:{parsed.password}@{parsed.hostname}{parsed.path}?ssl=require"
     
+    # Simple configuration like the old stable version
     engine = create_async_engine(
         async_url,
         pool_pre_ping=True,
-        pool_size=20,           # Increased from 5 for production load
-        max_overflow=50,        # Increased from 10 for traffic spikes
-        pool_timeout=30,        # Prevent indefinite hangs
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
         pool_recycle=3600,      # Recycle connections every hour
-        pool_reset_on_return='commit',  # Clean state on return
         echo=False  # Set to True for debugging
     )
     return engine

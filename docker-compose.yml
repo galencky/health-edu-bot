@@ -50,11 +50,11 @@ services:
       # Credentials file (if using file instead of base64)
       #- /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
     
-    # Resource limits (adjust based on your NAS capabilities)
+    # Conservative resource limits like old version
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 512M
           cpus: '0.5'
         reservations:
           memory: 256M
