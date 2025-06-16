@@ -39,6 +39,13 @@ line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 def _chunks(txt: str, limit: int = 4000) -> list[str]:
     return [txt[i : i + limit] for i in range(0, len(txt), limit)]
 
+def _send_error_reply(event, message: str):
+    """Helper to send error reply with safe fallback"""
+    try:
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=message))
+    except LineBotApiError:
+        pass
+
 
 def handle_line_message(event: MessageEvent[TextMessage]):
     """
@@ -74,25 +81,17 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
 
-            cancel_reply = "✅ 已取消翻譯。如需重新開始，請輸入 new。"
-            try:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=cancel_reply)
-                )
-            except LineBotApiError:
-                pass
+            _send_error_reply(event, "✅ 已取消翻譯。如需重新開始，請輸入 new。")
             return
         
         # b) "translate_voice" - prompt for language selection
         if text_lower == "translate_voice":
-            quick_reply = QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
             try:
                 line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(
                         text="🌐 請選擇翻譯語言：",
-                        quick_reply=quick_reply
+                        quick_reply=QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
                     )
                 )
             except LineBotApiError:
@@ -286,17 +285,11 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         message_content = download_audio()
     except RetryError as e:
         print(f"[Audio Download] Failed after all retries: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 無法下載語音檔，請稍後重試。網路連線似乎不穩定。")
-        )
+        _send_error_reply(event, "⚠️ 無法下載語音檔，請稍後重試。網路連線似乎不穩定。")
         return
     except Exception as e:
         print(f"[Audio Download] Unexpected error: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 下載語音檔時發生錯誤，請稍後重試。")
-        )
+        _send_error_reply(event, "⚠️ 下載語音檔時發生錯誤，請稍後重試。")
         return
 
     # 2. Save locally under ./voicemail/ with robust error handling

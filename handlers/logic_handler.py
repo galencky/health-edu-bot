@@ -56,6 +56,18 @@ def _has_mx_record(domain: str) -> bool:
     except Exception:
         return False
 
+def _create_quick_reply(items):
+    """Helper to create quick reply dict"""
+    return {"items": create_quick_reply_items(items)}
+
+def _update_references(session, new_refs):
+    """Helper to update session references"""
+    if new_refs:
+        if session.get("references"):
+            session["references"].extend(new_refs)
+        else:
+            session["references"] = new_refs
+
 
 # ── main dispatcher ─────────────────────────────────────────────────
 def handle_user_message(
@@ -123,17 +135,12 @@ def handle_user_message(
     if not session.get("started"):
         if text_lower in new_commands:
             _reset_session(session)
-            quick_reply = {
-                "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
-            }
             return (
                 "🆕 新對話開始。\n請選擇功能或直接傳送語音訊息：",
                 gemini_called,
-                quick_reply
+                _create_quick_reply(MODE_SELECTION_OPTIONS)
             )
-        quick_reply = {
-            "items": create_quick_reply_items([("🆕 開始", "new")])
-        }
+        quick_reply = _create_quick_reply([("🆕 開始", "new")])
         return "⚠️ 請先輸入 new / 開始 啟動對話。", gemini_called, quick_reply
 
     # ──────────────────────────────────────────────────────────────
@@ -142,25 +149,17 @@ def handle_user_message(
     if session.get("mode") is None:
         if text_lower in edu_commands:
             session["mode"] = "edu"
-            quick_reply = {
-                "items": create_quick_reply_items([
-                    ("糖尿病 飲食控制", "糖尿病 飲食控制"),
-                    ("高血壓 生活習慣", "高血壓 生活習慣"),
-                    ("心臟病 復健運動", "心臟病 復健運動"),
-                    ("氣喘 環境控制", "氣喘 環境控制")
-                ])
-            }
-            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。\n⏳ 生成約需 10-20 秒...", gemini_called, quick_reply
+            return "✅ 已進入『衛教』模式，請輸入：疾病名稱 + 衛教主題。\n⏳ 生成約需 10-20 秒...", gemini_called, _create_quick_reply([
+                ("糖尿病 飲食控制", "糖尿病 飲食控制"),
+                ("高血壓 生活習慣", "高血壓 生活習慣"),
+                ("心臟病 復健運動", "心臟病 復健運動"),
+                ("氣喘 環境控制", "氣喘 環境控制")
+            ])
         if text_lower in chat_commands:
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
-            quick_reply = {
-                "items": create_quick_reply_items(COMMON_LANGUAGES)
-            }
-            return "🌐 請輸入欲翻譯到的語言，例如：英文、日文…", gemini_called, quick_reply
-        quick_reply = {
-            "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
-        }
+            return "🌐 請輸入欲翻譯到的語言，例如：英文、日文…", gemini_called, _create_quick_reply(COMMON_LANGUAGES)
+        quick_reply = _create_quick_reply(MODE_SELECTION_OPTIONS)
         return (
             "請選擇功能或直接傳送語音訊息：",
             gemini_called,
@@ -176,13 +175,10 @@ def handle_user_message(
         # “new” while chatting
         if text_lower in new_commands:
             _reset_session(session)
-            quick_reply = {
-                "items": create_quick_reply_items(MODE_SELECTION_OPTIONS)
-            }
             return (
                 "🆕 新對話開始。\n請選擇功能或直接傳送語音訊息：",
                 gemini_called,
-                quick_reply
+                _create_quick_reply(MODE_SELECTION_OPTIONS)
             )
 
         if text_lower in edu_commands:
@@ -232,22 +228,14 @@ def handle_user_message(
         session.update({"zh_output": new_zh, "awaiting_modify": False})
         new_refs = get_references()
         print(f"[DEBUG MODIFY] Found {len(new_refs)} new references after modification")
-        if new_refs:
-            existing_refs = session.get("references") or []
-            print(f"[DEBUG MODIFY] Existing refs: {len(existing_refs)}, New refs: {len(new_refs)}")
-            if session.get("references"):
-                session["references"].extend(new_refs)
-            else:
-                session["references"] = new_refs
-            print(f"[DEBUG MODIFY] Total refs after merge: {len(session.get('references', []))}")
-        quick_reply = {
-            "items": create_quick_reply_items([
-                ("✏️ 修改", "modify"),
-                ("🌐 翻譯", "translate"),
-                ("📧 寄送", "mail"),
-                ("🆕 新對話", "new")
-            ])
-        }
+        _update_references(session, new_refs)
+        print(f"[DEBUG MODIFY] Total refs after merge: {len(session.get('references', []))}")
+        quick_reply = _create_quick_reply([
+            ("✏️ 修改", "modify"),
+            ("🌐 翻譯", "translate"),
+            ("📧 寄送", "mail"),
+            ("🆕 新對話", "new")
+        ])
         return (
             "✅ 已修改中文版內容。",
             gemini_called,
@@ -289,18 +277,12 @@ def handle_user_message(
             "last_topic": zh_text.split("\n")[0][:20],
         })
         new_refs = get_references()
-        if new_refs:
-            if session.get("references"):
-                session["references"].extend(new_refs)
-            else:
-                session["references"] = new_refs  # <<< added
-        quick_reply = {
-            "items": create_quick_reply_items([
-                ("🌐 翻譯", "translate"),
-                ("📧 寄送", "mail"),
-                ("🆕 新對話", "new")
-            ])
-        }
+        _update_references(session, new_refs)
+        quick_reply = _create_quick_reply([
+            ("🌐 翻譯", "translate"),
+            ("📧 寄送", "mail"),
+            ("🆕 新對話", "new")
+        ])
         return (
             f"🌐 翻譯完成（目標語言：{target_lang}）。",
             gemini_called,
@@ -342,19 +324,13 @@ def handle_user_message(
         zh = call_zh(raw)
         session.update({"zh_output": zh, "last_topic": raw[:30]})
         new_refs = get_references()
-        if new_refs:
-            if session.get("references"):
-                session["references"].extend(new_refs)
-            else:
-                session["references"] = new_refs      # <<< added
-        quick_reply = {
-            "items": create_quick_reply_items([
-                ("✏️ 修改", "modify"),
-                ("🌐 翻譯", "translate"),
-                ("📧 寄送", "mail"),
-                ("🆕 新對話", "new")
-            ])
-        }
+        _update_references(session, new_refs)
+        quick_reply = _create_quick_reply([
+            ("✏️ 修改", "modify"),
+            ("🌐 翻譯", "translate"),
+            ("📧 寄送", "mail"),
+            ("🆕 新對話", "new")
+        ])
         return (
             "✅ 中文版衛教內容已生成。",
             gemini_called,
