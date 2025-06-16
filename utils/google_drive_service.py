@@ -39,68 +39,8 @@ def get_drive_service():
     _drive_service_cache = build("drive", "v3", credentials=creds)
     return _drive_service_cache
 
-# Upload .txt Gemini log to Google Drive with retry logic
-def upload_gemini_log(user_id, session, message):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{user_id}-{timestamp}.txt"
-    
-    # Build content based on what's available in session
-    content_parts = [
-        f"Timestamp: {timestamp}",
-        f"User ID: {user_id}",
-        f"Input Message: {message}",
-        ""
-    ]
-    
-    # Education mode outputs
-    if session.get('zh_output'):
-        content_parts.extend([
-            "Gemini zh_output:",
-            session.get('zh_output'),
-            ""
-        ])
-    
-    if session.get('translated_output'):
-        content_parts.extend([
-            "Gemini translated_output:",
-            session.get('translated_output'),
-            ""
-        ])
-    
-    # Medchat outputs
-    if session.get('chinese_output'):
-        content_parts.extend([
-            "Gemini chinese_output (MedChat):",
-            session.get('chinese_output'),
-            ""
-        ])
-    
-    if session.get('translation_output'):
-        content_parts.extend([
-            "Gemini translation_output (MedChat):",
-            session.get('translation_output'),
-            ""
-        ])
-    
-    # STT translation output
-    if session.get('stt_last_translation'):
-        content_parts.extend([
-            "STT Translation:",
-            session.get('stt_last_translation'),
-            ""
-        ])
-    
-    # Any other Gemini response stored in session
-    if session.get('last_gemini_response'):
-        content_parts.extend([
-            "Last Gemini Response:",
-            session.get('last_gemini_response'),
-            ""
-        ])
-    
-    content = "\n".join(content_parts)
-
-    # Write content to temporary file
+def _upload_text_file(filename: str, content: str, log_type: str):
+    """Unified text file upload logic"""
     try:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
@@ -110,26 +50,20 @@ def upload_gemini_log(user_id, session, message):
             initial_delay=0.5,
             max_delay=15.0,
             exceptions=(Exception,),
-            on_retry=lambda attempt, error: print(f"[Gemini Log Upload] Retry {attempt} due to: {error}")
+            on_retry=lambda attempt, error: print(f"[{log_type}] Retry {attempt} due to: {error}")
         )
         def upload_with_retry():
             drive_service = get_drive_service()
-            file_metadata = {
-                "name": filename,
-                "parents": [DRIVE_FOLDER_ID]
-            }
+            file_metadata = {"name": filename, "parents": [DRIVE_FOLDER_ID]}
             
-            media = None
+            media = MediaFileUpload(
+                filename, 
+                mimetype="text/plain",
+                resumable=True,
+                chunksize=256*1024
+            )
+            
             try:
-                # Create media upload with resumable=True for better reliability
-                media = MediaFileUpload(
-                    filename, 
-                    mimetype="text/plain",
-                    resumable=True,
-                    chunksize=256*1024  # 256KB chunks (small for text files)
-                )
-                
-                # Upload with resumable support
                 request = drive_service.files().create(
                     body=file_metadata, 
                     media_body=media, 
@@ -139,39 +73,60 @@ def upload_gemini_log(user_id, session, message):
                 uploaded = None
                 while uploaded is None:
                     status, uploaded = request.next_chunk()
-                    # Text files are small, so progress tracking isn't needed
                 
                 return uploaded
                 
             finally:
-                # Ensure media file handle is closed
                 if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
                     try:
                         media._fd.close()
                     except Exception as e:
-                        print(f"[GEMINI LOG] Failed to close media file descriptor: {e}")
+                        print(f"[{log_type}] Failed to close media file descriptor: {e}")
         
         try:
-            # Upload with retry
             uploaded_file = upload_with_retry()
             file_id = uploaded_file["id"]
             return f"https://drive.google.com/file/d/{file_id}/view", filename
             
         except RetryError as e:
-            print(f"[Gemini Log Upload] Failed after all retries: {e}")
-            # Return None values to indicate failure
+            print(f"[{log_type}] Failed after all retries: {e}")
             return None, filename
     
     finally:
-        # Always clean up temporary file
         if os.path.exists(filename):
             try:
                 os.remove(filename)
             except Exception as e:
                 print(f"Warning: Failed to delete temporary file {filename}: {e}")
 
-# Upload STT translation log to Google Drive
+
+def upload_gemini_log(user_id, session, message):
+    """Upload .txt Gemini log to Google Drive with retry logic"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{user_id}-{timestamp}.txt"
+    
+    # Build content based on what's available in session
+    content_parts = [f"Timestamp: {timestamp}", f"User ID: {user_id}", f"Input Message: {message}", ""]
+    
+    # Add all relevant session outputs
+    session_fields = {
+        'zh_output': 'Gemini zh_output:',
+        'translated_output': 'Gemini translated_output:',
+        'chinese_output': 'Gemini chinese_output (MedChat):',
+        'translation_output': 'Gemini translation_output (MedChat):',
+        'stt_last_translation': 'STT Translation:',
+        'last_gemini_response': 'Last Gemini Response:'
+    }
+    
+    for field, label in session_fields.items():
+        if session.get(field):
+            content_parts.extend([label, session.get(field), ""])
+    
+    content = "\n".join(content_parts)
+    return _upload_text_file(filename, content, "Gemini Log Upload")
+
 def upload_stt_translation_log(user_id, transcription, translation, target_language):
+    """Upload STT translation log to Google Drive"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{user_id}-stt-translation-{timestamp}.txt"
     content = (
@@ -181,75 +136,9 @@ def upload_stt_translation_log(user_id, transcription, translation, target_langu
         f"Original Transcription:\n{transcription}\n\n"
         f"Translation:\n{translation}\n"
     )
-
-    # Write content to temporary file
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        @exponential_backoff(
-            max_retries=3,
-            initial_delay=0.5,
-            max_delay=15.0,
-            exceptions=(Exception,),
-            on_retry=lambda attempt, error: print(f"[STT Translation Upload] Retry {attempt} due to: {error}")
-        )
-        def upload_with_retry():
-            drive_service = get_drive_service()
-            file_metadata = {
-                "name": filename,
-                "parents": [DRIVE_FOLDER_ID]
-            }
-            
-            media = None
-            try:
-                # Create media upload with resumable=True for better reliability
-                media = MediaFileUpload(
-                    filename, 
-                    mimetype="text/plain",
-                    resumable=True,
-                    chunksize=256*1024  # 256KB chunks (small for text files)
-                )
-                
-                # Upload with resumable support
-                request = drive_service.files().create(
-                    body=file_metadata, 
-                    media_body=media, 
-                    fields="id"
-                )
-                
-                uploaded = None
-                while uploaded is None:
-                    status, uploaded = request.next_chunk()
-                    # Text files are small, so progress tracking isn't needed
-                
-                return uploaded
-                
-            finally:
-                # Ensure media file handle is closed
-                if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
-                    try:
-                        media._fd.close()
-                    except Exception as e:
-                        print(f"[STT Translation] Failed to close media file descriptor: {e}")
-        
-        try:
-            # Upload with retry
-            uploaded_file = upload_with_retry()
-            file_id = uploaded_file["id"]
-            print(f"✅ [STT Translation] Uploaded text log to Drive: {filename}")
-            return f"https://drive.google.com/file/d/{file_id}/view", filename
-            
-        except RetryError as e:
-            print(f"[STT Translation Upload] Failed after all retries: {e}")
-            # Return None values to indicate failure
-            return None, filename
     
-    finally:
-        # Always clean up temporary file
-        if os.path.exists(filename):
-            try:
-                os.remove(filename)
-            except Exception as e:
-                print(f"Warning: Failed to delete temporary file {filename}: {e}")
+    url, _ = _upload_text_file(filename, content, "STT Translation Upload")
+    if url:
+        print(f"✅ [STT Translation] Uploaded text log to Drive: {filename}")
+    return url, filename
 

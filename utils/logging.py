@@ -69,7 +69,6 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
     
     # Handle Drive upload for both memory and disk storage
     if os.getenv("GOOGLE_DRIVE_FOLDER_ID"):
-        # Define upload function with retry decorator
         @exponential_backoff(
             max_retries=3,
             initial_delay=1.0,
@@ -80,118 +79,7 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
         def upload_to_drive():
             nonlocal retry_count
             retry_count += 1
-            
-            service = get_drive_service()
-            folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-            if not folder_id:
-                raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
-            
-            filename = os.path.basename(audio_path)
-            
-            # Detect file type and set appropriate mimetype
-            if filename.lower().endswith('.wav'):
-                mimetype = "audio/wav"
-            elif filename.lower().endswith('.m4a'):
-                mimetype = "audio/mp4"
-            elif filename.lower().endswith('.mp3'):
-                mimetype = "audio/mpeg"
-            else:
-                mimetype = "audio/wav"  # Default fallback
-            
-            file_metadata = {
-                "name": filename,
-                "parents": [folder_id]
-            }
-            
-            from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
-            media = None
-            try:
-                # Handle memory storage - get data from memory
-                if TTS_USE_MEMORY:
-                    from utils.memory_storage import memory_storage
-                    import io
-                    
-                    result = memory_storage.get(filename)
-                    if not result:
-                        raise FileNotFoundError(f"Audio file not found in memory: {filename}")
-                    
-                    # Extract audio data from tuple (data, content_type)
-                    audio_data, _ = result
-                    
-                    # Create a BytesIO object for upload
-                    audio_buffer = io.BytesIO(audio_data)
-                    file_size = len(audio_data)
-                    
-                # Handle disk storage - check if file exists
-                elif not os.path.exists(audio_path):
-                    raise FileNotFoundError(f"Audio file not found: {audio_path}")
-                else:
-                    # Get file size for disk storage
-                    file_size = os.path.getsize(audio_path)
-                
-                print(f"[TTS Upload] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
-                
-                if file_size == 0:
-                    raise ValueError(f"Audio file is empty")
-                
-                # Create media upload
-                if TTS_USE_MEMORY:
-                    # For memory storage, use MediaIoBaseUpload
-                    media = MediaIoBaseUpload(
-                        audio_buffer,
-                        mimetype=mimetype,
-                        resumable=(file_size > 5 * 1024 * 1024)
-                    )
-                    print(f"[TTS Upload] Using memory upload")
-                else:
-                    # For disk storage, use MediaFileUpload
-                    if file_size > 5 * 1024 * 1024:  # 5MB
-                        media = MediaFileUpload(
-                            audio_path, 
-                            mimetype=mimetype,
-                            resumable=True,
-                            chunksize=1024*1024  # 1MB chunks for better reliability
-                        )
-                        print(f"[TTS Upload] Using resumable upload for large file")
-                    else:
-                        media = MediaFileUpload(
-                            audio_path, 
-                            mimetype=mimetype,
-                            resumable=False
-                        )
-                        print(f"[TTS Upload] Using simple upload for small file")
-                
-                # Upload file
-                if media._resumable:
-                    request = service.files().create(
-                        body=file_metadata, 
-                        media_body=media, 
-                        fields="id,webViewLink"
-                    )
-                    
-                    uploaded = None
-                    while uploaded is None:
-                        status, uploaded = request.next_chunk()
-                        if status:
-                            print(f"[TTS Upload] Progress: {int(status.progress() * 100)}%")
-                else:
-                    # Simple upload for small files
-                    uploaded = service.files().create(
-                        body=file_metadata, 
-                        media_body=media, 
-                        fields="id,webViewLink"
-                    ).execute()
-                
-                print(f"[TTS Upload] Upload completed successfully, File ID: {uploaded.get('id')}")
-                return uploaded
-                
-            finally:
-                # Ensure file handle is closed
-                if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
-                    try:
-                        media._fd.close()
-                    except Exception as e:
-                        print(f"[TTS Upload] Failed to close media file descriptor: {e}")
+            return _upload_audio_file(audio_path, "TTS Upload")
     
         try:
             # Run sync Drive upload in bounded thread pool
@@ -241,6 +129,98 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
         print(f"📁 [TTS] Keeping local file for serving (local storage mode): {os.path.basename(audio_path)}")
 
 
+def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
+    """Unified audio file upload logic for both TTS and voicemail"""
+    from utils.storage_config import TTS_USE_MEMORY
+    
+    service = get_drive_service()
+    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+    if not folder_id:
+        raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
+    
+    filename = os.path.basename(audio_path)
+    
+    # Detect file type and set appropriate mimetype
+    ext = filename.lower().split('.')[-1]
+    mimetype_map = {
+        'wav': 'audio/wav',
+        'm4a': 'audio/mp4', 
+        'mp3': 'audio/mpeg',
+        'aac': 'audio/aac'
+    }
+    mimetype = mimetype_map.get(ext, 'audio/wav')
+    
+    file_metadata = {"name": filename, "parents": [folder_id]}
+    
+    from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
+    
+    # Handle memory vs disk storage
+    if TTS_USE_MEMORY and log_prefix == "TTS Upload":
+        from utils.memory_storage import memory_storage
+        import io
+        
+        result = memory_storage.get(filename)
+        if not result:
+            raise FileNotFoundError(f"Audio file not found in memory: {filename}")
+        
+        audio_data, _ = result
+        file_size = len(audio_data)
+        if file_size == 0:
+            raise ValueError("Audio file is empty")
+        
+        media = MediaIoBaseUpload(
+            io.BytesIO(audio_data),
+            mimetype=mimetype,
+            resumable=(file_size > 5 * 1024 * 1024)
+        )
+    else:
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
+        file_size = os.path.getsize(audio_path)
+        if file_size == 0:
+            raise ValueError(f"Audio file is empty: {audio_path}")
+        
+        media = MediaFileUpload(
+            audio_path,
+            mimetype=mimetype,
+            resumable=(file_size > 5 * 1024 * 1024),
+            chunksize=1024*1024 if file_size > 5 * 1024 * 1024 else None
+        )
+    
+    print(f"[{log_prefix}] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
+    
+    # Upload file
+    try:
+        if media._resumable:
+            request = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id,webViewLink"
+            )
+            uploaded = None
+            while uploaded is None:
+                status, uploaded = request.next_chunk()
+                if status:
+                    print(f"[{log_prefix}] Progress: {int(status.progress() * 100)}%")
+        else:
+            uploaded = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id,webViewLink"
+            ).execute()
+        
+        print(f"[{log_prefix}] Upload completed successfully, File ID: {uploaded.get('id')}")
+        return uploaded
+        
+    finally:
+        if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
+            try:
+                media._fd.close()
+            except Exception as e:
+                print(f"[{log_prefix}] Failed to close media file descriptor: {e}")
+
+
 async def _async_upload_voicemail(local_path: str, user_id: str, transcription: str = None, translation: str = None) -> str:
     """
     Upload voicemail to Drive and log to database with retry logic.
@@ -254,92 +234,7 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         on_retry=lambda attempt, error: print(f"[Voicemail Upload] Retry {attempt} due to: {error}")
     )
     def upload_with_retry():
-        drive_service = get_drive_service()
-        folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-        if not folder_id:
-            raise ValueError("Missing GOOGLE_DRIVE_FOLDER_ID in environment.")
-        
-        # Check if file exists
-        if not os.path.exists(local_path):
-            raise FileNotFoundError(f"Voicemail file not found: {local_path}")
-        
-        filename = os.path.basename(local_path)
-        
-        # Detect file type and set appropriate mimetype
-        if filename.lower().endswith('.m4a'):
-            mimetype = "audio/mp4"
-        elif filename.lower().endswith('.wav'):
-            mimetype = "audio/wav"
-        elif filename.lower().endswith('.mp3'):
-            mimetype = "audio/mpeg"
-        elif filename.lower().endswith('.aac'):
-            mimetype = "audio/aac"
-        else:
-            mimetype = "audio/mp4"  # Default for voicemail (usually m4a)
-        
-        file_metadata = {
-            "name": filename,
-            "parents": [folder_id]
-        }
-        
-        from googleapiclient.http import MediaFileUpload
-        media = None
-        try:
-            # Check file size
-            file_size = os.path.getsize(local_path)
-            print(f"[Voicemail Upload] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
-            
-            if file_size == 0:
-                raise ValueError(f"Voicemail file is empty: {local_path}")
-            
-            # Create media upload - use resumable for files > 5MB, otherwise simple upload
-            if file_size > 5 * 1024 * 1024:  # 5MB
-                media = MediaFileUpload(
-                    local_path, 
-                    mimetype=mimetype,
-                    resumable=True,
-                    chunksize=1024*1024  # 1MB chunks for better reliability
-                )
-                print(f"[Voicemail Upload] Using resumable upload for large file")
-            else:
-                media = MediaFileUpload(
-                    local_path, 
-                    mimetype=mimetype,
-                    resumable=False
-                )
-                print(f"[Voicemail Upload] Using simple upload for small file")
-            
-            # Upload file
-            if media._resumable:
-                request = drive_service.files().create(
-                    body=file_metadata,
-                    media_body=media,
-                    fields="id,webViewLink"
-                )
-                
-                uploaded = None
-                while uploaded is None:
-                    status, uploaded = request.next_chunk()
-                    if status:
-                        print(f"[Voicemail Upload] Progress: {int(status.progress() * 100)}%")
-            else:
-                # Simple upload for small files
-                uploaded = drive_service.files().create(
-                    body=file_metadata,
-                    media_body=media,
-                    fields="id,webViewLink"
-                ).execute()
-            
-            print(f"[Voicemail Upload] Upload completed successfully, File ID: {uploaded.get('id')}")
-            return uploaded
-            
-        finally:
-            # Ensure file handle is closed
-            if media and hasattr(media, "_fd") and media._fd and not media._fd.closed:
-                try:
-                    media._fd.close()
-                except Exception as e:
-                    print(f"[Voicemail Upload] Failed to close media file descriptor: {e}")
+        return _upload_audio_file(local_path, "Voicemail Upload")
     
     try:
         # Run sync Drive upload in bounded thread pool
@@ -351,8 +246,6 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         if not web_link:
             file_id = uploaded.get("id")
             web_link = f"https://drive.google.com/file/d/{file_id}/view"
-        
-        # Skip voicemail_logs table - we only log to chat_logs now
         
         # Delete local file after successful Drive upload
         try:
@@ -368,9 +261,6 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         # All retries exhausted
         error_msg = f"Failed to upload voicemail after all retries: {e.last_error}"
         print(f"[Voicemail Upload] {error_msg}")
-        
-        # Skip voicemail_logs table - we only log to chat_logs now
-        
         raise RuntimeError(error_msg) from e
 
 

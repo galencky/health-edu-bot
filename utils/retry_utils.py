@@ -91,69 +91,17 @@ def retry_with_timeout(
 ) -> Any:
     """
     Execute a function with retry logic and timeout.
-    
-    Args:
-        func: Function to execute
-        args: Positional arguments for the function
-        kwargs: Keyword arguments for the function
-        max_retries: Maximum number of retries
-        timeout: Timeout in seconds for each attempt
-        retry_exceptions: Exceptions that trigger a retry
-    
-    Returns:
-        The function's return value
-        
-    Raises:
-        RetryError: If all retries are exhausted
+    Simplified version that relies on function's own timeout handling.
     """
-    import signal
-    import threading
-    
     if kwargs is None:
         kwargs = {}
     
-    def timeout_handler():
-        raise TimeoutError(f"Operation timed out after {timeout} seconds")
+    @exponential_backoff(
+        max_retries=max_retries,
+        exceptions=retry_exceptions,
+        on_retry=lambda attempt, error: print(f"[RETRY-TIMEOUT] Attempt {attempt} failed: {error}")
+    )
+    def _wrapper():
+        return func(*args, **kwargs)
     
-    last_error = None
-    
-    for attempt in range(max_retries + 1):
-        try:
-            # For non-Unix systems or when signal is not available
-            result = [None]
-            exception = [None]
-            
-            def target():
-                try:
-                    result[0] = func(*args, **kwargs)
-                except Exception as e:
-                    exception[0] = e
-            
-            thread = threading.Thread(target=target)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout)
-            
-            if thread.is_alive():
-                raise TimeoutError(f"Operation timed out after {timeout} seconds")
-            
-            if exception[0]:
-                raise exception[0]
-            
-            return result[0]
-            
-        except retry_exceptions as e:
-            last_error = e
-            
-            if attempt == max_retries:
-                raise RetryError(
-                    f"Failed after {max_retries + 1} attempts: {str(e)}",
-                    last_error=e
-                )
-            
-            delay = min(1.0 * (2 ** attempt), 30.0)
-            print(f"[RETRY] Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
-            print(f"[RETRY] Retrying in {delay:.2f} seconds...")
-            time.sleep(delay)
-    
-    raise RetryError("Unexpected retry exhaustion", last_error=last_error)
+    return _wrapper()

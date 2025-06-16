@@ -191,6 +191,20 @@ async def log_voicemail_to_db(user_id, audio_filename, transcription, translatio
         return False
 
 # Sync fallback functions
+def _create_log_entry(log_class, log_type, **kwargs):
+    """Generic log creation helper"""
+    try:
+        with get_db_session_sync() as session:
+            log = log_class(**kwargs)
+            session.add(log)
+            user_id = kwargs.get('user_id', 'unknown')
+            identifier = kwargs.get('audio_filename', kwargs.get('action_type', 'entry'))
+            print(f"✅ [DB-SYNC] {log_type} log saved - User: {user_id[:8]}..., ID: {identifier}")
+            return True
+    except Exception as e:
+        print(f"❌ [DB-SYNC] Failed to log {log_type} to database: {e}")
+        return False
+
 def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=False, gemini_output_url=None):
     """Sync fallback for chat logging with validation"""
     try:
@@ -201,61 +215,33 @@ def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=
         action_type = validate_action_type(action_type)
         gemini_output_url = sanitize_text(gemini_output_url, max_length=500) if gemini_output_url else None
         
-        with get_db_session_sync() as session:
-            log = ChatLog(
-                user_id=user_id,
-                message=message,
-                reply=reply,
-                action_type=action_type,
-                gemini_call=bool(gemini_call),
-                gemini_output_url=gemini_output_url
-            )
-            session.add(log)
-            print(f"✅ [DB-SYNC] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}")
-            return True
+        return _create_log_entry(
+            ChatLog, "Chat",
+            user_id=user_id, message=message, reply=reply,
+            action_type=action_type, gemini_call=bool(gemini_call),
+            gemini_output_url=gemini_output_url
+        )
     except ValueError as e:
         print(f"❌ [DB-SYNC] Validation error: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ [DB-SYNC] Failed to log chat to Neon database: {e}")
         return False
 
 def _log_tts_to_db_sync(user_id, text, audio_filename, audio_url, drive_link=None, status="success"):
     """Sync fallback for TTS logging"""
-    try:
-        with get_db_session_sync() as session:
-            log = TTSLog(
-                user_id=user_id,
-                text=text[:1000] if text else None,
-                audio_filename=audio_filename,
-                audio_url=audio_url,
-                drive_link=drive_link,
-                status=status
-            )
-            session.add(log)
-            print(f"✅ [DB-SYNC] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}")
-            return True
-    except Exception as e:
-        print(f"❌ [DB-SYNC] Failed to log TTS to Neon database: {e}")
-        return False
+    return _create_log_entry(
+        TTSLog, "TTS",
+        user_id=user_id, text=text[:1000] if text else None,
+        audio_filename=audio_filename, audio_url=audio_url,
+        drive_link=drive_link, status=status
+    )
 
 def _log_voicemail_to_db_sync(user_id, audio_filename, transcription, translation, drive_link=None):
     """Sync fallback for voicemail logging"""
-    try:
-        with get_db_session_sync() as session:
-            log = VoicemailLog(
-                user_id=user_id,
-                audio_filename=audio_filename,
-                transcription=transcription,
-                translation=translation,
-                drive_link=drive_link
-            )
-            session.add(log)
-            print(f"✅ [DB-SYNC] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}")
-            return True
-    except Exception as e:
-        print(f"❌ [DB-SYNC] Failed to log voicemail to Neon database: {e}")
-        return False
+    return _create_log_entry(
+        VoicemailLog, "Voicemail",
+        user_id=user_id, audio_filename=audio_filename,
+        transcription=transcription, translation=translation,
+        drive_link=drive_link
+    )
 
 async def update_voicemail_translation(user_id, audio_filename, translation):
     """Update an existing voicemail log with translation"""
