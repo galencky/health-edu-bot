@@ -57,7 +57,7 @@ def _send_error_reply(event, message: str):
 def handle_line_message(event: MessageEvent[TextMessage]):
     """
     1) If session['awaiting_stt_translation'] is True, treat this TextMessage
-       as either (a) “no translation (new/無)” or (b) “translate to <lang>”.
+       as either (a) "no translation (new/無)" or (b) "translate to <lang>".
        Return immediately after handling.
     2) Otherwise, fall through to the normal handle_user_message(...) logic.
     """
@@ -83,7 +83,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
     if session.get("awaiting_stt_translation"):
         text_lower = user_input.lower()
 
-        # a) Cancel or “new” path
+        # a) Cancel or "new" path
         if text_lower == "new":
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
@@ -258,7 +258,7 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
     2) Upload to Drive (optional link in reply)
     3) Call Gemini STT (upload via Files API, then generate_content)
     4) Store transcription in session, set awaiting_stt_translation=True
-    5) Reply with “原始轉錄：<text>\n請輸入欲翻譯之語言；若無，請輸入「無」或「new」。\n(Drive link)”
+    5) Reply with "原始轉錄：<text>\n請輸入欲翻譯之語言；若無，請輸入「無」或「new」。\n(Drive link)"
     """
     # Check concurrent audio processing limit
     global _active_audio_processing
@@ -269,9 +269,9 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
         _active_audio_processing += 1
     
     try:
-        user_id     = event.source.user_id
-        message_id  = event.message.id
-        session     = get_user_session(user_id)
+        user_id = event.source.user_id
+        message_id = event.message.id
+        session = get_user_session(user_id)
 
         # 🚫  Block audio uploads while editing Education sheets
         if session.get("mode") == "edu":
@@ -320,162 +320,166 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
             return
         
         save_dir = VOICEMAIL_DIR
-    save_dir.mkdir(exist_ok=True)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"{safe_user_id}_{timestamp}.m4a"
-    
-    # Create safe path to prevent directory traversal
-    try:
-        local_filename = Path(create_safe_path(str(save_dir), filename))
-    except ValueError as e:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 系統錯誤：無法儲存語音檔案")
-        )
-        return
+        save_dir.mkdir(exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_user_id}_{timestamp}.m4a"
+        
+        # Create safe path to prevent directory traversal
+        try:
+            local_filename = Path(create_safe_path(str(save_dir), filename))
+        except ValueError as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 系統錯誤：無法儲存語音檔案")
+            )
+            return
 
-    # Enhanced file saving with chunked writing and connection stability
-    total_size = 0
-    chunk_size = 8192  # 8KB chunks
-    max_retries_per_chunk = 3
-    
-    try:
-        with open(local_filename, "wb") as f:
-            chunk_iterator = message_content.iter_content(chunk_size=chunk_size)
-            chunk_number = 0
-            
-            for chunk in chunk_iterator:
-                chunk_number += 1
-                retry_count = 0
+        # Enhanced file saving with chunked writing and connection stability
+        total_size = 0
+        chunk_size = 8192  # 8KB chunks
+        max_retries_per_chunk = 3
+        
+        try:
+            with open(local_filename, "wb") as f:
+                chunk_iterator = message_content.iter_content(chunk_size=chunk_size)
+                chunk_number = 0
                 
-                while retry_count < max_retries_per_chunk:
-                    try:
-                        if chunk:  # Filter out keep-alive chunks
-                            total_size += len(chunk)
+                for chunk in chunk_iterator:
+                    chunk_number += 1
+                    retry_count = 0
+                    
+                    while retry_count < max_retries_per_chunk:
+                        try:
+                            if chunk:  # Filter out keep-alive chunks
+                                total_size += len(chunk)
+                                
+                                # Check file size limit
+                                if total_size > MAX_AUDIO_FILE_SIZE:
+                                    f.close()
+                                    local_filename.unlink(missing_ok=True)
+                                    line_bot_api.reply_message(
+                                        event.reply_token,
+                                        TextSendMessage(text="⚠️ 語音檔過大（超過10MB），請縮短錄音長度。")
+                                    )
+                                    return
+                                
+                                f.write(chunk)
+                                f.flush()  # Ensure data is written to disk
+                                break  # Success, move to next chunk
+                                
+                        except (IOError, OSError) as e:
+                            retry_count += 1
+                            if retry_count >= max_retries_per_chunk:
+                                raise Exception(f"Failed to write chunk {chunk_number} after {max_retries_per_chunk} retries: {e}")
+                            print(f"[Audio Save] Retry {retry_count} for chunk {chunk_number}: {e}")
+                            time.sleep(0.1 * retry_count)  # Brief delay before retry
                             
-                            # Check file size limit
-                            if total_size > MAX_AUDIO_FILE_SIZE:
-                                f.close()
-                                local_filename.unlink(missing_ok=True)
-                                line_bot_api.reply_message(
-                                    event.reply_token,
-                                    TextSendMessage(text="⚠️ 語音檔過大（超過10MB），請縮短錄音長度。")
-                                )
-                                return
-                            
-                            f.write(chunk)
-                            f.flush()  # Ensure data is written to disk
-                            break  # Success, move to next chunk
-                            
-                    except (IOError, OSError) as e:
-                        retry_count += 1
-                        if retry_count >= max_retries_per_chunk:
-                            raise Exception(f"Failed to write chunk {chunk_number} after {max_retries_per_chunk} retries: {e}")
-                        print(f"[Audio Save] Retry {retry_count} for chunk {chunk_number}: {e}")
-                        time.sleep(0.1 * retry_count)  # Brief delay before retry
-                        
-    except Exception as e:
-        print(f"[Audio Save] Error saving audio file: {e}")
-        # Clean up partial file
-        if local_filename.exists():
+        except Exception as e:
+            print(f"[Audio Save] Error saving audio file: {e}")
+            # Clean up partial file
+            if local_filename.exists():
+                try:
+                    local_filename.unlink(missing_ok=True)
+                except Exception as e:
+                    print(f"[CLEANUP] Failed to delete temp file {local_filename}: {e}")
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 儲存語音檔失敗，請稍後重試。")
+            )
+            return
+
+        # 3. Call Gemini STT first (before upload)
+        try:
+            transcription = transcribe_audio_file(str(local_filename))
+        except Exception as e:
+            print(f"[STT ERROR] {e}")
+            # BUG FIX: Clean up local file on STT failure
             try:
-                local_filename.unlink(missing_ok=True)
-            except Exception as e:
-                print(f"[CLEANUP] Failed to delete temp file {local_filename}: {e}")
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 儲存語音檔失敗，請稍後重試。")
-        )
-        return
+                if local_filename.exists():
+                    local_filename.unlink()
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 語音轉文字失敗，請稍後重試。")
+            )
+            return
 
-    # 3. Call Gemini STT first (before upload)
-    try:
-        transcription = transcribe_audio_file(str(local_filename))
-    except Exception as e:
-        print(f"[STT ERROR] {e}")
-        # BUG FIX: Clean up local file on STT failure
+        if not transcription:
+            # Clean up file if transcription is empty
+            try:
+                if local_filename.exists():
+                    local_filename.unlink()
+                    print(f"[CLEANUP] Deleted file after empty transcription: {local_filename}")
+            except Exception:
+                pass
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 轉錄內容為空，無法處理。")
+            )
+            return
+
+        # 5. Store transcription & set flag, then send prompt
+        session["stt_transcription"] = transcription
+        session["awaiting_stt_translation"] = True
+        session["started"] = True          # NEW: fixes "speak"-first bug
+        session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt
+        session["_prev_mode"] = session.get("mode") or "edu"  # remember current mode
+        
+        # 4. Upload to Drive and log to database
+        # Note: upload_voicemail will delete the file after successful upload
+        drive_link = None
         try:
-            if local_filename.exists():
-                local_filename.unlink()
-        except Exception:
-            pass
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 語音轉文字失敗，請稍後重試。")
-        )
-        return
+            drive_link = upload_voicemail(
+                str(local_filename), 
+                user_id,
+                transcription=transcription,
+                translation=None  # Translation happens later
+            )
+        except Exception as e:
+            print(f"[Voicemail upload/log failed] {e}")
+            # Clean up file if upload fails
+            try:
+                if local_filename.exists():
+                    local_filename.unlink()
+                    print(f"[CLEANUP] Deleted file after upload failure: {local_filename}")
+            except Exception as cleanup_error:
+                print(f"[CLEANUP ERROR] Failed to delete {local_filename}: {cleanup_error}")
+            # Continue even if upload fails
 
-    if not transcription:
-        # Clean up file if transcription is empty
+        reply_lines = [
+            "📣 原始轉錄：",
+            transcription
+        ]
+        #if drive_link:
+        #    reply_lines.extend([
+        #        "",
+        #        f"🔗 已將語音檔上傳至 Google Drive：",
+        #        drive_link
+        #    ])
+
+        # Add quick reply for voice translation options
+        quick_reply = QuickReply(items=create_quick_reply_items(VOICE_TRANSLATION_OPTIONS))
+        
         try:
-            if local_filename.exists():
-                local_filename.unlink()
-                print(f"[CLEANUP] Deleted file after empty transcription: {local_filename}")
-        except Exception:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
+            )
+        except LineBotApiError:
             pass
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 轉錄內容為空，無法處理。")
-        )
-        return
 
-    # 5. Store transcription & set flag, then send prompt
-    session["stt_transcription"] = transcription
-    session["awaiting_stt_translation"] = True
-    session["started"]                 = True          # NEW: fixes “speak”-first bug
-    session.pop("awaiting_chat_language", None)        # NEW: avoid double prompt
-    session["_prev_mode"] = session.get("mode") or "edu"  # remember current mode
-    
-    # 4. Upload to Drive and log to database
-    # Note: upload_voicemail will delete the file after successful upload
-    drive_link = None
-    try:
-        drive_link = upload_voicemail(
-            str(local_filename), 
+        # Log audio message
+        log_chat(
             user_id,
-            transcription=transcription,
-            translation=None  # Translation happens later
+            "[AudioMessage]",
+            transcription[:200],
+            session,
+            action_type="medchat_audio",
+            gemini_call="yes",
         )
-    except Exception as e:
-        print(f"[Voicemail upload/log failed] {e}")
-        # Clean up file if upload fails
-        try:
-            if local_filename.exists():
-                local_filename.unlink()
-                print(f"[CLEANUP] Deleted file after upload failure: {local_filename}")
-        except Exception as cleanup_error:
-            print(f"[CLEANUP ERROR] Failed to delete {local_filename}: {cleanup_error}")
-        # Continue even if upload fails
-
-    reply_lines = [
-        "📣 原始轉錄：",
-        transcription
-    ]
-    #if drive_link:
-    #    reply_lines.extend([
-    #        "",
-    #        f"🔗 已將語音檔上傳至 Google Drive：",
-    #        drive_link
-    #    ])
-
-    # Add quick reply for voice translation options
-    quick_reply = QuickReply(items=create_quick_reply_items(VOICE_TRANSLATION_OPTIONS))
-    
-    try:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="\n".join(reply_lines), quick_reply=quick_reply)
-        )
-    except LineBotApiError:
-        pass
-
-    # Log audio message
-    log_chat(
-        user_id,
-        "[AudioMessage]",
-        transcription[:200],
-        session,
-        action_type="medchat_audio",
-        gemini_call="yes",
-    )
-    return
+        
+    finally:
+        # Always decrement the counter
+        with _audio_lock:
+            _active_audio_processing -= 1
