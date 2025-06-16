@@ -96,7 +96,7 @@ def handle_user_message(
             }
             return (
                 "⚠️ 目前在『衛教』模式，無法語音朗讀。\n"
-                "若要使用語音功能請先輸入 new 重新開始。",
+                "若要使用語音功能請點擊下方按鈕：",
                 False,
                 quick_reply
             )
@@ -141,7 +141,7 @@ def handle_user_message(
                 _create_quick_reply(MODE_SELECTION_OPTIONS)
             )
         quick_reply = _create_quick_reply([("🆕 開始", "new")])
-        return "⚠️ 請先輸入 new / 開始 啟動對話。", gemini_called, quick_reply
+        return "⚠️ 請點擊下方按鈕開始對話：", gemini_called, quick_reply
 
     # ──────────────────────────────────────────────────────────────
     # 2. Mode selection (after “new”)
@@ -185,7 +185,7 @@ def handle_user_message(
             quick_reply = {
                 "items": create_quick_reply_items([("🆕 新對話", "new")])
             }
-            return "⚠️ 目前在『聊天』模式。如要切換到衛教請先輸入 new。", gemini_called, quick_reply
+            return "⚠️ 目前在『聊天』模式。如要切換到衛教請點擊下方按鈕：", gemini_called, quick_reply
 
         # delegate to MedChat handler (Gemini inside)
         reply, _, medchat_quick_reply = handle_medchat(user_id, raw, session)
@@ -197,7 +197,7 @@ def handle_user_message(
         quick_reply = {
             "items": create_quick_reply_items([("🆕 新對話", "new")])
         }
-        return "⚠️ 目前在『衛教』模式。如要切換到聊天請先輸入 new。", gemini_called, quick_reply
+        return "⚠️ 目前在『衛教』模式。如要切換到聊天請點擊下方按鈕：", gemini_called, quick_reply
 
     # convenience flags
     is_new        = text_lower in new_commands
@@ -248,7 +248,7 @@ def handle_user_message(
             quick_reply = {
                 "items": create_quick_reply_items([("🆕 新對話", "new")])
             }
-            return "⚠️ 已完成翻譯，若需調整請輸入 new 重新開始。", gemini_called, quick_reply
+            return "⚠️ 已完成翻譯，若需調整請點擊下方按鈕重新開始：", gemini_called, quick_reply
         if not session.get("zh_output"):
             return "⚠️ 尚未產出中文版內容，無法修改。", gemini_called, None
         session["awaiting_modify"] = True

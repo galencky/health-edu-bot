@@ -29,7 +29,8 @@
       "Bash(git stash:*)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "WebFetch(domain:tts001.iptcloud.net)"
     ],
     "deny": []
   }

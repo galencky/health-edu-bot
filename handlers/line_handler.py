@@ -88,7 +88,16 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
 
-            _send_error_reply(event, "✅ 已取消翻譯。如需重新開始，請輸入 new。")
+            try:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(
+                        text="✅ 已取消翻譯",
+                        quick_reply=QuickReply(items=create_quick_reply_items(["new"]))
+                    )
+                )
+            except LineBotApiError:
+                pass
             return
         
         # b) "translate_voice" - prompt for language selection
@@ -217,7 +226,8 @@ def handle_line_message(event: MessageEvent[TextMessage]):
 
                 if len(zh_chunks) + len(tr_chunks) > 3:
                     bubbles.append(TextSendMessage(
-                        text="⚠️ 內容過長，僅部分顯示。如需完整內容請輸入 mail / 寄送。"
+                        text="⚠️ 內容過長，僅部分顯示。如需完整內容請點擊下方按鈕：",
+                        quick_reply=QuickReply(items=create_quick_reply_items([("📧 寄送", "mail")]))
                     ))
         
         # Add quick reply if available
@@ -280,8 +290,9 @@ def handle_audio_message(event: MessageEvent[AudioMessage]):
                 TextSendMessage(
                     text=(
                         "⚠️ 目前在『衛教』模式，無法使用語音翻譯。\n"
-                        "若要啟用語音功能，請先輸入 new 開啟新聊天。"
-                    )
+                        "若要啟用語音功能，請點擊下方按鈕："
+                    ),
+                    quick_reply=QuickReply(items=create_quick_reply_items([("🆕 新對話", "new")]))
                 )
             )
             return
