@@ -1,169 +1,250 @@
-# MedEdBot - Medical Education LINE Chatbot
+# MedEdBot - Medical Education & Communication LINE Bot
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![LINE](https://img.shields.io/badge/LINE-Messaging_API-00C300.svg)](https://developers.line.biz/en/services/messaging-api/)
 
-A multilingual medical education chatbot for LINE messaging platform, powered by Google Gemini AI.
+A bilingual medical education and communication bot for LINE, powered by Google Gemini AI. Designed to bridge language barriers in healthcare settings and provide accurate patient education materials.
 
-## Features
+## 🌟 Key Features
 
-- 🎓 **Dual Mode Operation**: Education mode for browsing materials, Medical chat mode for Q&A
-- 🎙️ **Voice Support**: Speech-to-text and text-to-speech capabilities
-- 🌏 **Multilingual**: Supports Chinese, English, Japanese, and many others.
-- 📧 **Email Integration**: Send educational content directly to email
-- 🔒 **Secure**: Input validation, rate limiting, and LINE signature verification
-- 📊 **Analytics**: Comprehensive logging of all interactions
+### 📚 Education Mode
+- **Patient Education Materials**: Generate comprehensive, medically accurate education sheets
+- **Multi-language Support**: Automatic translation to 20+ languages
+- **Content Modification**: Fine-tune generated content with specific instructions
+- **Email Delivery**: Send education materials directly to patients' email
+- **Web Search Integration**: Automatically includes credible medical references
 
-## Quick Start
+### 💬 Medical Chat Mode
+- **Real-time Medical Translation**: Facilitate doctor-patient communication across language barriers
+- **Context-aware Translation**: Maintains medical terminology accuracy
+- **Quick Reply Interface**: Streamlined user experience with button-based interactions
 
-### Prerequisites
+### 🎙️ Voice Support
+- **Speech-to-Text (STT)**: Transcribe voice messages using Google Gemini
+- **Voice Translation**: Translate transcribed audio to any language
+- **Text-to-Speech (TTS)**: Generate natural voice output for translations
+- **Supported Languages**: Chinese, English, Japanese, Korean, Thai, Vietnamese, and more
 
-- Docker and Docker Compose
-- LINE Messaging API credentials
-- Google Cloud credentials (Gemini API, Service Account)
+### 🔒 Security & Reliability
+- **Rate Limiting**: 30 req/min for AI, 20 req/min for TTS per user
+- **Circuit Breaker**: Automatic failure recovery for external services
+- **Input Validation**: Comprehensive sanitization and security checks
+- **Session Management**: 24-hour expiry with automatic cleanup
+- **Graceful Degradation**: Service remains operational during partial failures
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│    LINE     │────▶│   FastAPI   │────▶│   Gemini    │
+│   Users     │     │   Server    │     │     AI      │
+└─────────────┘     └──────┬──────┘     └─────────────┘
+                           │
+                    ┌──────┼──────┐
+                    │      │      │
+              ┌─────▼──┐ ┌─▼──┐ ┌▼──────────┐
+              │ Postgre│ │Drive│ │   Email    │
+              │   SQL   │ │API  │ │  Service   │
+              └────────┘ └────┘ └───────────┘
+```
+
+## 📋 Prerequisites
+
+- Python 3.11+
+- Docker & Docker Compose
 - PostgreSQL database
+- LINE Messaging API account
+- Google Cloud account with Gemini API access
+- Gmail account with app password
+- Google Drive API credentials (optional)
 
-### Environment Setup
+## 🚀 Quick Start
 
-1. Clone the repository:
+### 1. Clone Repository
 ```bash
 git clone https://github.com/yourusername/mededbot.git
 cd mededbot
 ```
 
-2. Create `.env` file from template:
+### 2. Environment Setup
 ```bash
 cp .env.template .env
+# Edit .env with your credentials
 ```
 
-3. Fill in your credentials in `.env`
+### 3. Required Environment Variables
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host/dbname
 
-### Docker Deployment
+# LINE Bot
+LINE_CHANNEL_ACCESS_TOKEN=your_line_token
+LINE_CHANNEL_SECRET=your_line_secret
 
+# Google Gemini AI
+GEMINI_API_KEY=your_gemini_api_key
+
+# Email Service
+GMAIL_ADDRESS=your_email@gmail.com
+GMAIL_APP_PASSWORD=your_app_password
+
+# Google Drive (Optional)
+GOOGLE_DRIVE_FOLDER_ID=your_folder_id
+GOOGLE_CREDS_B64=base64_encoded_service_account_json
+
+# Deployment
+BASE_URL=https://your-domain.com
+PORT=8080  # Use 8080 for cloud, 10001 for local
+USE_MEMORY_STORAGE=true  # true for cloud, false for persistent
+```
+
+### 4. Docker Deployment
 ```bash
-# Build and run with Docker Compose
+# Build and run
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
 
-# Stop the service
+# Stop
 docker-compose down
 ```
 
-### Docker Compose Configuration
-
-```yaml
-version: '3.8'
-services:
-  mededbot:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./logs:/app/logs
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
-
-## Container Image
-
-The Docker image is optimized for production:
-- Based on `python:3.11-alpine` for minimal size
-- Multi-stage build for security
-- Non-root user execution
-- Health check endpoint included
-
-### Building the Image
-
+### 5. Local Development
 ```bash
-# Build locally
-docker build -t mededbot:latest .
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Build with specific tag
-docker build -t mededbot:v1.0.0 .
-```
-
-### Running the Container
-
-```bash
-# Run with environment file
-docker run -d --name mededbot \
-  --env-file .env \
-  -p 8000:8000 \
-  mededbot:latest
-
-# Run with individual environment variables
-docker run -d --name mededbot \
-  -e GEMINI_API_KEY=your_key \
-  -e LINE_CHANNEL_ACCESS_TOKEN=your_token \
-  -p 8000:8000 \
-  mededbot:latest
-```
-
-## Architecture
-
-- **Backend**: FastAPI with async/await support
-- **AI**: Google Gemini for content generation and translation
-- **Database**: PostgreSQL for logging and analytics
-- **Storage**: Adaptive (memory for cloud, disk for persistent environments)
-- **Deployment**: Optimized for Render.com, Synology NAS, and cloud platforms
-
-## API Endpoints
-
-- `POST /`: LINE webhook endpoint
-- `GET /health`: Health check endpoint
-- `GET /`: Welcome page
-
-## Development
-
-```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Run locally
-python app.py
+# Initialize database
+python scripts/init_db.py
 
-# Run with uvicorn
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+# Run server
+uvicorn main:app --host 0.0.0.0 --port 10001 --reload
 ```
 
-## Security
+## 💬 Usage Guide
 
-- All credentials must be set via environment variables
-- LINE signature verification on all webhooks
-- Input validation and sanitization
-- Rate limiting to prevent abuse
-- Session isolation for multi-user support
+### Starting a Conversation
+1. Add the bot as a friend on LINE
+2. Send "new" or "開始" to begin
+3. Choose between Education (衛教) or Chat (聊天) mode
 
-## Performance Optimization
+### Education Mode Commands
+- **Generate**: `disease name + topic` (e.g., "糖尿病 飲食控制")
+- **Modify**: Click "✏️ 修改" button
+- **Translate**: Click "🌐 翻譯" button
+- **Email**: Click "📧 寄送" button
+- **New**: Click "🆕 新對話" button
 
-- Minimal Alpine Linux base image
-- Multi-stage Docker build
-- In-memory storage for ephemeral environments
-- Efficient session management
-- Async I/O throughout
+### Chat Mode Flow
+1. Select target language
+2. Type or speak your message
+3. Receive translation with pronunciation guide
 
-## Monitoring
+### Voice Features
+1. Send voice message
+2. Bot transcribes and shows original text
+3. Choose translation language or click "new" to skip
+4. Optionally generate voice output with "🔊 朗讀" button
 
-- Comprehensive logging to PostgreSQL
-- Health check endpoint for uptime monitoring
-- Detailed error tracking and reporting
+## 🔧 Configuration
 
-## License
+### Storage Modes
+- **Memory Mode** (`USE_MEMORY_STORAGE=true`): For serverless/cloud deployments
+- **Disk Mode** (`USE_MEMORY_STORAGE=false`): For persistent server deployments
+
+### Timeout Settings
+- Webhook timeout: 48 seconds
+- Gemini API timeout: 45 seconds with 2 retries
+- Health check: Every 120s with 50s timeout
+
+### Rate Limits
+- Gemini API: 30 requests/minute per user
+- TTS: 20 requests/minute per user
+- Email: 5 requests/minute per user
+
+## 📊 Database Schema
+
+### Tables
+- `chat_logs`: All message interactions
+- `tts_logs`: Text-to-speech generation logs
+- `voicemail_logs`: Voice message transcriptions
+
+## 🛡️ Security Features
+
+- LINE webhook signature verification
+- Input sanitization for all user inputs
+- Path traversal protection
+- Email validation with MX record checking
+- Secure file handling with size limits
+- No storage of sensitive medical data
+
+## 🔍 Monitoring
+
+### Health Check Endpoint
+```bash
+curl https://your-domain.com/health
+```
+
+### Log Monitoring
+```bash
+# Docker logs
+docker-compose logs -f | grep -E "(ERROR|TIMEOUT|GEMINI)"
+
+# System logs
+tail -f logs/app.log
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **502 Bad Gateway**
+   - Check Gemini API key validity
+   - Verify timeout settings
+   - Review Docker memory limits
+
+2. **AI Service Timeout**
+   - Extend timeouts in `gemini_service.py`
+   - Check circuit breaker status
+   - Monitor API rate limits
+
+3. **Voice Features Not Working**
+   - Verify audio file permissions
+   - Check storage mode configuration
+   - Ensure BASE_URL is correctly set
+
+## 📝 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Support
+## 🤝 Contributing
 
-For issues and feature requests, please use the GitHub issue tracker.
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 🙏 Acknowledgments
+
+- Google Gemini AI for powerful language models
+- LINE Corporation for messaging platform
+- FastAPI for high-performance web framework
+- PostgreSQL for reliable data storage
+
+## 📧 Support
+
+For issues and questions:
+- GitHub Issues: [Create an issue](https://github.com/yourusername/mededbot/issues)
+- Email: support@your-domain.com
+
+---
+
+**Note**: This bot is designed for educational purposes and should not replace professional medical consultation. Always verify medical information with qualified healthcare providers.
