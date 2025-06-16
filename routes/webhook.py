@@ -15,7 +15,7 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 async def webhook(request: Request, x_line_signature: str = Header(None)):
     # Add timeout protection to prevent hanging webhooks
     try:
-        async with asyncio.timeout(25.0):  # 25 second timeout (LINE has 30s limit)
+        async with asyncio.timeout(48.0):  # 48 second timeout (just under LINE's 50s limit)
             body = await request.body()
             body_str = body.decode()
             #print("[WEBHOOK] Raw body:", body_str)
@@ -25,7 +25,7 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
             handler.handle(body_str, x_line_signature)
             return "OK"
     except asyncio.TimeoutError:
-        print("[WEBHOOK] Request timed out after 25 seconds")
+        print("[WEBHOOK] Request timed out after 48 seconds")
         # Return OK to LINE to prevent retries, but log the timeout
         return "OK"
     except ValueError as e:

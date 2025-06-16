@@ -16,9 +16,9 @@ from utils.circuit_breaker import gemini_circuit_breaker, CircuitBreakerError
 
 # BUG FIX: Add timeout configuration for API calls with retry mechanism
 # Previously: No timeout, requests could hang indefinitely
-API_TIMEOUT_SECONDS = 20  # 20 second timeout for Gemini API calls (reduced from 50)
-MAX_RETRIES = 1  # Retry once on timeout
-RETRY_DELAY = 2  # 2 second delay between retries (reduced from 5)
+API_TIMEOUT_SECONDS = 45  # 45 second timeout for Gemini API calls (increased for better reliability)
+MAX_RETRIES = 2  # Retry twice on timeout
+RETRY_DELAY = 3  # 3 second delay between retries
 
 # ---- Load API key from .env ----
 

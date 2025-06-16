@@ -135,8 +135,8 @@ class CircuitBreaker:
 
 # Global circuit breakers for external services
 gemini_circuit_breaker = CircuitBreaker(
-    failure_threshold=3,
-    recovery_timeout=30,
+    failure_threshold=5,  # Allow more failures before opening circuit
+    recovery_timeout=60,  # Longer recovery time for stability
     expected_exception=Exception,
     name="gemini_api"
 )
