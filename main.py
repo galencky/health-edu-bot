@@ -197,11 +197,24 @@ class UserInput(BaseModel):
     message: str
 
 @app.post("/chat")
-def chat(input: UserInput):
-    user_id = "test-user"                     # stub ID for this endpoint
-    session = get_user_session(user_id)
-    reply, _, quick_reply_data = handle_user_message(user_id, input.message, session)
-    return {"reply": reply, "quick_reply": quick_reply_data}
+async def chat(input: UserInput):
+    try:
+        user_id = "test-user"                     # stub ID for this endpoint
+        session = get_user_session(user_id)
+        
+        # Run in thread pool to prevent blocking the event loop
+        loop = asyncio.get_event_loop()
+        reply, _, quick_reply_data = await loop.run_in_executor(
+            None, 
+            handle_user_message, 
+            user_id, 
+            input.message, 
+            session
+        )
+        return {"reply": reply, "quick_reply": quick_reply_data}
+    except Exception as e:
+        print(f"[CHAT] Error: {e}")
+        return {"reply": "⚠️ 系統異常，請稍後再試。", "quick_reply": None}
 
 
 

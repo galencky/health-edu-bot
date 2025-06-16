@@ -16,9 +16,9 @@ from utils.circuit_breaker import gemini_circuit_breaker, CircuitBreakerError
 
 # BUG FIX: Add timeout configuration for API calls with retry mechanism
 # Previously: No timeout, requests could hang indefinitely
-API_TIMEOUT_SECONDS = 50  # 50 second timeout for Gemini API calls
+API_TIMEOUT_SECONDS = 20  # 20 second timeout for Gemini API calls (reduced from 50)
 MAX_RETRIES = 1  # Retry once on timeout
-RETRY_DELAY = 5  # 5 second delay between retries
+RETRY_DELAY = 2  # 2 second delay between retries (reduced from 5)
 
 # ---- Load API key from .env ----
 
@@ -94,9 +94,13 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
     # Use circuit breaker to protect against cascade failures
     try:
         response = gemini_circuit_breaker.call(_make_protected_api_call)
-    except CircuitBreakerError:
+    except CircuitBreakerError as e:
         # Circuit breaker is open, return graceful degradation message
+        print(f"🚫 [GEMINI] Circuit breaker open: {e}")
         return "⚠️ AI 服務暫時過載，請稍等片刻後再試。系統正在自動恢復中。"
+    except TimeoutError as e:
+        print(f"⏱️ [GEMINI] Timeout: {e}")
+        return "⚠️ AI 服務響應超時，請稍後再試。"
     except Exception as e:
         print(f"❌ [GEMINI] API call failed: {e}")
         return "⚠️ AI 服務暫時無法使用，請稍後再試。"

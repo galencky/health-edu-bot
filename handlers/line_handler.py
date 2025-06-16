@@ -56,35 +56,38 @@ def _send_error_reply(event, message: str):
 
 def handle_line_message(event: MessageEvent[TextMessage]):
     """
+    Handle LINE text messages with error recovery.
+    
     1) If session['awaiting_stt_translation'] is True, treat this TextMessage
        as either (a) "no translation (new/無)" or (b) "translate to <lang>".
        Return immediately after handling.
     2) Otherwise, fall through to the normal handle_user_message(...) logic.
     """
-    user_id    = event.source.user_id
-    user_input = event.message.text.strip()
-    session    = get_user_session(user_id)
+    try:
+        user_id    = event.source.user_id
+        user_input = event.message.text.strip()
+        session    = get_user_session(user_id)
 
-    # ------------------------------------------------------------------
-    # Always flush any queued TTS audio FIRST (works in edu *and* chat)
-    # ------------------------------------------------------------------
-    bubbles: list = []
-    if session.get("tts_audio_url"):
-        bubbles.append(
-            AudioSendMessage(
-                original_content_url=session.pop("tts_audio_url"),
-                duration=session.pop("tts_audio_dur", 0)
+        # ------------------------------------------------------------------
+        # Always flush any queued TTS audio FIRST (works in edu *and* chat)
+        # ------------------------------------------------------------------
+        bubbles: list = []
+        if session.get("tts_audio_url"):
+            bubbles.append(
+                AudioSendMessage(
+                    original_content_url=session.pop("tts_audio_url"),
+                    duration=session.pop("tts_audio_dur", 0)
+                )
             )
-        )
 
-    # ───────────────────────────────────────────────────────────────────
-    # 1) STT‐translation branch: check this first, before any other logic
-    # ───────────────────────────────────────────────────────────────────
-    if session.get("awaiting_stt_translation"):
-        text_lower = user_input.lower()
+        # ───────────────────────────────────────────────────────────────────
+        # 1) STT‐translation branch: check this first, before any other logic
+        # ───────────────────────────────────────────────────────────────────
+        if session.get("awaiting_stt_translation"):
+            text_lower = user_input.lower()
 
-        # a) Cancel or "new" path
-        if text_lower == "new":
+            # a) Cancel or "new" path
+            if text_lower == "new":
             session.pop("awaiting_stt_translation", None)
             session.pop("stt_transcription", None)
 
@@ -260,6 +263,13 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             action_type="Gemini reply" if gemini_called else "sync reply",
             gemini_call="yes" if gemini_called else "no",
         )
+    except Exception as e:
+        # Catch any unhandled exceptions and return gracefully
+        print(f"[LINE] Unhandled error in handle_line_message: {e}")
+        try:
+            _send_error_reply(event, "⚠️ 系統錯誤，請稍後再試。")
+        except:
+            pass
 
 
 def handle_audio_message(event: MessageEvent[AudioMessage]):
