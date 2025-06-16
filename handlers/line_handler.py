@@ -35,8 +35,10 @@ voicemail_prompt = """ You are a medical translation assistant fluent in {lang}.
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for audio files
 
 # Concurrency limits to prevent resource exhaustion
-AUDIO_PROCESSING_SEMAPHORE = asyncio.Semaphore(3)  # Max 3 concurrent audio uploads
-GEMINI_CONCURRENCY_SEMAPHORE = asyncio.Semaphore(5)  # Max 5 concurrent Gemini calls
+import threading
+_active_audio_processing = 0
+_audio_lock = threading.Lock()
+MAX_CONCURRENT_AUDIO = 3
 
 # Instantiate LINE client
 line_bot_api = LineBotApi(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
@@ -250,7 +252,7 @@ def handle_line_message(event: MessageEvent[TextMessage]):
         )
 
 
-async def handle_audio_message(event: MessageEvent[AudioMessage]):
+def handle_audio_message(event: MessageEvent[AudioMessage]):
     """
     1) Download LINE voicemail → save as ./voicemail/<user>_<ts>.m4a
     2) Upload to Drive (optional link in reply)
@@ -258,8 +260,15 @@ async def handle_audio_message(event: MessageEvent[AudioMessage]):
     4) Store transcription in session, set awaiting_stt_translation=True
     5) Reply with “原始轉錄：<text>\n請輸入欲翻譯之語言；若無，請輸入「無」或「new」。\n(Drive link)”
     """
-    # Use semaphore to limit concurrent audio processing
-    async with AUDIO_PROCESSING_SEMAPHORE:
+    # Check concurrent audio processing limit
+    global _active_audio_processing
+    with _audio_lock:
+        if _active_audio_processing >= MAX_CONCURRENT_AUDIO:
+            _send_error_reply(event, "⚠️ 系統忙碌中，請稍後再試上傳語音。")
+            return
+        _active_audio_processing += 1
+    
+    try:
         user_id     = event.source.user_id
         message_id  = event.message.id
         session     = get_user_session(user_id)
@@ -277,40 +286,40 @@ async def handle_audio_message(event: MessageEvent[AudioMessage]):
             )
             return
 
-    # 1. Download the raw audio from LINE with retry logic
-    @exponential_backoff(
-        max_retries=3,
-        initial_delay=0.5,
-        max_delay=10.0,
-        exceptions=(LineBotApiError, ConnectionError, TimeoutError),
-        on_retry=lambda attempt, error: print(f"[Audio Download] Retry {attempt} due to: {error}")
-    )
-    def download_audio():
-        return line_bot_api.get_message_content(message_id)
-    
-    try:
-        message_content = download_audio()
-    except RetryError as e:
-        print(f"[Audio Download] Failed after all retries: {e}")
-        _send_error_reply(event, "⚠️ 無法下載語音檔，請稍後重試。網路連線似乎不穩定。")
-        return
-    except Exception as e:
-        print(f"[Audio Download] Unexpected error: {e}")
-        _send_error_reply(event, "⚠️ 下載語音檔時發生錯誤，請稍後重試。")
-        return
-
-    # 2. Save locally under ./voicemail/ with robust error handling
-    # Validate user_id to prevent path traversal
-    try:
-        safe_user_id = sanitize_user_id(user_id)
-    except ValueError as e:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="⚠️ 系統錯誤：無效的用戶ID")
+        # 1. Download the raw audio from LINE with retry logic
+        @exponential_backoff(
+            max_retries=3,
+            initial_delay=0.5,
+            max_delay=10.0,
+            exceptions=(LineBotApiError, ConnectionError, TimeoutError),
+            on_retry=lambda attempt, error: print(f"[Audio Download] Retry {attempt} due to: {error}")
         )
-        return
-    
-    save_dir = VOICEMAIL_DIR
+        def download_audio():
+            return line_bot_api.get_message_content(message_id)
+        
+        try:
+            message_content = download_audio()
+        except RetryError as e:
+            print(f"[Audio Download] Failed after all retries: {e}")
+            _send_error_reply(event, "⚠️ 無法下載語音檔，請稍後重試。網路連線似乎不穩定。")
+            return
+        except Exception as e:
+            print(f"[Audio Download] Unexpected error: {e}")
+            _send_error_reply(event, "⚠️ 下載語音檔時發生錯誤，請稍後重試。")
+            return
+
+        # 2. Save locally under ./voicemail/ with robust error handling
+        # Validate user_id to prevent path traversal
+        try:
+            safe_user_id = sanitize_user_id(user_id)
+        except ValueError as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ 系統錯誤：無效的用戶ID")
+            )
+            return
+        
+        save_dir = VOICEMAIL_DIR
     save_dir.mkdir(exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     filename = f"{safe_user_id}_{timestamp}.m4a"
