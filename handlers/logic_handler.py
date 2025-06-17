@@ -13,7 +13,6 @@ from services.taigi_service import translate_to_taigi, synthesize_taigi
 from services.prompt_config import modify_prompt
 from handlers.mail_handler import send_last_txt_email
 from handlers.medchat_handler import handle_medchat
-from utils.google_drive_service import upload_stt_translation_log
 from utils.validators import sanitize_text, validate_email
 from utils.language_utils import normalize_language_input
 from utils.command_sets import (
@@ -53,14 +52,10 @@ def handle_user_message(
     # Handle unstarted session
     if not session.get("started"):
         quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
-        return "歡迎使用 MedEdBot！請點擊【開始】按鈕，或直接發送語音訊息進行翻譯：", False, quick_reply
+        return "歡迎使用 MedEdBot！請點擊【開始】按鈕開始使用：", False, quick_reply
     
     # Handle mode selection
     if session.get("mode") is None:
-        # STT Translation mode
-        if session.get("awaiting_stt_translation"):
-            return handle_stt_translation(session, text_lower, user_id)
-        
         # Education mode
         if text_lower in edu_commands:
             session["mode"] = "edu"
@@ -99,7 +94,7 @@ def handle_new_command(session: Dict) -> Tuple[str, bool, Optional[Dict]]:
     session.clear()
     session["started"] = True
     quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
-    return "請選擇您需要的功能，或直接發送語音訊息進行即時翻譯：", False, quick_reply
+    return "請選擇您需要的功能：", False, quick_reply
 
 def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
     """Generate TTS audio"""
@@ -112,16 +107,16 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已存在", False, quick_reply
     
-    tts_source = session.get("stt_last_translation") or session.get("translated_output")
+    tts_source = session.get("translated_output")
     if not tts_source:
         return "目前沒有可朗讀的翻譯內容。請先進行翻譯後再使用朗讀功能。", False, None
     
     try:
         # Check if last translation was to Taiwanese
-        last_lang = session.get("last_translation_lang", "")
+        last_lang = session.get("last_translation_lang", "") or session.get("chat_target_lang", "")
         if last_lang in ["台語", "臺語", "taiwanese", "taigi"]:
             # For Taiwanese, we need the original Chinese text
-            zh_source = session.get("zh_output") or session.get("stt_transcription", "")
+            zh_source = session.get("zh_output", "")
             if not zh_source:
                 return "無法找到原始中文內容進行台語語音合成。", False, None
             url, duration = synthesize_taigi(zh_source, user_id)
@@ -133,64 +128,12 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         
         session["tts_audio_url"] = url
         session["tts_audio_dur"] = duration
-        session.pop("stt_last_translation", None)
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已生成", False, quick_reply
     except Exception as e:
         print(f"[TTS ERROR] {e}")
         return "語音合成時發生錯誤，請稍後再試。如問題持續，請聯繫客服。", False, None
 
-def handle_stt_translation(session: Dict, text: str, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
-    """Handle STT translation flow"""
-    if text == "無":
-        session["awaiting_stt_translation"] = False
-        session["stt_transcription"] = None
-        session["mode"] = session.get("_prev_mode", "edu")
-        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
-        return "✅ 已取消語音翻譯。", False, quick_reply
-    
-    # Normalize language
-    language = normalize_language_input(text)
-    # No validation needed - Gemini supports all languages
-    if not language or not language.strip():
-        quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES + [("❌ 無", "無")])}
-        return "請輸入或選擇您需要的翻譯語言：", False, quick_reply
-    
-    # Translate
-    transcription = session.get("stt_transcription", "")
-    
-    # Check if it's Taiwanese
-    if language in ["台語", "臺語", "taiwanese", "taigi"]:
-        # Use Taigi service for Taiwanese
-        translation = translate_to_taigi(transcription)
-        gemini_called = False
-        # Don't auto-generate TTS for Taigi - wait for speak command
-    else:
-        # Use Gemini for other languages
-        prompt = f"原始訊息：\n{transcription}"
-        system_prompt = f"You are a medical translation assistant fluent in {language}. Please translate the following message to {language}."
-        translation = call_zh(prompt, system_prompt=system_prompt)
-        gemini_called = True
-    
-    # Update session
-    session["stt_last_translation"] = translation
-    session["translated_output"] = translation  # For bubble display
-    session["awaiting_stt_translation"] = False
-    session["mode"] = session.get("_prev_mode", "edu")
-    session["last_translation_lang"] = language  # Store language for speak command
-    
-    # Log to Drive with language info in the text
-    log_message = f"[Translation to {language}]\n{transcription}"
-    upload_stt_translation_log(
-        session.get("user_id", "unknown"),
-        log_message,
-        translation,
-        language
-    )
-    
-    # Include "朗讀" button for all languages now
-    quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
-    return f"🌐 翻譯完成（{language}）：\n\n{translation}", gemini_called, quick_reply
 
 # ============================================================
 # EDUCATION MODE

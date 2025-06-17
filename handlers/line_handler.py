@@ -16,11 +16,10 @@ from linebot.exceptions import LineBotApiError
 from handlers.logic_handler import handle_user_message
 from handlers.session_manager import get_user_session
 from utils.logging import log_chat, upload_voicemail
-from utils.google_drive_service import upload_stt_translation_log
 from services.gemini_service import references_to_flex
 from services.stt_service import transcribe_audio_file
 from utils.paths import VOICEMAIL_DIR
-from utils.command_sets import create_quick_reply_items, VOICE_TRANSLATION_OPTIONS
+from utils.command_sets import create_quick_reply_items, MODE_SELECTION_OPTIONS, COMMON_LANGUAGES
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.taigi_credit import create_taigi_credit_bubble
 
@@ -77,17 +76,29 @@ def handle_audio_message(event: MessageEvent) -> None:
     message_id = event.message.id
     session = get_user_session(user_id)
     
-    # Block audio in education mode
-    if session.get("mode") == "edu":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text="衛教模式不支援語音翻譯功能。如需使用語音功能，請點擊【新對話】切換至醫療翻譯模式：",
-                quick_reply=QuickReply(
-                    items=create_quick_reply_items([("🆕 新對話", "new")])
-                )
-            )
-        )
+    # Only allow audio in chat mode after language is selected
+    if session.get("mode") != "chat" or not session.get("chat_target_lang"):
+        # Provide appropriate message based on current state
+        if not session.get("started"):
+            message = "請先點擊【開始】選擇功能："
+            options = [("🆕 開始", "new")]
+        elif session.get("mode") == "edu":
+            message = "衛教模式不支援語音功能。請切換至醫療翻譯模式："
+            options = [("🆕 新對話", "new")]
+        elif session.get("mode") == "chat" and session.get("awaiting_chat_language"):
+            message = "請先選擇翻譯語言後，才能使用語音功能："
+            options = []  # Will show language options
+        else:
+            message = "語音功能僅在醫療翻譯模式中可用。請先選擇功能："
+            options = MODE_SELECTION_OPTIONS
+        
+        reply_msg = TextSendMessage(text=message)
+        if options:
+            reply_msg.quick_reply = QuickReply(items=create_quick_reply_items(options))
+        elif session.get("awaiting_chat_language"):
+            reply_msg.quick_reply = QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
+            
+        line_bot_api.reply_message(event.reply_token, reply_msg)
         return
     
     try:
@@ -108,28 +119,25 @@ def handle_audio_message(event: MessageEvent) -> None:
         # Upload to Drive
         drive_link = upload_voicemail(str(audio_path), user_id, transcription=transcription)
         
-        # Update session
-        session["awaiting_stt_translation"] = True
-        session["stt_transcription"] = transcription
-        session["_prev_mode"] = session.get("mode")
-        session["mode"] = None
+        # Process transcription as chat input
+        from handlers.medchat_handler import handle_medchat
+        reply_text, gemini_called, quick_reply_data = handle_medchat(user_id, transcription, session)
+        
+        # Create response with voicemail indicator
+        response_text = f"🎤 語音訊息：\n{transcription}\n\n{reply_text}"
+        
+        # Create response bubbles
+        bubbles = create_message_bubbles(session, response_text, quick_reply_data, gemini_called)
         
         # Send response
-        response_text = f"🎤 原始轉錄：\n{transcription}\n\n請選擇或輸入您需要的翻譯語言（支援各種語言）："
-#        if drive_link:
-#            response_text += f"\n\n🔗 語音檔連結：{drive_link}"
+        if bubbles:
+            line_bot_api.reply_message(event.reply_token, bubbles)
         
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text=response_text,
-                quick_reply=QuickReply(items=create_quick_reply_items(VOICE_TRANSLATION_OPTIONS))
-            )
-        )
-        
-        # Log interaction
-        log_chat(user_id, "[AudioMessage]", transcription[:200], session, 
-                action_type="medchat_audio", gemini_call="yes")
+        # Log interaction as voicemail - note that handle_medchat returns boolean for gemini_called
+        # but medchat_handler logs "yes"/"no", so we need to check the actual value
+        gemini_str = "yes" if (gemini_called if isinstance(gemini_called, bool) else gemini_called == "yes") else "no"
+        log_chat(user_id, f"[AudioMessage] {transcription}", reply_text[:200], session, 
+                action_type="medchat_audio", gemini_call=gemini_str)
         
         # Cleanup
         try:
