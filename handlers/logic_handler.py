@@ -59,7 +59,7 @@ def handle_user_message(
     if session.get("mode") is None:
         # STT Translation mode
         if session.get("awaiting_stt_translation"):
-            return handle_stt_translation(session, text_lower)
+            return handle_stt_translation(session, text_lower, user_id)
         
         # Education mode
         if text_lower in edu_commands:
@@ -138,7 +138,7 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         print(f"[TTS ERROR] {e}")
         return "語音合成時發生錯誤，請稍後再試。如問題持續，請聯繫客服。", False, None
 
-def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optional[Dict]]:
+def handle_stt_translation(session: Dict, text: str, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
     """Handle STT translation flow"""
     if text == "無":
         session["awaiting_stt_translation"] = False
@@ -180,6 +180,7 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
     
     # Update session
     session["stt_last_translation"] = translation
+    session["translated_output"] = translation  # For bubble display
     session["awaiting_stt_translation"] = False
     session["mode"] = session.get("_prev_mode", "edu")
     session["last_translation_lang"] = language  # Store language for speak command
@@ -193,7 +194,11 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
         language
     )
     
-    quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
+    # For Taigi, don't include "朗讀" button since audio is auto-generated
+    if language in ["台語", "臺語", "taiwanese", "taigi"]:
+        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
+    else:
+        quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
     return f"🌐 翻譯完成（{language}）：\n\n{translation}", gemini_called, quick_reply
 
 # ============================================================

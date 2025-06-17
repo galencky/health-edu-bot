@@ -39,7 +39,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
             log_message,
             f"目標語言已設定為「{normalized_lang}」",
             session,
-            action_type="language_selection",
+            action_type="sync reply",
             gemini_call="no"
         )
         
