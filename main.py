@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
 # Create app
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(TTS_AUDIO_DIR)), name="static")
-app.include_router(webhook_router, prefix="/webhook")
+app.include_router(webhook_router)
 
 # Endpoints
 class UserInput(BaseModel):
