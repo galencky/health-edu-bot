@@ -167,12 +167,13 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             if content_text:
                 bubbles.append(TextSendMessage(text=content_text.strip()))
     
-    # Add references if available
-    refs = session.get("references", [])
-    if refs:
-        flex = references_to_flex(refs)
-        if flex:
-            bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
+    # Add references only when showing edu content (new generation, modify, or translate)
+    if session.get("mode") == "edu" and gemini_called:
+        refs = session.get("references", [])
+        if refs:
+            flex = references_to_flex(refs)
+            if flex:
+                bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
     
     # Add main reply
     if quick_reply_data:

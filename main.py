@@ -108,7 +108,7 @@ def root():
     return {
         "service": "Mededbot",
         "status": "online",
-        "endpoints": ["/", "/chat", "/health", "/webhook"]
+        "endpoints": ["/", "/chat", "/health", "/ping", "/webhook"]
     }
 
 @app.get("/health")
@@ -118,6 +118,11 @@ async def health():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.api_route("/ping", methods=["GET", "HEAD"])
+def ping():
+    """Simple ping endpoint for monitoring"""
+    return {"status": "ok"}
 
 @app.get("/audio/{filename}")
 async def get_audio(filename: str):

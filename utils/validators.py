@@ -93,11 +93,15 @@ def validate_language_code(lang_code: str) -> str:
     if not lang_code:
         raise ValueError("Language code cannot be empty")
     
-    # Allow common formats: en, en-US, chinese, etc.
-    if not re.match(r'^[a-zA-Z]{2,20}(-[a-zA-Z]{2,20})?$', lang_code):
+    # Allow Chinese/Japanese/Korean characters and common formats
+    # Examples: "日文", "英文", "en", "en-US", "chinese"
+    if not re.match(r'^[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ffa-zA-Z]{1,20}(-[a-zA-Z]{2,20})?$', lang_code):
         raise ValueError("Invalid language code format")
     
-    return lang_code.lower()
+    # Don't lowercase if it contains non-ASCII characters
+    if all(ord(c) < 128 for c in lang_code):
+        return lang_code.lower()
+    return lang_code
 
 def validate_audio_filename(filename: str) -> str:
     """Validate audio filename"""

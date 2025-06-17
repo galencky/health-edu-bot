@@ -48,7 +48,7 @@ def handle_user_message(
     # Handle unstarted session
     if not session.get("started"):
         quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
-        return "請點擊下方按鈕開始：", False, quick_reply
+        return "請點擊下方按鈕開始，或發送語音訊息：", False, quick_reply
     
     # Handle mode selection
     if session.get("mode") is None:
@@ -201,7 +201,10 @@ def handle_education_mode(session: Dict, text: str, text_lower: str) -> Tuple[st
         # Get references
         refs = get_references()
         if refs:
-            session["references"] = refs
+            if session.get("references"):
+                session["references"].extend(refs)
+            else:
+                session["references"] = refs
         
         quick_reply = {"items": create_quick_reply_items([
             ("✏️ 修改", "modify"),
@@ -305,18 +308,34 @@ def handle_email_response(session: Dict, email: str) -> Tuple[str, bool, Optiona
 
 def normalize_language_input(text: str) -> str:
     """Normalize language input for better matching"""
-    text = text.strip().lower()
+    text = text.strip()
     
+    # Don't lowercase if it's already in the correct format
     replacements = {
         "台語": "臺語",
         "台灣": "臺灣",
         "中文": "中文(繁體)",
         "english": "英文",
-        "japanese": "日文"
+        "English": "英文",
+        "japanese": "日文",
+        "Japanese": "日文",
+        "thai": "泰文",
+        "Thai": "泰文",
+        "vietnamese": "越南文",
+        "Vietnamese": "越南文",
+        "indonesian": "印尼文",
+        "Indonesian": "印尼文"
     }
     
+    # Check exact match first
+    if text in replacements:
+        return replacements[text]
+    
+    # Check lowercase match
+    text_lower = text.lower()
     for old, new in replacements.items():
-        if old in text:
+        if old.lower() == text_lower:
             return new
     
+    # Return original if no match (already could be correct like "日文")
     return text
