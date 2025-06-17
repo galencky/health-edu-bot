@@ -1,16 +1,21 @@
-version: '3.8'
+# === Docker Compose for Synology NAS ===
+# Optimized for Synology Container Manager
+
+version: '3.3'  # Use 3.3 for better Synology compatibility
 
 services:
   mededbot:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile.synology
     container_name: mededbot
     restart: unless-stopped
     
     ports:
-      - "${PORT:-10001}:10001"
+      - "10001:8080"
     
     environment:
-      - PORT=10001
+      - PORT=8080
       - LOG_LEVEL=info
       - CONTAINER_LOGGING=true
       - PYTHONUNBUFFERED=1
@@ -28,10 +33,11 @@ services:
       - ./data/voicemail:/app/voicemail
       - ./data/logs:/app/logs
     
+    # Simple health check for Synology
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:10001/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health', timeout=10)"]
       interval: 120s
-      timeout: 50s
+      timeout: 30s
       retries: 3
       start_period: 60s
     
@@ -57,8 +63,6 @@ services:
     tty: false
     stdin_open: false
     
-    # Simple uvicorn like the old stable version
-    command: uvicorn main:app --host 0.0.0.0 --port 10001
 
 networks:
   default:

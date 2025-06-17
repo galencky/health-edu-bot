@@ -1,53 +1,29 @@
 # === Dockerfile for Synology NAS ===
-# Using Debian-based image for better compatibility with Synology
+# Optimized for Synology Container Manager compatibility
 
-FROM python:3.11-slim
+FROM python:3.11
 
-# Set environment variables for Python
+# CRITICAL: Set Python unbuffered for Synology logs visibility
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONIOENCODING=utf-8 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    wget \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create app directory
+# Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Copy and install requirements
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/tts_audio /app/voicemail /app/logs
-
-# Create a simple startup script to handle signals properly
-RUN echo '#!/bin/bash\n\
-exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1' > /app/start.sh && \
-    chmod +x /app/start.sh
-
-# Health check - simplified
-HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:${PORT:-8080}/health', timeout=10)" || exit 1
-
-# Default port
-ENV PORT=8080
+# Create directories with Synology-compatible permissions
+RUN mkdir -p tts_audio voicemail logs && \
+    chmod -R 755 .
 
 # Expose port
 EXPOSE 8080
 
-# Use exec to ensure proper signal handling
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["exec /app/start.sh"]
+# IMPORTANT: Use python -u for guaranteed unbuffered output
+# Simple CMD format for Synology compatibility
+CMD ["python", "-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "info"]

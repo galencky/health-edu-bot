@@ -1,5 +1,5 @@
 # === Dockerfile for MedEdBot ===
-# Optimized for minimal size - uses Alpine Linux
+# Optimized for production deployment (Render, Heroku, etc.)
 
 FROM python:3.11-alpine
 
@@ -12,17 +12,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install minimal system dependencies
 RUN apk add --no-cache \
-    # Build dependencies for Python packages (will be removed after pip install)
+    # Build dependencies for Python packages
     gcc musl-dev libffi-dev postgresql-dev \
-    # Runtime dependencies (permanent)
+    # Runtime dependencies
     ca-certificates \
     # Health check tool
     wget \
     # Ensure unbuffered output
     coreutils
 
-# Create non-root user for security (Alpine syntax)
-# Using UID/GID 1000 for Synology compatibility
+# Create non-root user for security
 RUN addgroup -g 1000 -S appuser && adduser -u 1000 -S appuser -G appuser
 
 # Set working directory
@@ -46,18 +45,16 @@ RUN mkdir -p /app/tts_audio /app/voicemail /app/logs && \
 # Switch to non-root user
 USER appuser
 
-# Health check for container monitoring - optimized for reliability
-# Using /health endpoint with GET request (not HEAD)
+# Health check for container monitoring
 HEALTHCHECK --interval=45s --timeout=15s --start-period=90s --retries=3 \
     CMD wget --no-verbose --tries=2 --timeout=10 -O - http://localhost:${PORT:-8080}/health > /dev/null || exit 1
 
-# Default environment variables (can be overridden)
+# Default environment variables
 ENV PORT=8080 \
     LOG_LEVEL=info
 
-# Expose port (Synology typically uses this for port mapping)
+# Expose port
 EXPOSE 8080
 
 # Use exec form for proper signal handling
-# 0.0.0.0 allows external connections (required for Docker/Synology)
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level ${LOG_LEVEL:-info}"]

@@ -1,5 +1,5 @@
 # === Docker Compose for MedEdBot ===
-# Optimized for Synology NAS Container Manager
+# For production deployment (Render, Railway, Heroku, VPS)
 
 version: '3.8'
 
@@ -9,13 +9,13 @@ services:
     container_name: mededbot
     restart: unless-stopped
     
-    # Port mapping (adjust external port as needed)
+    # Port mapping
     ports:
-      - "10001:10001"
+      - "${PORT:-8080}:8080"
     
     # Environment variables
     environment:
-      - PORT=10001
+      - PORT=8080
       - LOG_LEVEL=info
       - CONTAINER_LOGGING=true  # Enable container-friendly logging
       - PYTHONUNBUFFERED=1  # Ensure unbuffered output for real-time logs
@@ -35,30 +35,19 @@ services:
     env_file:
       - .env
     
-    # Volume mounts for persistent data (Synology NAS paths)
+    # Volume mounts for persistent data
     volumes:
-      # TTS audio files (for persistence across container restarts)
-      #- /volume1/docker/mededbot/tts_audio:/app/tts_audio
-      # Voicemail files (for persistence)
-      #- /volume1/docker/mededbot/voicemail:/app/voicemail
-      # Logs directory (recommended for debugging)
-      #- /volume1/docker/mededbot/logs:/app/logs
-      # Alternative: Use relative paths if deploying from project directory
       - ./data/tts_audio:/app/tts_audio
       - ./data/voicemail:/app/voicemail
       - ./data/logs:/app/logs
-      # Credentials file (if using file instead of base64)
-      #- /volume1/docker/mededbot/credentials.json:/app/credentials.json:ro
     
-    # Conservative resource limits like old version
+    # Resource limits
     deploy:
       resources:
         limits:
           memory: 512M
-          cpus: '0.5'
         reservations:
           memory: 256M
-          cpus: '0.1'
     
     # Logging configuration
     logging:
@@ -71,22 +60,6 @@ services:
     security_opt:
       - no-new-privileges:true
     
-    # Network configuration
-    networks:
-      - mededbot-network
-
-# Create a custom network
 networks:
-  mededbot-network:
+  default:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
-
-# Create named volumes (alternative to bind mounts)
-volumes:
-  tts_audio:
-  voicemail:
-  logs:
