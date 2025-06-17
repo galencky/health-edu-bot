@@ -5,7 +5,7 @@ import os
 from google import genai
 from google.genai import types
 import asyncio
-from concurrent.futures import TimeoutError
+from concurrent.futures import TimeoutError, ThreadPoolExecutor
 import time
 import threading
 
@@ -31,8 +31,12 @@ _client = genai.Client(api_key=api_key)
 _model = "gemini-2.5-flash-preview-05-20"
 _tools = [types.Tool(google_search=types.GoogleSearch())]
 
-# Thread-local storage for last response to prevent race conditions
-_thread_local = threading.local()
+# Global executor to avoid creating new ones on every request
+_gemini_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='gemini')
+
+# Process-wide storage for last response (instead of thread-local)
+_last_response_lock = threading.Lock()
+_last_response = None
 
 def _call_genai(user_text, sys_prompt=None, temp=0.25):
     """
@@ -60,25 +64,26 @@ def _call_genai(user_text, sys_prompt=None, temp=0.25):
         part for part in generate_content_config.system_instruction if part is not None
     ]
     
-    # BUG FIX: Wrap API call with timeout and retry mechanism + circuit breaker
-    # Previously: Could hang indefinitely, no retries, no protection from cascade failures
-    import concurrent.futures
+    # BUG FIX: Use global executor and process-wide storage
+    # Previously: Created new executor on every request causing thread explosion
+    global _last_response
     
     def _make_protected_api_call():
         for attempt in range(MAX_RETRIES + 1):
             try:
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        _client.models.generate_content,
-                        model=_model,
-                        contents=contents,
-                        config=generate_content_config,
-                    )
-                    response = future.result(timeout=API_TIMEOUT_SECONDS)
-                    # Store in thread-local storage to prevent race conditions
-                    _thread_local.last_response = response
-                    return response  # Success, return response
-            except concurrent.futures.TimeoutError:
+                # Use global executor instead of creating new one
+                future = _gemini_executor.submit(
+                    _client.models.generate_content,
+                    model=_model,
+                    contents=contents,
+                    config=generate_content_config,
+                )
+                response = future.result(timeout=API_TIMEOUT_SECONDS)
+                # Store in process-wide storage with lock
+                with _last_response_lock:
+                    _last_response = response
+                return response  # Success, return response
+            except TimeoutError:
                 if attempt < MAX_RETRIES:
                     time.sleep(RETRY_DELAY)
                     continue
@@ -137,9 +142,10 @@ def get_references():
     Call immediately after call_zh/call_translate/plainify/confirm_translate.
     Returns a list of dicts: [{title:..., url:...}, ...]
     If no references found, returns empty list.
-    BUG FIX: Use thread-local storage to prevent race conditions
+    BUG FIX: Use process-wide storage with lock
     """
-    last_response = getattr(_thread_local, 'last_response', None)
+    with _last_response_lock:
+        last_response = _last_response
     if not last_response:
         return []
     grounding = getattr(last_response.candidates[0], "grounding_metadata", None)

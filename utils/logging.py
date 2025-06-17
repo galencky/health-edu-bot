@@ -268,24 +268,20 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
 def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_call=None):
     """
     Synchronous wrapper for log_chat for use in sync contexts.
-    Creates a new event loop in a thread to avoid blocking.
+    Uses asyncio.run() which handles event loop creation/cleanup properly.
     """
     print(f"🔍 [LOGGING] log_chat_sync called with action_type='{action_type}', gemini_call='{gemini_call}'")
     
     def _worker():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
             print(f"🔄 [LOGGING] Starting async chat log for user {user_id[:10]}...")
-            success = loop.run_until_complete(_async_log_chat(user_id, message, reply, session, action_type, gemini_call))
+            success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call))
             if success:
                 print(f"✅ [LOGGING] Chat logging completed successfully")
             else:
                 print(f"❌ [LOGGING] Chat logging failed")
         except Exception as e:
             print(f"❌ [LOGGING] Chat logging thread failed: {e}")
-        finally:
-            loop.close()
     
     # Use bounded thread pool executor instead of unlimited threading
     _logging_executor.submit(_worker)
@@ -294,23 +290,17 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
 def log_tts_async(user_id, text, audio_path, audio_url):
     """
     Fire-and-forget async logging for TTS generation with Drive upload.
-    Creates a new event loop in a thread to handle the async operations.
+    Uses asyncio.run() which handles event loop creation/cleanup properly.
     """
     print(f"🔍 [TTS LOG] Starting TTS logging for user {user_id[:10]}..., file: {os.path.basename(audio_path) if '/' in str(audio_path) else audio_path}")
     
     def _worker():
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
         try:
             print(f"🔄 [TTS] Starting TTS logging and Drive upload for user {user_id[:10]}...")
-            loop.run_until_complete(_log_tts_internal(user_id, text, audio_path, audio_url))
+            asyncio.run(_log_tts_internal(user_id, text, audio_path, audio_url))
             print(f"✅ [TTS] TTS logging thread completed")
         except Exception as e:
             print(f"❌ [TTS] TTS logging thread failed: {e}")
-        finally:
-            loop.close()
     
     # Use bounded thread pool executor instead of unlimited threading
     _logging_executor.submit(_worker)

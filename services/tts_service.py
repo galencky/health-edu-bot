@@ -150,8 +150,11 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         # For memory storage, we'll serve from a different endpoint
         base = os.getenv("BASE_URL")
         if not base:
-            raise RuntimeError("BASE_URL environment variable is not set")
-        url = f"{base}/audio/{safe_fn}"
+            # Graceful fallback - use local URL or skip TTS
+            print("[TTS WARNING] BASE_URL not set, using relative URL")
+            url = f"/audio/{safe_fn}"
+        else:
+            url = f"{base}/audio/{safe_fn}"
         
         # Log to database (no physical file to upload to Drive)
         log_tts_async(user_id, text, safe_fn, url)
@@ -163,11 +166,11 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         # Build public URL
         base = os.getenv("BASE_URL")
         if not base or "YOUR_DOMAIN" in base:
-            raise RuntimeError(
-                "BASE_URL environment variable is not set correctly. "
-                "Cannot generate valid audio URL for LINE."
-            )
-        url = f"{base}/static/{safe_fn}"
+            # Graceful fallback - use relative URL
+            print("[TTS WARNING] BASE_URL not set correctly, using relative URL")
+            url = f"/static/{safe_fn}"
+        else:
+            url = f"{base}/static/{safe_fn}"
         
         # Log to Google Drive & database (in background)
         log_tts_async(user_id, text, str(path), url)

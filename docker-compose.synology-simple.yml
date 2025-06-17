@@ -1,0 +1,24 @@
+version: '3.3'
+
+services:
+  mededbot:
+    build: 
+      context: .
+      dockerfile: Dockerfile.synology-simple
+    container_name: mededbot
+    restart: unless-stopped
+    
+    ports:
+      - "10001:8080"
+    
+    environment:
+      - PORT=8080
+      - PYTHONUNBUFFERED=1
+    
+    env_file:
+      - .env
+    
+    volumes:
+      - ./data/tts_audio:/app/tts_audio
+      - ./data/voicemail:/app/voicemail
+      - ./data/logs:/app/logs

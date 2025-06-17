@@ -1,0 +1,26 @@
+# === Simple Dockerfile for Synology NAS ===
+# Minimal configuration for maximum compatibility
+
+FROM python:3.11
+
+# Set Python to run unbuffered
+ENV PYTHONUNBUFFERED=1
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Create directories
+RUN mkdir -p tts_audio voicemail logs
+
+# Expose port
+EXPOSE 8080
+
+# Direct command without shell wrapper
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

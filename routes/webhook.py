@@ -15,7 +15,8 @@ handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 async def webhook(request: Request, x_line_signature: str = Header(None)):
     # Add timeout protection to prevent hanging webhooks
     try:
-        async with asyncio.timeout(48.0):  # 48 second timeout (just under LINE's 50s limit)
+        # Use wait_for for Python 3.9/3.10 compatibility
+        async def handle_request():
             body = await request.body()
             body_str = body.decode()
             #print("[WEBHOOK] Raw body:", body_str)
@@ -24,6 +25,8 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
             # Handle synchronously - FastAPI can manage this
             handler.handle(body_str, x_line_signature)
             return "OK"
+        
+        return await asyncio.wait_for(handle_request(), timeout=48.0)
     except asyncio.TimeoutError:
         print("[WEBHOOK] Request timed out after 48 seconds")
         # Return OK to LINE to prevent retries, but log the timeout

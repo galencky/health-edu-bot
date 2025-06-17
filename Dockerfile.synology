@@ -1,0 +1,53 @@
+# === Dockerfile for Synology NAS ===
+# Using Debian-based image for better compatibility with Synology
+
+FROM python:3.11-slim
+
+# Set environment variables for Python
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/tts_audio /app/voicemail /app/logs
+
+# Create a simple startup script to handle signals properly
+RUN echo '#!/bin/bash\n\
+exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1' > /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Health check - simplified
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:${PORT:-8080}/health', timeout=10)" || exit 1
+
+# Default port
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Use exec to ensure proper signal handling
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["exec /app/start.sh"]

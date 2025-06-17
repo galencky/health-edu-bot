@@ -38,6 +38,30 @@ async def periodic_session_cleanup():
         except Exception as e:
             print(f"Error during session cleanup: {e}", flush=True)
 
+# Background task for TTS file cleanup
+async def periodic_tts_cleanup():
+    """Clean up old TTS files every hour to prevent disk space issues"""
+    from utils.cleanup import cleanup_tts_directory_by_size, cleanup_old_tts_files
+    from utils.storage_config import TTS_USE_MEMORY
+    
+    # Only run if using disk storage
+    if TTS_USE_MEMORY:
+        return
+    
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            # First remove old files (>24 hours)
+            old_count = cleanup_old_tts_files(TTS_AUDIO_DIR, max_age_hours=24)
+            
+            # Then check size limit (500MB)
+            size_count = cleanup_tts_directory_by_size(TTS_AUDIO_DIR, max_size_mb=500)
+            
+            if old_count > 0 or size_count > 0:
+                print(f"🧹 TTS cleanup completed: {old_count} old files, {size_count} for size limit", flush=True)
+        except Exception as e:
+            print(f"Error during TTS cleanup: {e}", flush=True)
+
 # Removed complex rate limiter cleanup - not needed in stable old version
 
 # Removed complex memory and disk cleanup tasks - not needed in stable old version
@@ -48,11 +72,13 @@ async def lifespan(app: FastAPI):
     # Startup - Keep it simple like the old stable version
     cleanup_task = asyncio.create_task(periodic_session_cleanup())
     
-    # Only one additional cleanup task based on storage mode
+    # Add TTS cleanup task if using disk storage
+    tts_cleanup_task = None
     if TTS_USE_MEMORY:
         print("🧠 Using in-memory storage for TTS files", flush=True)
     else:
         print("💾 Using local disk storage for TTS files", flush=True)
+        tts_cleanup_task = asyncio.create_task(periodic_tts_cleanup())
     
     # Test database connection
     try:
@@ -70,14 +96,22 @@ async def lifespan(app: FastAPI):
     # Graceful shutdown - simple like old version
     print("🛑 Starting graceful shutdown...", flush=True)
     
-    # Cancel the single cleanup task
+    # Cancel cleanup tasks
     cleanup_task.cancel()
+    if tts_cleanup_task:
+        tts_cleanup_task.cancel()
     
-    # Wait for task to complete
+    # Wait for tasks to complete
     try:
         await cleanup_task
     except asyncio.CancelledError:
         pass
+    
+    if tts_cleanup_task:
+        try:
+            await tts_cleanup_task
+        except asyncio.CancelledError:
+            pass
     
     # Shutdown thread pool executors to prevent resource leaks
     try:
@@ -119,16 +153,14 @@ class UserInput(BaseModel):
     message: str
 
 @app.post("/chat")
-async def chat(input: UserInput):
+def chat(input: UserInput):
+    """Synchronous endpoint to avoid thread hop overhead"""
     try:
         user_id = "test-user"                     # stub ID for this endpoint
         session = get_user_session(user_id)
         
-        # Run in thread pool to prevent blocking the event loop
-        loop = asyncio.get_event_loop()
-        reply, _, quick_reply_data = await loop.run_in_executor(
-            None, 
-            handle_user_message, 
+        # Direct sync call - no thread pool needed
+        reply, _, quick_reply_data = handle_user_message(
             user_id, 
             input.message, 
             session
@@ -204,7 +236,7 @@ if __name__ == "__main__":
     import uvicorn, os
     from utils.uvicorn_logging import get_uvicorn_log_config
     
-    port = int(os.getenv("PORT", 10001))   # default 10001
+    port = int(os.getenv("PORT", 8080))   # default 8080
     log_config = get_uvicorn_log_config()
     
     uvicorn.run(
