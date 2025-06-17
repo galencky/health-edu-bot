@@ -289,28 +289,25 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
     
     # No need to validate - Gemini supports all languages
     if not language or not language.strip():
-        quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
+        quick_reply = {"items": create_quick_reply_items(EDU_LANGUAGES)}
         return "請輸入或選擇您需要的翻譯語言：", False, quick_reply
     
-    # Check if it's Taiwanese
+    # Block Taigi in education mode to prevent overloading the service
     if language in ["台語", "臺語", "taiwanese", "taigi"]:
-        # Use Taigi service for Taiwanese
-        translated = translate_to_taigi(session["zh_output"])
-        # Set gemini_called flag based on whether we used Gemini
-        gemini_called = False
-        # Don't auto-generate TTS for Taigi - wait for speak command
-    else:
-        # Use Gemini for other languages
-        translated = call_translate(session["zh_output"], language)
-        gemini_called = True
-        
-        # Update references only for Gemini calls
-        refs = get_references()
-        if refs:
-            if session.get("references"):
-                session["references"].extend(refs)
-            else:
-                session["references"] = refs
+        quick_reply = {"items": create_quick_reply_items(EDU_LANGUAGES)}
+        return "衛教模式不支援台語翻譯。請選擇其他語言，或使用醫療翻譯模式進行台語翻譯。", False, quick_reply
+    
+    # Use Gemini for all languages in edu mode
+    translated = call_translate(session["zh_output"], language)
+    gemini_called = True
+    
+    # Update references only for Gemini calls
+    refs = get_references()
+    if refs:
+        if session.get("references"):
+            session["references"].extend(refs)
+        else:
+            session["references"] = refs
     
     session["translated_output"] = translated
     session["translated"] = True
