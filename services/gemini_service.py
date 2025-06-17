@@ -1,203 +1,374 @@
-from dotenv import load_dotenv
-load_dotenv()
-
+"""
+Gemini AI Service - Handles AI content generation, translation, and reference extraction
+Provides thread-safe API calls with circuit breaker and rate limiting
+"""
 import os
-from google import genai
-from google.genai import types
-import asyncio
-from concurrent.futures import TimeoutError, ThreadPoolExecutor
 import time
 import threading
+from concurrent.futures import TimeoutError, ThreadPoolExecutor
+from typing import List, Dict, Optional
 
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 from bs4 import BeautifulSoup
-from .prompt_config import zh_prompt, translate_prompt_template, plainify_prompt, confirm_translate_prompt
-from utils.rate_limiter import rate_limit, gemini_limiter, RateLimitExceeded
+
+from .prompt_config import (
+    zh_prompt, translate_prompt_template, 
+    plainify_prompt, confirm_translate_prompt
+)
+from utils.rate_limiter import rate_limit, gemini_limiter
 from utils.circuit_breaker import gemini_circuit_breaker, CircuitBreakerError
 
-# BUG FIX: Add timeout configuration for API calls with retry mechanism
-# Previously: No timeout, requests could hang indefinitely
-API_TIMEOUT_SECONDS = 45  # 45 second timeout for Gemini API calls (increased for better reliability)
-MAX_RETRIES = 2  # Retry twice on timeout
-RETRY_DELAY = 3  # 3 second delay between retries
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
-# ---- Load API key from .env ----
+load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
+# API Configuration
+API_KEY = os.getenv("GEMINI_API_KEY")
+if not API_KEY:
     raise ValueError("❌ GEMINI_API_KEY not found in .env")
 
-# ---- Shared Gemini API client ----
-_client = genai.Client(api_key=api_key)
-_model = "gemini-2.5-flash-preview-05-20"
+# Timeout and retry settings
+API_TIMEOUT_SECONDS = 45  # Timeout for API calls
+MAX_RETRIES = 2          # Number of retries on failure
+RETRY_DELAY = 3          # Delay between retries (seconds)
+
+# Model configuration
+MODEL_NAME = "gemini-2.5-flash-preview-05-20"
+DEFAULT_TEMPERATURE = 0.25
+
+# ============================================================
+# INITIALIZATION
+# ============================================================
+
+# Shared API client
+_client = genai.Client(api_key=API_KEY)
 _tools = [types.Tool(google_search=types.GoogleSearch())]
 
-# Global executor to avoid creating new ones on every request
-_gemini_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='gemini')
+# Thread pool for async execution
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='gemini')
 
-# Process-wide storage for last response (instead of thread-local)
+# Thread-safe storage for last API response (for reference extraction)
 _last_response_lock = threading.Lock()
 _last_response = None
 
-def _call_genai(user_text, sys_prompt=None, temp=0.25):
+# ============================================================
+# CORE API FUNCTIONS
+# ============================================================
+
+def _build_api_config(
+    user_text: str,
+    system_prompt: Optional[str] = None,
+    temperature: float = DEFAULT_TEMPERATURE
+) -> types.GenerateContentConfig:
     """
-    Internal function to call Gemini, store response for reference extraction.
-    Returns only the answer string.
-    BUG FIX: Added timeout to prevent hanging requests
-    BUG FIX: Use thread-local storage to prevent race conditions
+    Build API configuration for Gemini call
+    
+    Args:
+        user_text: User input text
+        system_prompt: Optional system instruction
+        temperature: Model temperature (0-1)
+        
+    Returns:
+        GenerateContentConfig object
     """
+    # Build system instructions
+    system_instructions = []
+    if system_prompt:
+        system_instructions.append(types.Part.from_text(text=system_prompt))
+    
+    # Create configuration
+    return types.GenerateContentConfig(
+        temperature=temperature,
+        tools=_tools,
+        response_mime_type="text/plain",
+        system_instruction=system_instructions
+    )
+
+
+def _make_api_call_with_retry(contents, config) -> Optional[object]:
+    """
+    Make API call with retry logic
+    
+    Returns API response or raises exception after retries
+    """
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            # Submit to thread pool with timeout
+            future = _executor.submit(
+                _client.models.generate_content,
+                model=MODEL_NAME,
+                contents=contents,
+                config=config,
+            )
+            response = future.result(timeout=API_TIMEOUT_SECONDS)
+            
+            # Store response for reference extraction
+            with _last_response_lock:
+                global _last_response
+                _last_response = response
+            
+            return response
+            
+        except TimeoutError:
+            if attempt < MAX_RETRIES:
+                print(f"[GEMINI] Timeout on attempt {attempt + 1}, retrying...")
+                time.sleep(RETRY_DELAY)
+                continue
+            else:
+                raise TimeoutError(
+                    f"API timeout after {API_TIMEOUT_SECONDS}s "
+                    f"({MAX_RETRIES + 1} attempts)"
+                )
+        
+        except Exception as e:
+            if attempt < MAX_RETRIES:
+                print(f"[GEMINI] Error on attempt {attempt + 1}: {e}, retrying...")
+                time.sleep(RETRY_DELAY)
+                continue
+            else:
+                raise
+
+
+def _call_genai(
+    user_text: str,
+    sys_prompt: Optional[str] = None,
+    temp: float = DEFAULT_TEMPERATURE
+) -> str:
+    """
+    Internal function to call Gemini API
+    
+    Features:
+    - Thread-safe API calls
+    - Automatic retry on failure
+    - Circuit breaker protection
+    - Response storage for reference extraction
+    
+    Args:
+        user_text: User input text
+        sys_prompt: Optional system prompt
+        temp: Model temperature
+        
+    Returns:
+        Generated text response or error message
+    """
+    # Build request content
     contents = [
         types.Content(
             role="user",
             parts=[types.Part.from_text(text=user_text)],
         ),
     ]
-    generate_content_config = types.GenerateContentConfig(
-        temperature=temp,
-        tools=_tools,
-        response_mime_type="text/plain",
-        system_instruction=[
-            types.Part.from_text(text=sys_prompt) if sys_prompt else None,
-        ],
-    )
-    # Remove None in system_instruction for safety
-    generate_content_config.system_instruction = [
-        part for part in generate_content_config.system_instruction if part is not None
-    ]
     
-    # BUG FIX: Use global executor and process-wide storage
-    # Previously: Created new executor on every request causing thread explosion
-    global _last_response
+    # Build configuration
+    config = _build_api_config(user_text, sys_prompt, temp)
     
-    def _make_protected_api_call():
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                # Use global executor instead of creating new one
-                future = _gemini_executor.submit(
-                    _client.models.generate_content,
-                    model=_model,
-                    contents=contents,
-                    config=generate_content_config,
-                )
-                response = future.result(timeout=API_TIMEOUT_SECONDS)
-                # Store in process-wide storage with lock
-                with _last_response_lock:
-                    _last_response = response
-                return response  # Success, return response
-            except TimeoutError:
-                if attempt < MAX_RETRIES:
-                    time.sleep(RETRY_DELAY)
-                    continue
-                else:
-                    raise TimeoutError(f"Gemini API call timed out after {API_TIMEOUT_SECONDS} seconds (tried {MAX_RETRIES + 1} times)")
-            except Exception as e:
-                if attempt < MAX_RETRIES:
-                    time.sleep(RETRY_DELAY) 
-                    continue
-                else:
-                    raise Exception(f"Gemini API error: {str(e)}")
-    
-    # Use circuit breaker to protect against cascade failures
+    # Make API call with circuit breaker protection
     try:
-        response = gemini_circuit_breaker.call(_make_protected_api_call)
+        response = gemini_circuit_breaker.call(
+            lambda: _make_api_call_with_retry(contents, config)
+        )
+        
     except CircuitBreakerError as e:
-        # Circuit breaker is open, return graceful degradation message
         print(f"🚫 [GEMINI] Circuit breaker open: {e}")
         return "⚠️ AI 服務暫時過載，請稍等片刻後再試。系統正在自動恢復中。"
+        
     except TimeoutError as e:
         print(f"⏱️ [GEMINI] Timeout: {e}")
         return "⚠️ AI 服務響應超時，請稍後再試。"
+        
     except Exception as e:
         print(f"❌ [GEMINI] API call failed: {e}")
         return "⚠️ AI 服務暫時無法使用，請稍後再試。"
     
-    # Standard output: answer as text string
-    if response and response.candidates and response.candidates[0].content.parts:
-        return response.candidates[0].content.parts[0].text
-    return ""
+    # Extract text from response
+    try:
+        if response and response.candidates and response.candidates[0].content.parts:
+            return response.candidates[0].content.parts[0].text
+        return ""
+    except Exception as e:
+        print(f"[GEMINI] Error extracting response text: {e}")
+        return ""
 
-@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")  # Global rate limit
+# ============================================================
+# PUBLIC API FUNCTIONS
+# ============================================================
+
+@rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def call_zh(prompt: str, system_prompt: str = zh_prompt) -> str:
-    """Call Gemini with zh_prompt, return answer string."""
-    return _call_genai(prompt, sys_prompt=system_prompt, temp=0.25)
+    """
+    Generate Chinese health education content
+    
+    Args:
+        prompt: User query or topic
+        system_prompt: System instruction (defaults to zh_prompt)
+        
+    Returns:
+        Generated Chinese content
+    """
+    return _call_genai(prompt, sys_prompt=system_prompt, temp=DEFAULT_TEMPERATURE)
+
 
 @rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def call_translate(zh_text: str, target_lang: str) -> str:
-    """Call Gemini to translate, return answer string."""
+    """
+    Translate Chinese text to target language
+    
+    Args:
+        zh_text: Chinese text to translate
+        target_lang: Target language name
+        
+    Returns:
+        Translated text
+    """
     sys_prompt = translate_prompt_template.format(lang=target_lang)
-    return _call_genai(zh_text, sys_prompt=sys_prompt, temp=0.25)
+    return _call_genai(zh_text, sys_prompt=sys_prompt, temp=DEFAULT_TEMPERATURE)
+
 
 @rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def plainify(text: str) -> str:
-    """Call Gemini to plainify text, return answer string."""
-    return _call_genai(text, sys_prompt=plainify_prompt, temp=0.25)
+    """
+    Simplify text to plain language
+    
+    Args:
+        text: Text to simplify
+        
+    Returns:
+        Simplified text
+    """
+    return _call_genai(text, sys_prompt=plainify_prompt, temp=DEFAULT_TEMPERATURE)
+
 
 @rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def confirm_translate(plain_zh: str, target_lang: str) -> str:
-    """Call Gemini to translate and confirm, return answer string."""
-    sys_prompt = confirm_translate_prompt.format(lang=target_lang)
-    return _call_genai(plain_zh, sys_prompt=sys_prompt, temp=0.2)
-
-def get_references():
     """
-    Call immediately after call_zh/call_translate/plainify/confirm_translate.
-    Returns a list of dicts: [{title:..., url:...}, ...]
-    If no references found, returns empty list.
-    BUG FIX: Use process-wide storage with lock
+    Translate simplified Chinese text with confirmation
+    
+    Args:
+        plain_zh: Simplified Chinese text
+        target_lang: Target language name
+        
+    Returns:
+        Confirmed translation
+    """
+    sys_prompt = confirm_translate_prompt.format(lang=target_lang)
+    return _call_genai(plain_zh, sys_prompt=sys_prompt, temp=0.2)  # Lower temp for accuracy
+
+
+# ============================================================
+# REFERENCE EXTRACTION
+# ============================================================
+
+def get_references() -> List[Dict[str, str]]:
+    """
+    Extract references from the last Gemini API response
+    
+    Must be called immediately after any Gemini API call to get references
+    from that specific response.
+    
+    Returns:
+        List of reference dictionaries with 'title' and 'url' keys
+        Always returns a list (empty if no references found)
     """
     try:
+        # Get last response with thread safety
         with _last_response_lock:
             last_response = _last_response
+        
         if not last_response:
             return []
         
-        # Safely access candidates
+        # Safely check for candidates
         if not last_response.candidates or len(last_response.candidates) == 0:
             return []
-            
-        grounding = getattr(last_response.candidates[0], "grounding_metadata", None)
-        refs = []
-        if (
-            grounding
-            and hasattr(grounding, "search_entry_point")
-            and getattr(grounding.search_entry_point, "rendered_content", None)
-        ):
-            rendered_html = grounding.search_entry_point.rendered_content
-            soup = BeautifulSoup(rendered_html, "html.parser")
-            refs = [
-                {"title": a.text.strip(), "url": a["href"]}
-                for a in soup.find_all("a", class_="chip")
-            ]
-        return refs
+        
+        # Extract grounding metadata
+        candidate = last_response.candidates[0]
+        grounding = getattr(candidate, "grounding_metadata", None)
+        
+        if not grounding:
+            return []
+        
+        # Check for search entry point
+        search_entry = getattr(grounding, "search_entry_point", None)
+        if not search_entry:
+            return []
+        
+        # Get rendered content
+        rendered_content = getattr(search_entry, "rendered_content", None)
+        if not rendered_content:
+            return []
+        
+        # Parse HTML for references
+        soup = BeautifulSoup(rendered_content, "html.parser")
+        references = []
+        
+        for link in soup.find_all("a", class_="chip"):
+            if link.text and link.get("href"):
+                references.append({
+                    "title": link.text.strip(),
+                    "url": link["href"]
+                })
+        
+        return references
+        
     except Exception as e:
         print(f"[GEMINI] Error extracting references: {e}")
-        return []  # Always return a list, never None
+        return []
 
-def references_to_flex(refs, headline="參考來源"):
+
+def references_to_flex(
+    refs: List[Dict[str, str]], 
+    headline: str = "參考來源"
+) -> Optional[Dict]:
     """
-    Convert references list to a LINE Flex Message (JSON) for clickable links.
+    Convert references to LINE Flex Message format
+    
+    Args:
+        refs: List of reference dictionaries
+        headline: Header text for the reference section
+        
+    Returns:
+        Flex message dictionary or None if no references
     """
     if not refs:
         return None
-    flex_contents = {
+    
+    # Build content items
+    contents = [
+        {
+            "type": "text",
+            "text": headline,
+            "weight": "bold",
+            "size": "lg",
+            "margin": "md"
+        }
+    ]
+    
+    # Add each reference as a clickable link
+    for ref in refs:
+        contents.append({
+            "type": "text",
+            "text": ref["title"],
+            "size": "md",
+            "color": "#3366CC",
+            "action": {
+                "type": "uri",
+                "uri": ref["url"]
+            },
+            "margin": "md",
+            "wrap": True
+        })
+    
+    # Build flex message structure
+    return {
         "type": "bubble",
         "body": {
             "type": "box",
             "layout": "vertical",
-            "contents": (
-                [{"type": "text", "text": headline, "weight": "bold", "size": "lg", "margin": "md"}] +
-                [
-                    {
-                        "type": "text",
-                        "text": r["title"],
-                        "size": "md",
-                        "color": "#3366CC",
-                        "action": {"type": "uri", "uri": r["url"]},
-                        "margin": "md",
-                        "wrap": True
-                    }
-                    for r in refs
-                ]
-            )
+            "contents": contents
         }
     }
-    return flex_contents
