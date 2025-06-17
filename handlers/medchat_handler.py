@@ -1,6 +1,6 @@
 from services.gemini_service import plainify, confirm_translate
 from services.taigi_service import translate_to_taigi
-from handlers.logic_handler import normalize_language_input
+from utils.language_utils import normalize_language_input
 from utils.logging import log_chat
 from utils.command_sets import create_quick_reply_items, COMMON_LANGUAGES, CHAT_TTS_OPTIONS
 
