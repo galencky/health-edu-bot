@@ -9,6 +9,7 @@ from services.tts_service import synthesize
 from services.gemini_service import (
     call_zh, call_translate, plainify, confirm_translate, get_references
 )
+from services.taigi_service import translate_to_taigi, synthesize_taigi
 from services.prompt_config import modify_prompt
 from handlers.mail_handler import send_last_txt_email
 from handlers.medchat_handler import handle_medchat
@@ -107,7 +108,18 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         return "目前沒有可朗讀的翻譯內容。請先進行翻譯後再使用朗讀功能。", False, None
     
     try:
-        url, duration = synthesize(tts_source, user_id)
+        # Check if last translation was to Taiwanese
+        last_lang = session.get("last_translation_lang", "")
+        if last_lang in ["台語", "臺語", "taiwanese", "taigi"]:
+            # For Taiwanese, we need the original Chinese text
+            zh_source = session.get("zh_output") or session.get("stt_transcription", "")
+            if not zh_source:
+                return "無法找到原始中文內容進行台語語音合成。", False, None
+            url, duration = synthesize_taigi(zh_source, user_id)
+        else:
+            # Use regular TTS for other languages
+            url, duration = synthesize(tts_source, user_id)
+        
         session["tts_audio_url"] = url
         session["tts_audio_dur"] = duration
         session.pop("stt_last_translation", None)
@@ -135,9 +147,18 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
     
     # Translate
     transcription = session.get("stt_transcription", "")
-    prompt = f"原始訊息：\n{transcription}"
-    system_prompt = f"You are a medical translation assistant fluent in {language}. Please translate the following message to {language}."
-    translation = call_zh(prompt, system_prompt=system_prompt)
+    
+    # Check if it's Taiwanese
+    if language in ["台語", "臺語", "taiwanese", "taigi"]:
+        # Use Taigi service for Taiwanese
+        translation = translate_to_taigi(transcription)
+        gemini_called = False
+    else:
+        # Use Gemini for other languages
+        prompt = f"原始訊息：\n{transcription}"
+        system_prompt = f"You are a medical translation assistant fluent in {language}. Please translate the following message to {language}."
+        translation = call_zh(prompt, system_prompt=system_prompt)
+        gemini_called = True
     
     # Update session
     session["stt_last_translation"] = translation
@@ -153,7 +174,7 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
     )
     
     quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
-    return f"🌐 翻譯完成（{language}）：\n\n{translation}", True, quick_reply
+    return f"🌐 翻譯完成（{language}）：\n\n{translation}", gemini_called, quick_reply
 
 # ============================================================
 # EDUCATION MODE
@@ -255,26 +276,36 @@ def handle_translate_response(session: Dict, language: str) -> Tuple[str, bool, 
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
         return "請輸入或選擇您需要的翻譯語言：", False, quick_reply
     
-    translated = call_translate(session["zh_output"], language)
+    # Check if it's Taiwanese
+    if language in ["台語", "臺語", "taiwanese", "taigi"]:
+        # Use Taigi service for Taiwanese
+        translated = translate_to_taigi(session["zh_output"])
+        # Set gemini_called flag based on whether we used Gemini
+        gemini_called = False
+    else:
+        # Use Gemini for other languages
+        translated = call_translate(session["zh_output"], language)
+        gemini_called = True
+        
+        # Update references only for Gemini calls
+        refs = get_references()
+        if refs:
+            if session.get("references"):
+                session["references"].extend(refs)
+            else:
+                session["references"] = refs
+    
     session["translated_output"] = translated
     session["translated"] = True
     session["awaiting_translate_language"] = False
     session["last_translation_lang"] = language
-    
-    # Update references
-    refs = get_references()
-    if refs:
-        if session.get("references"):
-            session["references"].extend(refs)
-        else:
-            session["references"] = refs
     
     quick_reply = {"items": create_quick_reply_items([
         ("🌐 翻譯", "translate"),
         ("📧 寄送", "mail"),
         ("🆕 新對話", "new")
     ])}
-    return f"🌐 翻譯完成（目標語言：{language}）。", True, quick_reply
+    return f"🌐 翻譯完成（目標語言：{language}）。", gemini_called, quick_reply
 
 def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -> Tuple[str, bool, Optional[Dict]]:
     """Process email sending"""
@@ -314,7 +345,12 @@ def normalize_language_input(text: str) -> str:
     
     # Don't lowercase if it's already in the correct format
     replacements = {
-        "台語": "臺語",
+        "台語": "台語",  # Keep as-is for Taigi service
+        "臺語": "台語",  # Normalize to 台語
+        "taiwanese": "台語",
+        "Taiwanese": "台語",
+        "taigi": "台語",
+        "Taigi": "台語",
         "台灣": "臺灣",
         "中文": "中文(繁體)",
         "english": "英文",

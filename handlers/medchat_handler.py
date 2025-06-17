@@ -1,4 +1,6 @@
 from services.gemini_service import plainify, confirm_translate
+from services.taigi_service import translate_to_taigi
+from handlers.logic_handler import normalize_language_input
 from utils.logging import log_chat
 from utils.command_sets import create_quick_reply_items, COMMON_LANGUAGES, CHAT_TTS_OPTIONS
 
@@ -22,12 +24,14 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
             }
             return "請先選擇或輸入您需要翻譯的目標語言（支援全球各種語言）：", False, quick_reply
 
-        session["chat_target_lang"] = raw
+        # Normalize the language input
+        normalized_lang = normalize_language_input(raw)
+        session["chat_target_lang"] = normalized_lang
         session["awaiting_chat_language"] = False
         # Ensure session remains active
         session["started"] = True
         session["mode"] = "chat"
-        return f"✅ 目標語言已設定為「{raw}」。\n請輸入您想翻譯的內容（中文或其他語言皆可）：", False, None
+        return f"✅ 目標語言已設定為「{normalized_lang}」。\n請輸入您想翻譯的內容（中文或其他語言皆可）：", False, None
 
     # 2. No language set yet -------------------------------------------
     if not session.get("chat_target_lang"):
@@ -42,11 +46,22 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
 
     # 3. Plain‑ify Chinese, then translate + confirmation --------------
     plain_zh = plainify(raw)
-    translated = confirm_translate(plain_zh, session["chat_target_lang"])
+    
+    # Check if target language is Taiwanese
+    target_lang = session["chat_target_lang"]
+    if target_lang in ["台語", "臺語", "taiwanese", "taigi"]:
+        # Use Taigi service for Taiwanese
+        translated = translate_to_taigi(plain_zh)
+        gemini_called = "no"
+    else:
+        # Use Gemini for other languages
+        translated = confirm_translate(plain_zh, target_lang)
+        gemini_called = "yes"
 
     # ── stash for Drive log (upload_gemini_log looks for these keys) ──
     session["zh_output"]         = plain_zh
     session["translated_output"] = translated
+    session["last_translation_lang"] = target_lang  # Store for TTS
 
     reply_text = (
         "您是否想表達：\n"
@@ -65,7 +80,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         reply_text,
         session,
         action_type="medchat",
-        gemini_call="yes",
+        gemini_call=gemini_called,
     )
 
     return reply_text, False, quick_reply
