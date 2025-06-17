@@ -75,7 +75,7 @@ def handle_user_message(
     
     # Handle education mode
     if session.get("mode") == "edu":
-        return handle_education_mode(session, text, text_lower)
+        return handle_education_mode(session, text, text_lower, user_id)
     
     # Handle chat mode
     if session.get("mode") == "chat":
@@ -94,7 +94,7 @@ def handle_new_command(session: Dict) -> Tuple[str, bool, Optional[Dict]]:
     session.clear()
     session["started"] = True
     quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
-    return "請選擇功能：", False, quick_reply
+    return "請選擇功能，或直接發送語音訊息：", False, quick_reply
 
 def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
     """Generate TTS audio"""
@@ -160,7 +160,7 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
 # EDUCATION MODE
 # ============================================================
 
-def handle_education_mode(session: Dict, text: str, text_lower: str) -> Tuple[str, bool, Optional[Dict]]:
+def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
     """Handle education mode logic"""
     # Check awaiting states first
     if session.get("awaiting_modify"):
@@ -170,7 +170,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str) -> Tuple[st
         return handle_translate_response(session, text)
     
     if session.get("awaiting_email"):
-        return handle_email_response(session, text)
+        return handle_email_response(session, text, user_id)
     
     # Check commands
     if text_lower in modify_commands:
@@ -278,7 +278,7 @@ def handle_translate_response(session: Dict, language: str) -> Tuple[str, bool, 
     ])}
     return f"🌐 翻譯完成（目標語言：{language}）。", True, quick_reply
 
-def handle_email_response(session: Dict, email: str) -> Tuple[str, bool, Optional[Dict]]:
+def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -> Tuple[str, bool, Optional[Dict]]:
     """Process email sending"""
     try:
         validated_email = validate_email(email)
@@ -294,7 +294,7 @@ def handle_email_response(session: Dict, email: str) -> Tuple[str, bool, Optiona
         return f"⚠️ 無效的 email 地址：{e}", False, None
     
     session["awaiting_email"] = False
-    success = send_last_txt_email(validated_email, session)
+    success = send_last_txt_email(user_id, validated_email, session)
     
     if success:
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}

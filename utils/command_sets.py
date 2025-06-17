@@ -52,6 +52,7 @@ MODE_SELECTION_OPTIONS = [
 ]
 
 COMMON_LANGUAGES = [
+    ("🇹🇼 中文(繁體)", "中文(繁體)"),
     ("🇬🇧 英文", "英文"),
     ("🇯🇵 日文", "日文"),
     ("🇰🇷 韓文", "韓文"),
@@ -85,7 +86,4 @@ CHAT_TTS_OPTIONS = [
     ("🆕 新對話", "new")
 ]
 
-VOICE_TRANSLATION_OPTIONS = [
-    ("🌐 翻譯", "translate_voice"),
-    ("🆕 新對話", "new")
-]
+VOICE_TRANSLATION_OPTIONS = COMMON_LANGUAGES + [("❌ 無", "無")]
