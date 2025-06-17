@@ -22,6 +22,7 @@ from services.stt_service import transcribe_audio_file
 from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import create_quick_reply_items, VOICE_TRANSLATION_OPTIONS
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
+from utils.taigi_credit import create_taigi_credit_bubble
 
 # Configuration
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -48,9 +49,15 @@ def handle_line_message(event: MessageEvent) -> None:
         
         # Log interaction
         if session.get("mode") != "chat":
+            # Include language selection in user input for logging
+            logged_input = user_input
+            if session.get("awaiting_translate_language") or session.get("awaiting_chat_language"):
+                # This input was a language selection
+                logged_input = f"[Language: {user_input}] {user_input}"
+            
             log_chat(
                 user_id,
-                user_input,
+                logged_input,
                 reply_text[:200],
                 session,
                 action_type="Gemini reply" if gemini_called else "sync reply",
@@ -141,8 +148,8 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     """Create message bubbles based on session state"""
     bubbles = []
     
-    # Chat mode with TTS audio
-    if session.get("mode") == "chat" and session.get("tts_audio_url"):
+    # TTS audio (for chat mode OR STT translation with TTS)
+    if session.get("tts_audio_url"):
         bubbles.append(
             AudioSendMessage(
                 original_content_url=session.pop("tts_audio_url"),
@@ -173,6 +180,14 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             flex = references_to_flex(refs)
             if flex:
                 bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
+    
+    # Add Taigi credit if Taigi was used (for translation or TTS)
+    target_lang = session.get("last_translation_lang") or session.get("chat_target_lang")
+    if target_lang in ["台語", "臺語", "taiwanese", "taigi"]:
+        # Show credit if we have TTS audio OR if we just did a Taigi translation
+        if session.get("tts_audio_url") or (session.get("translated_output") and gemini_called == False):
+            credit_bubble = create_taigi_credit_bubble()
+            bubbles.append(FlexSendMessage(alt_text="台語語音技術提供", contents=credit_bubble))
     
     # Add main reply
     if quick_reply_data:

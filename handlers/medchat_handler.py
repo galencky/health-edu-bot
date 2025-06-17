@@ -1,5 +1,5 @@
 from services.gemini_service import plainify, confirm_translate
-from services.taigi_service import translate_to_taigi
+from services.taigi_service import translate_to_taigi, synthesize_taigi
 from utils.language_utils import normalize_language_input
 from utils.logging import log_chat
 from utils.command_sets import create_quick_reply_items, COMMON_LANGUAGES, CHAT_TTS_OPTIONS
@@ -31,6 +31,18 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         # Ensure session remains active
         session["started"] = True
         session["mode"] = "chat"
+        
+        # Log language selection
+        log_message = f"[Language Selection: {normalized_lang}]"
+        log_chat(
+            user_id,
+            log_message,
+            f"目標語言已設定為「{normalized_lang}」",
+            session,
+            action_type="language_selection",
+            gemini_call="no"
+        )
+        
         return f"✅ 目標語言已設定為「{normalized_lang}」。\n請輸入您想翻譯的內容（中文或其他語言皆可）：", False, None
 
     # 2. No language set yet -------------------------------------------
@@ -53,6 +65,15 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         # Use Taigi service for Taiwanese
         translated = translate_to_taigi(plain_zh)
         gemini_called = "no"
+        
+        # Generate TTS audio for Taigi
+        try:
+            audio_url, duration = synthesize_taigi(plain_zh, user_id)
+            session["tts_audio_url"] = audio_url
+            session["tts_audio_dur"] = duration
+            print(f"🎤 [CHAT] Generated Taigi TTS: {audio_url}")
+        except Exception as e:
+            print(f"[CHAT] Failed to generate Taigi TTS: {e}")
     else:
         # Use Gemini for other languages
         translated = confirm_translate(plain_zh, target_lang)

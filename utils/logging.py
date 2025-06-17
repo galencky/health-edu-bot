@@ -24,7 +24,12 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     print(f"🔍 [LOGGING] _async_log_chat called with action_type='{action_type}', gemini_call='{gemini_call}'")
     drive_url = None
     
-    if gemini_call == "yes":
+    # Log language choice if present
+    language = session.get("last_translation_lang") or session.get("chat_target_lang")
+    if language:
+        print(f"🌍 [LOGGING] Language choice: {language}")
+    
+    if gemini_call == "yes" or (language and language in ["台語", "臺語", "taiwanese", "taigi"]):
         try:
             # Run Drive upload in bounded thread pool since it's sync
             loop = asyncio.get_event_loop()
@@ -139,6 +144,10 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
     
     filename = os.path.basename(audio_path)
+    
+    # Log Taigi files specifically
+    if "_taigi_" in filename:
+        print(f"🇹🇼 [{log_prefix}] Uploading Taigi audio file: {filename}")
     
     # Detect file type and set appropriate mimetype
     ext = filename.lower().split('.')[-1]
