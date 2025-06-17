@@ -68,7 +68,7 @@ def handle_user_message(
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
             quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-            return "💬 進入對話模式。請選擇或輸入任何您需要的翻譯語言：", False, quick_reply
+            return "💬 進入對話模式。請選擇或輸入您需要的翻譯語言：", False, quick_reply
         
         # Default
         quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
@@ -141,7 +141,7 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         return "🔊 語音檔已生成", False, quick_reply
     except Exception as e:
         print(f"[TTS ERROR] {e}")
-        return "語音合成時發生錯誤，請稍後再試。如問題持續，請聯繫客服。", False, None
+        return "語音合成時發生錯誤，請稍後再試。", False, None
 
 
 # ============================================================
@@ -299,7 +299,7 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
         ])}
         return f"✅ 已成功寄出衛教內容至 {validated_email}", False, quick_reply
     else:
-        return "郵件寄送失敗。請檢查網路連線後再試一次，或聯繫客服協助。", False, None
+        return "郵件寄送失敗。請檢查網路連線後再試一次。", False, None
 
 # ============================================================
 # HELPER FUNCTIONS
