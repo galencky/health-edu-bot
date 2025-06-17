@@ -65,15 +65,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         # Use Taigi service for Taiwanese
         translated = translate_to_taigi(plain_zh)
         gemini_called = "no"
-        
-        # Generate TTS audio for Taigi
-        try:
-            audio_url, duration = synthesize_taigi(plain_zh, user_id)
-            session["tts_audio_url"] = audio_url
-            session["tts_audio_dur"] = duration
-            print(f"🎤 [CHAT] Generated Taigi TTS: {audio_url}")
-        except Exception as e:
-            print(f"[CHAT] Failed to generate Taigi TTS: {e}")
+        # Don't auto-generate TTS for Taigi - wait for speak command
     else:
         # Use Gemini for other languages
         translated = confirm_translate(plain_zh, target_lang)

@@ -63,16 +63,10 @@ def transcribe_audio_file(file_path: str) -> str:
     model_name = "gemini-2.0-flash"
 
     prompt = """
-You are a transcription assistant.   
-- Accurately detect the spoken language.   
+You are a transcription assistant.    
 - Do NOT add any comments, replies, or explanations—output only the transcript.   
 - Correct obvious speaking errors (e.g. mispronunciations) and remove filler words (“um”, “uh”, stutters) for fluent, readable text.   
-- Preserve the speaker’s original meaning and phrasing as much as possible.   
-
-Format your output exactly as:
-
-自動偵測語言: [e.g. 中文／English／日本語]  
-語音轉文字: [Your cleaned-up transcript here]
+- Preserve the speaker’s original meaning and phrasing as much as possible.
 """
 
     try:

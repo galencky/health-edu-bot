@@ -148,23 +148,17 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     """Create message bubbles based on session state"""
     bubbles = []
     
-    # Check if this is a Taigi translation with TTS
-    target_lang = session.get("last_translation_lang") or session.get("chat_target_lang")
-    is_taigi = target_lang in ["台語", "臺語", "taiwanese", "taigi"]
-    has_taigi_tts = is_taigi and session.get("tts_audio_url")
+    # Check if we need to show Taigi credit with audio
+    show_taigi_credit = session.pop("show_taigi_credit", False)
     
-    # Special handling for Taigi: combine translation + credit + TTS in one message
-    if has_taigi_tts:
-        # 1. Translation text
-        translated_content = session.get("translated_output", "")
-        if translated_content:
-            bubbles.append(TextSendMessage(text=f"🌐 台語翻譯：\n{translated_content}"))
-        
-        # 2. Credit bubble
+    # Handle TTS audio with credit for Taigi
+    if session.get("tts_audio_url") and show_taigi_credit:
+        # Show audio with credit bubble for Taigi
+        # 1. Credit bubble
         credit_bubble = create_taigi_credit_bubble()
         bubbles.append(FlexSendMessage(alt_text="台語語音技術提供", contents=credit_bubble))
         
-        # 3. TTS audio
+        # 2. TTS audio
         bubbles.append(
             AudioSendMessage(
                 original_content_url=session.pop("tts_audio_url"),
@@ -183,23 +177,22 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
                 )
             )
         
-        # Education mode content
-        elif session.get("mode") == "edu":
-            # For Taigi translations in edu mode, they're handled above
-            if not is_taigi and (gemini_called or session.get("translated_output")):
-                zh_content = session.get("zh_output", "")
-                translated_content = session.get("translated_output", "")
+        # Education mode content - only show when Gemini was actually called
+        elif session.get("mode") == "edu" and gemini_called:
+            # Only show content bubbles when new content is generated
+            zh_content = session.get("zh_output", "")
+            translated_content = session.get("translated_output", "")
+            
+            # Add content if newly generated
+            if zh_content or translated_content:
+                content_text = ""
+                if zh_content:
+                    content_text += f"📄 原文：\n{zh_content[:2000]}\n\n"
+                if translated_content:
+                    content_text += f"🌐 譯文：\n{translated_content[:2000]}"
                 
-                # Add content if newly generated
-                if zh_content or translated_content:
-                    content_text = ""
-                    if zh_content:
-                        content_text += f"📄 原文：\n{zh_content[:2000]}\n\n"
-                    if translated_content:
-                        content_text += f"🌐 譯文：\n{translated_content[:2000]}"
-                    
-                    if content_text:
-                        bubbles.append(TextSendMessage(text=content_text.strip()))
+                if content_text:
+                    bubbles.append(TextSendMessage(text=content_text.strip()))
     
     # Add references only when showing edu content (new generation, modify, or translate)
     if session.get("mode") == "edu" and gemini_called:

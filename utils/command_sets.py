@@ -63,6 +63,19 @@ COMMON_LANGUAGES = [
     ("🇪🇸 西班牙文", "西班牙文"),
     ("🇫🇷 法文", "法文")
 ]
+
+# Languages for education mode (excludes Taigi)
+EDU_LANGUAGES = [
+    ("🇹🇼 中文(繁體)", "中文(繁體)"),
+    ("🇬🇧 英文", "英文"),
+    ("🇯🇵 日文", "日文"),
+    ("🇰🇷 韓文", "韓文"),
+    ("🇹🇭 泰文", "泰文"),
+    ("🇻🇳 越南文", "越南文"),
+    ("🇮🇩 印尼文", "印尼文"),
+    ("🇪🇸 西班牙文", "西班牙文"),
+    ("🇫🇷 法文", "法文")
+]
 # Note: These are just common suggestions - the system supports ALL languages
 
 COMMON_DISEASES = [

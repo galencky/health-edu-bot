@@ -20,7 +20,7 @@ from utils.command_sets import (
     new_commands, edu_commands, chat_commands, modify_commands,
     translate_commands, mail_commands, speak_commands,
     create_quick_reply_items, MODE_SELECTION_OPTIONS,
-    COMMON_LANGUAGES, COMMON_DISEASES, TTS_OPTIONS
+    COMMON_LANGUAGES, EDU_LANGUAGES, COMMON_DISEASES, TTS_OPTIONS
 )
 
 # ============================================================
@@ -107,7 +107,7 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "衛教模式不支援語音朗讀功能。如需使用語音功能，請點擊【新對話】切換至醫療翻譯模式。", False, quick_reply
     
-    # Check if TTS audio already exists (auto-generated for Taigi)
+    # Check if TTS audio already exists
     if session.get("tts_audio_url"):
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已存在", False, quick_reply
@@ -125,6 +125,8 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
             if not zh_source:
                 return "無法找到原始中文內容進行台語語音合成。", False, None
             url, duration = synthesize_taigi(zh_source, user_id)
+            # Set flag to show credit bubble with audio
+            session["show_taigi_credit"] = True
         else:
             # Use regular TTS for other languages
             url, duration = synthesize(tts_source, user_id)
@@ -162,15 +164,7 @@ def handle_stt_translation(session: Dict, text: str, user_id: str) -> Tuple[str,
         # Use Taigi service for Taiwanese
         translation = translate_to_taigi(transcription)
         gemini_called = False
-        
-        # Generate TTS audio for Taigi translation
-        try:
-            audio_url, duration = synthesize_taigi(transcription, user_id)
-            session["tts_audio_url"] = audio_url
-            session["tts_audio_dur"] = duration
-            print(f"🎤 [STT] Generated Taigi TTS: {audio_url}")
-        except Exception as e:
-            print(f"[STT] Failed to generate Taigi TTS: {e}")
+        # Don't auto-generate TTS for Taigi - wait for speak command
     else:
         # Use Gemini for other languages
         prompt = f"原始訊息：\n{transcription}"
@@ -194,11 +188,8 @@ def handle_stt_translation(session: Dict, text: str, user_id: str) -> Tuple[str,
         language
     )
     
-    # For Taigi, don't include "朗讀" button since audio is auto-generated
-    if language in ["台語", "臺語", "taiwanese", "taigi"]:
-        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
-    else:
-        quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
+    # Include "朗讀" button for all languages now
+    quick_reply = {"items": create_quick_reply_items([("🔊 朗讀", "speak"), ("🆕 新對話", "new")])}
     return f"🌐 翻譯完成（{language}）：\n\n{translation}", gemini_called, quick_reply
 
 # ============================================================
@@ -228,7 +219,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
         if not session.get("zh_output"):
             return "目前沒有衛教內容可供翻譯。請先輸入衛教主題產生內容。", False, None
         session["awaiting_translate_language"] = True
-        quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
+        quick_reply = {"items": create_quick_reply_items(EDU_LANGUAGES)}
         return "🌐 請選擇或輸入任何您需要的翻譯語言：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
     
     if text_lower in mail_commands:
@@ -307,15 +298,7 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
         translated = translate_to_taigi(session["zh_output"])
         # Set gemini_called flag based on whether we used Gemini
         gemini_called = False
-        
-        # Generate TTS audio for Taigi translation
-        try:
-            audio_url, duration = synthesize_taigi(session["zh_output"], user_id)
-            session["tts_audio_url"] = audio_url
-            session["tts_audio_dur"] = duration
-            print(f"🎤 [EDU] Generated Taigi TTS: {audio_url}")
-        except Exception as e:
-            print(f"[EDU] Failed to generate Taigi TTS: {e}")
+        # Don't auto-generate TTS for Taigi - wait for speak command
     else:
         # Use Gemini for other languages
         translated = call_translate(session["zh_output"], language)
