@@ -210,28 +210,31 @@ def handle_line_message(event: MessageEvent[TextMessage]):
             else:
                 bubbles.append(TextSendMessage(text=reply))
         else:
-            # Only show content when it's newly generated/modified (gemini_called=True)
-            if gemini_called:
+            # Show content when it's newly generated/modified OR when we have content to display
+            if gemini_called or (session.get("zh_output") or session.get("translated_output")):
                 zh = session.get("zh_output") or ""
                 tr = session.get("translated_output") or ""
                 
                 if zh or tr:
-                    zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
-                    tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
-                    for c in (*zh_chunks, *tr_chunks):
-                        bubbles.append(TextSendMessage(text=c))
+                    # Only show content bubbles when gemini was called
+                    if gemini_called:
+                        zh_chunks = _chunks(f"📄 原文：\n{zh}")[:2] if zh else []
+                        tr_chunks = _chunks(f"🌐 譯文：\n{tr}")[: max(0, 3 - len(zh_chunks))] if tr else []
+                        for c in (*zh_chunks, *tr_chunks):
+                            bubbles.append(TextSendMessage(text=c))
+                        
+                        if len(zh_chunks) + len(tr_chunks) > 3:
+                            bubbles.append(TextSendMessage(
+                                text="⚠️ 內容過長，僅部分顯示。如需完整內容請點擊下方按鈕：",
+                                quick_reply=QuickReply(items=create_quick_reply_items([("📧 寄送", "mail")]))
+                            ))
 
-                    # BUG FIX: Show references when content is displayed
+                    # Always show references if available (not just when gemini_called)
                     refs = session.get("references") or []
-                    flex = references_to_flex(refs)
-                    if flex:
-                        bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
-
-                    if len(zh_chunks) + len(tr_chunks) > 3:
-                        bubbles.append(TextSendMessage(
-                            text="⚠️ 內容過長，僅部分顯示。如需完整內容請點擊下方按鈕：",
-                            quick_reply=QuickReply(items=create_quick_reply_items([("📧 寄送", "mail")]))
-                        ))
+                    if refs:  # Only create flex message if we have references
+                        flex = references_to_flex(refs)
+                        if flex:
+                            bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
             
             # Add quick reply if available
             if quick_reply_data:

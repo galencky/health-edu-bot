@@ -144,24 +144,33 @@ def get_references():
     If no references found, returns empty list.
     BUG FIX: Use process-wide storage with lock
     """
-    with _last_response_lock:
-        last_response = _last_response
-    if not last_response:
-        return []
-    grounding = getattr(last_response.candidates[0], "grounding_metadata", None)
-    refs = []
-    if (
-        grounding
-        and hasattr(grounding, "search_entry_point")
-        and getattr(grounding.search_entry_point, "rendered_content", None)
-    ):
-        rendered_html = grounding.search_entry_point.rendered_content
-        soup = BeautifulSoup(rendered_html, "html.parser")
-        refs = [
-            {"title": a.text.strip(), "url": a["href"]}
-            for a in soup.find_all("a", class_="chip")
-        ]
-    return refs
+    try:
+        with _last_response_lock:
+            last_response = _last_response
+        if not last_response:
+            return []
+        
+        # Safely access candidates
+        if not last_response.candidates or len(last_response.candidates) == 0:
+            return []
+            
+        grounding = getattr(last_response.candidates[0], "grounding_metadata", None)
+        refs = []
+        if (
+            grounding
+            and hasattr(grounding, "search_entry_point")
+            and getattr(grounding.search_entry_point, "rendered_content", None)
+        ):
+            rendered_html = grounding.search_entry_point.rendered_content
+            soup = BeautifulSoup(rendered_html, "html.parser")
+            refs = [
+                {"title": a.text.strip(), "url": a["href"]}
+                for a in soup.find_all("a", class_="chip")
+            ]
+        return refs
+    except Exception as e:
+        print(f"[GEMINI] Error extracting references: {e}")
+        return []  # Always return a list, never None
 
 def references_to_flex(refs, headline="參考來源"):
     """

@@ -227,7 +227,8 @@ def handle_user_message(
         new_zh  = call_zh(prompt, system_prompt=modify_prompt)
         session.update({"zh_output": new_zh, "awaiting_modify": False})
         new_refs = get_references()
-        print(f"[DEBUG MODIFY] Found {len(new_refs)} new references after modification")
+        if new_refs:  # Only log if we have references
+            print(f"[DEBUG MODIFY] Found {len(new_refs)} new references after modification")
         _update_references(session, new_refs)
         print(f"[DEBUG MODIFY] Total refs after merge: {len(session.get('references', []))}")
         quick_reply = _create_quick_reply([
