@@ -1,5 +1,16 @@
 # Synology NAS Deployment Guide
 
+## IMPORTANT: Making Logs Visible in Container Manager
+
+**Problem**: Container Manager's Log tab stays empty even though `docker logs` works.
+
+**Solution**: 
+1. **NEVER use TTY mode** - Set `tty: false` and `stdin_open: false` in docker-compose
+2. **Enable Python unbuffered mode** - Set `PYTHONUNBUFFERED=1` 
+3. **Use default log driver** - Don't change from `json-file`
+
+The docker-compose files have been configured correctly for this.
+
 ## OCI Runtime Error Troubleshooting
 
 If you're getting "OCI runtime exec failed" error, try these solutions:

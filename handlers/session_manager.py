@@ -12,7 +12,8 @@ from functools import wraps
 # Session storage with thread-safe access
 _sessions: Dict[str, Dict] = {}
 _session_last_access: Dict[str, datetime] = {}
-_lock = threading.RLock()  # Reentrant lock for thread safety
+_session_locks: Dict[str, threading.RLock] = {}  # Per-session locks
+_global_lock = threading.RLock()  # Global lock for session creation/deletion
 
 # Configuration
 SESSION_EXPIRY_HOURS = 24
@@ -61,17 +62,24 @@ def _create_new_session() -> dict:
 def get_user_session(user_id: str) -> dict:
     """
     Get or create a user session with thread-safe access.
-    This is the main function to use for all session access.
+    Returns a session dict that should be used within a context manager.
     """
-    with _lock:
+    # First check if we need to create a new session
+    with _global_lock:
+        if user_id not in _sessions:
+            _sessions[user_id] = _create_new_session()
+            _session_locks[user_id] = threading.RLock()
+        
         # Update last access time
         _session_last_access[user_id] = datetime.now()
         
-        # Get or create session
-        if user_id not in _sessions:
-            _sessions[user_id] = _create_new_session()
-        
+        # Return the session (caller should use get_session_lock for thread safety)
         return _sessions[user_id]
+
+def get_session_lock(user_id: str) -> threading.RLock:
+    """Get the lock for a specific user session"""
+    with _global_lock:
+        return _session_locks.get(user_id, _global_lock)
 
 # Removed emergency cleanup - not needed with simple periodic cleanup
 
@@ -84,7 +92,7 @@ async def get_user_session_async(user_id: str) -> dict:
 
 def cleanup_expired_sessions() -> int:
     """Clean up expired sessions - simple version like old bot"""
-    with _lock:
+    with _global_lock:
         now = datetime.now()
         expired_users = []
         
@@ -93,10 +101,11 @@ def cleanup_expired_sessions() -> int:
             if now - last_access > timedelta(hours=SESSION_EXPIRY_HOURS):
                 expired_users.append(user_id)
         
-        # Remove expired sessions
+        # Remove expired sessions and their locks
         for user_id in expired_users:
             _sessions.pop(user_id, None)
             _session_last_access.pop(user_id, None)
+            _session_locks.pop(user_id, None)
         
         if expired_users:
             print(f"✅ Cleaned up {len(expired_users)} expired sessions")
@@ -105,18 +114,20 @@ def cleanup_expired_sessions() -> int:
 
 def reset_user_session(user_id: str) -> None:
     """Reset a user's session to initial state"""
-    with _lock:
+    with _global_lock:
         _sessions[user_id] = _create_new_session()
         _session_last_access[user_id] = datetime.now()
+        if user_id not in _session_locks:
+            _session_locks[user_id] = threading.RLock()
 
 def get_all_active_sessions() -> Dict[str, datetime]:
     """Get all active sessions with their last access times (for monitoring)"""
-    with _lock:
+    with _global_lock:
         return _session_last_access.copy()
 
 def get_session_count() -> int:
     """Get current number of active sessions"""
-    with _lock:
+    with _global_lock:
         return len(_sessions)
 
 # Compatibility aliases for existing code

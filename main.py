@@ -29,14 +29,23 @@ from datetime import datetime
 # Previously: Sessions never expired, causing memory leaks
 async def periodic_session_cleanup():
     """Run session cleanup every hour - simple and stable like old version"""
-    while True:
-        await asyncio.sleep(3600)  # 1 hour - same as stable old version
-        try:
-            # Simple cleanup without thread pool complexity
-            cleanup_expired_sessions()
-            print(f"🧹 Session cleanup completed", flush=True)
-        except Exception as e:
-            print(f"Error during session cleanup: {e}", flush=True)
+    try:
+        while True:
+            try:
+                await asyncio.sleep(3600)  # 1 hour - same as stable old version
+            except asyncio.CancelledError:
+                print("🛑 Session cleanup task cancelled", flush=True)
+                break
+            
+            try:
+                # Simple cleanup without thread pool complexity
+                cleanup_expired_sessions()
+                print(f"🧹 Session cleanup completed", flush=True)
+            except Exception as e:
+                print(f"Error during session cleanup: {e}", flush=True)
+    except asyncio.CancelledError:
+        print("🛑 Session cleanup task cancelled during operation", flush=True)
+        raise
 
 # Background task for TTS file cleanup
 async def periodic_tts_cleanup():
@@ -48,34 +57,69 @@ async def periodic_tts_cleanup():
     if TTS_USE_MEMORY:
         return
     
-    while True:
-        await asyncio.sleep(3600)  # 1 hour
-        try:
-            # First remove old files (>24 hours)
-            old_count = cleanup_old_tts_files(TTS_AUDIO_DIR, max_age_hours=24)
-            
-            # Then check size limit (500MB)
-            size_count = cleanup_tts_directory_by_size(TTS_AUDIO_DIR, max_size_mb=500)
-            
-            if old_count > 0 or size_count > 0:
-                print(f"🧹 TTS cleanup completed: {old_count} old files, {size_count} for size limit", flush=True)
-        except Exception as e:
-            print(f"Error during TTS cleanup: {e}", flush=True)
+    try:
+        while True:
+            try:
+                await asyncio.sleep(3600)  # 1 hour
+            except asyncio.CancelledError:
+                print("🛑 TTS cleanup task cancelled", flush=True)
+                break
+                
+            try:
+                # First remove old files (>24 hours)
+                old_count = cleanup_old_tts_files(TTS_AUDIO_DIR, max_age_hours=24)
+                
+                # Then check size limit (500MB)
+                size_count = cleanup_tts_directory_by_size(TTS_AUDIO_DIR, max_size_mb=500)
+                
+                if old_count > 0 or size_count > 0:
+                    print(f"🧹 TTS cleanup completed: {old_count} old files, {size_count} for size limit", flush=True)
+            except Exception as e:
+                print(f"Error during TTS cleanup: {e}", flush=True)
+    except asyncio.CancelledError:
+        print("🛑 TTS cleanup task cancelled during operation", flush=True)
+        raise
 
-# Removed complex rate limiter cleanup - not needed in stable old version
-
-# Removed complex memory and disk cleanup tasks - not needed in stable old version
-# The old version just relied on simple periodic cleanup which works fine
+# Background task for memory storage cleanup
+async def periodic_memory_cleanup():
+    """Clean up old files in memory storage to prevent OOM"""
+    from utils.storage_config import TTS_USE_MEMORY
+    from utils.memory_storage import memory_storage
+    
+    # Only run if using memory storage
+    if not TTS_USE_MEMORY:
+        return
+    
+    try:
+        while True:
+            try:
+                await asyncio.sleep(3600)  # 1 hour
+            except asyncio.CancelledError:
+                print("🛑 Memory cleanup task cancelled", flush=True)
+                break
+                
+            try:
+                # Clean up files older than 24 hours
+                memory_storage.cleanup_old_files(max_age_seconds=86400)
+                print(f"🧹 Memory storage cleanup completed", flush=True)
+            except Exception as e:
+                print(f"Error during memory cleanup: {e}", flush=True)
+    except asyncio.CancelledError:
+        print("🛑 Memory cleanup task cancelled during operation", flush=True)
+        raise
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup - Keep it simple like the old stable version
     cleanup_task = asyncio.create_task(periodic_session_cleanup())
     
-    # Add TTS cleanup task if using disk storage
+    # Add appropriate cleanup task based on storage mode
     tts_cleanup_task = None
+    memory_cleanup_task = None
+    
     if TTS_USE_MEMORY:
         print("🧠 Using in-memory storage for TTS files", flush=True)
+        memory_cleanup_task = asyncio.create_task(periodic_memory_cleanup())
     else:
         print("💾 Using local disk storage for TTS files", flush=True)
         tts_cleanup_task = asyncio.create_task(periodic_tts_cleanup())
@@ -100,6 +144,8 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     if tts_cleanup_task:
         tts_cleanup_task.cancel()
+    if memory_cleanup_task:
+        memory_cleanup_task.cancel()
     
     # Wait for tasks to complete
     try:
@@ -110,6 +156,12 @@ async def lifespan(app: FastAPI):
     if tts_cleanup_task:
         try:
             await tts_cleanup_task
+        except asyncio.CancelledError:
+            pass
+            
+    if memory_cleanup_task:
+        try:
+            await memory_cleanup_task
         except asyncio.CancelledError:
             pass
     

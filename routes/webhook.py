@@ -34,12 +34,23 @@ async def webhook(request: Request, x_line_signature: str = Header(None)):
     except ValueError as e:
         # Invalid signature - likely not from LINE
         print(f"[WEBHOOK] Invalid signature: {x_line_signature}")
+        print(f"[WEBHOOK] ValueError: {e}")
         # Return OK instead of raising to prevent retries
         return "OK"
     except Exception as e:
-        # Log full error internally but return OK to prevent retries
-        print("[WEBHOOK] Exception:", traceback.format_exc())
+        # Log full error internally with stack trace
+        print(f"[WEBHOOK] Critical error: {type(e).__name__}: {e}")
+        print("[WEBHOOK] Stack trace:", traceback.format_exc())
+        
+        # TODO: In production, send to error tracking service
+        # try:
+        #     sentry_sdk.capture_exception(e)
+        # except:
+        #     pass
+        
         # Critical: Always return OK to prevent LINE webhook retries
+        # But log that we're masking an error
+        print("[WEBHOOK] Returning OK to prevent retries, but error occurred!")
         return "OK"
 
 # Register text message handler
