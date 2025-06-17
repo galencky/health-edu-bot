@@ -7,6 +7,8 @@ from utils.paths import TTS_AUDIO_DIR
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.rate_limiter import rate_limit, RateLimiter
 from utils.logging import log_tts_async
+from utils.storage_config import TTS_USE_MEMORY
+from utils.memory_storage import memory_storage
 
 # -------------------------------------------------------------------
 #  Tiny helper that wraps NYCU's Taigi-TTS back-end in one call.
@@ -146,17 +148,24 @@ def synthesize_taigi(text: str, user_id: str) -> Tuple[str, int]:
         fn = f"{user_id}_taigi_{ts}.wav"
         safe_fn = sanitize_filename(fn)
         
-        # Create path
-        TTS_AUDIO_DIR.mkdir(exist_ok=True)
-        path = create_safe_path(str(TTS_AUDIO_DIR), safe_fn)
-        
-        # Generate audio
-        wav_bytes = taigi_tts(
-            tlpa=tlpa,
-            gender="female",
-            accent="strong",
-            outfile=str(path)
-        )
+        # Generate audio (without saving to disk initially if using memory)
+        if TTS_USE_MEMORY:
+            # Generate audio without saving to disk
+            wav_bytes = taigi_tts(
+                tlpa=tlpa,
+                gender="female",
+                accent="strong"
+            )
+        else:
+            # Create path and save to disk
+            TTS_AUDIO_DIR.mkdir(exist_ok=True)
+            path = create_safe_path(str(TTS_AUDIO_DIR), safe_fn)
+            wav_bytes = taigi_tts(
+                tlpa=tlpa,
+                gender="female",
+                accent="strong",
+                outfile=str(path)
+            )
         
         # Calculate duration (assume 16kHz for rough estimate)
         # WAV header is typically 44 bytes
@@ -164,15 +173,32 @@ def synthesize_taigi(text: str, user_id: str) -> Tuple[str, int]:
         # 16-bit audio = 2 bytes per sample
         duration_ms = int((audio_data_size / 2 / 16000) * 1000)
         
-        # Build URL
-        base_url = os.getenv("BASE_URL", "")
-        if base_url and "YOUR_DOMAIN" not in base_url:
-            url = f"{base_url}/static/{safe_fn}"
+        # Save based on storage backend
+        if TTS_USE_MEMORY:
+            print(f"🔍 [TAIGI] Using memory storage for {safe_fn}")
+            # Store in memory
+            memory_storage.save(safe_fn, wav_bytes, "audio/wav")
+            
+            # For memory storage, use audio endpoint
+            base_url = os.getenv("BASE_URL", "")
+            if not base_url:
+                print("[TAIGI WARNING] BASE_URL not set, using relative URL")
+                url = f"/audio/{safe_fn}"
+            else:
+                url = f"{base_url}/audio/{safe_fn}"
+            
+            # Log to database (no physical file to upload to Drive)
+            log_tts_async(user_id, text, safe_fn, url)
         else:
-            url = f"/static/{safe_fn}"
-        
-        # Log to database (async)
-        log_tts_async(user_id, text, str(path), url)
+            # Build URL for disk storage
+            base_url = os.getenv("BASE_URL", "")
+            if base_url and "YOUR_DOMAIN" not in base_url:
+                url = f"{base_url}/static/{safe_fn}"
+            else:
+                url = f"/static/{safe_fn}"
+            
+            # Log to database (async)
+            log_tts_async(user_id, text, str(path), url)
         
         return url, duration_ms
         

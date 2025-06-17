@@ -168,6 +168,11 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         from utils.memory_storage import memory_storage
         import io
         
+        # Debug: log memory storage state for Taigi files
+        if "_taigi_" in filename:
+            print(f"🔍 [TAIGI Upload] Looking for {filename} in memory storage")
+            print(f"🔍 [TAIGI Upload] Memory storage keys: {list(memory_storage.files.keys())}")
+        
         result = memory_storage.get(filename)
         if not result:
             raise FileNotFoundError(f"Audio file not found in memory: {filename}")
