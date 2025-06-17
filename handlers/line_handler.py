@@ -61,7 +61,7 @@ def handle_line_message(event: MessageEvent) -> None:
         print(f"[LINE ERROR] {e}")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ 系統錯誤，請稍後再試。")
+            TextSendMessage(text="系統發生錯誤，請稍後再試。如問題持續，請聯繫客服協助。")
         )
 
 def handle_audio_message(event: MessageEvent) -> None:
@@ -75,7 +75,7 @@ def handle_audio_message(event: MessageEvent) -> None:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(
-                text="⚠️ 目前在『衛教』模式，無法使用語音翻譯。\n若要啟用語音功能，請點擊下方按鈕：",
+                text="衛教模式不支援語音翻譯功能。如需使用語音功能，請點擊【新對話】切換至醫療翻譯模式：",
                 quick_reply=QuickReply(
                     items=create_quick_reply_items([("🆕 新對話", "new")])
                 )
@@ -93,8 +93,7 @@ def handle_audio_message(event: MessageEvent) -> None:
             raise Exception("Failed to save audio")
         
         # Transcribe audio
-        result = transcribe_audio_file(str(audio_path))
-        transcription = result.get("text") if result else None
+        transcription = transcribe_audio_file(str(audio_path))
         
         if not transcription:
             raise Exception("Failed to transcribe audio")
@@ -135,7 +134,7 @@ def handle_audio_message(event: MessageEvent) -> None:
         print(f"[Audio] Error: {e}")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ 語音處理失敗，請稍後重試。")
+            TextSendMessage(text="語音處理失敗。請確認語音清晰後重試，或改用文字輸入。")
         )
 
 def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Optional[dict], gemini_called: bool) -> List:

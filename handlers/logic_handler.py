@@ -48,7 +48,7 @@ def handle_user_message(
     # Handle unstarted session
     if not session.get("started"):
         quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
-        return "請點擊下方按鈕開始，或發送語音訊息：", False, quick_reply
+        return "歡迎使用 Mededbot！請點擊【開始】按鈕，或直接發送語音訊息進行翻譯：", False, quick_reply
     
     # Handle mode selection
     if session.get("mode") is None:
@@ -60,18 +60,18 @@ def handle_user_message(
         if text_lower in edu_commands:
             session["mode"] = "edu"
             quick_reply = {"items": create_quick_reply_items(COMMON_DISEASES)}
-            return "📚 進入衛教模式。請輸入要查詢的健康主題：", False, quick_reply
+            return "📚 進入衛教模式。請選擇或輸入您想了解的健康主題（如：糖尿病、高血壓等）：\n(AI 生成約需 20 秒，請耐心等候)", False, quick_reply
         
         # Chat mode
         if text_lower in chat_commands:
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
             quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-            return "💬 進入對話模式。請選擇翻譯語言：", False, quick_reply
+            return "💬 進入對話模式。請選擇翻譯語言，或直接輸入您需要的語言：", False, quick_reply
         
         # Default
         quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
-        return "請選擇功能：", False, quick_reply
+        return "請選擇您需要的功能，或直接發送語音訊息：", False, quick_reply
     
     # Handle education mode
     if session.get("mode") == "edu":
@@ -83,7 +83,7 @@ def handle_user_message(
     
     # Fallback
     quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
-    return "⚠️ 無法理解您的指令，請選擇下方按鈕或輸入有效指令。", False, quick_reply
+    return "抱歉，我不太理解您的意思。請點擊【開始】重新選擇功能，或直接發送語音訊息。", False, quick_reply
 
 # ============================================================
 # COMMAND HANDLERS
@@ -94,17 +94,17 @@ def handle_new_command(session: Dict) -> Tuple[str, bool, Optional[Dict]]:
     session.clear()
     session["started"] = True
     quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
-    return "請選擇功能，或直接發送語音訊息：", False, quick_reply
+    return "請選擇您需要的功能，或直接發送語音訊息進行即時翻譯：", False, quick_reply
 
 def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
     """Generate TTS audio"""
     if session.get("mode") == "edu":
         quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
-        return "⚠️ 目前在『衛教』模式，無法語音朗讀。\n若要使用語音功能請點擊下方按鈕：", False, quick_reply
+        return "衛教模式不支援語音朗讀功能。如需使用語音功能，請點擊【新對話】切換至醫療翻譯模式。", False, quick_reply
     
     tts_source = session.get("stt_last_translation") or session.get("translated_output")
     if not tts_source:
-        return "⚠️ 尚未有可朗讀的翻譯內容。", False, None
+        return "目前沒有可朗讀的翻譯內容。請先進行翻譯後再使用朗讀功能。", False, None
     
     try:
         url, duration = synthesize(tts_source, user_id)
@@ -115,7 +115,7 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         return "🔊 語音檔已生成", False, quick_reply
     except Exception as e:
         print(f"[TTS ERROR] {e}")
-        return "⚠️ 語音合成失敗，請稍後再試。", False, None
+        return "語音合成時發生錯誤，請稍後再試。如問題持續，請聯繫客服。", False, None
 
 def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optional[Dict]]:
     """Handle STT translation flow"""
@@ -132,7 +132,7 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
         language = validate_language_code(language)
     except ValueError:
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES + [("❌ 無", "無")])}
-        return "⚠️ 不支援的語言。請重新選擇：", False, quick_reply
+        return "抱歉，目前不支援該語言。請從下方選擇支援的語言，或直接輸入其他語言名稱試試：", False, quick_reply
     
     # Translate
     transcription = session.get("stt_transcription", "")
@@ -175,22 +175,22 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
     # Check commands
     if text_lower in modify_commands:
         if not session.get("zh_output"):
-            return "⚠️ 尚無內容可修改，請先產生衛教內容。", False, None
+            return "目前沒有衛教內容可供修改。請先輸入健康主題產生內容。", False, None
         session["awaiting_modify"] = True
-        return "✏️ 請描述您要如何修改內容：", False, None
+        return "✏️ 請描述您想如何修改內容（例如：加入飲食建議、簡化說明、增加注意事項等）：\n(AI 處理約需 20 秒，請耐心等候)", False, None
     
     if text_lower in translate_commands:
         if not session.get("zh_output"):
-            return "⚠️ 尚無內容可翻譯，請先產生衛教內容。", False, None
+            return "目前沒有衛教內容可供翻譯。請先輸入健康主題產生內容。", False, None
         session["awaiting_translate_language"] = True
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-        return "🌐 請選擇要翻譯的語言：", False, quick_reply
+        return "🌐 請選擇要翻譯的語言，或直接輸入其他語言（如：德文、義大利文等）：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
     
     if text_lower in mail_commands:
         if not session.get("zh_output"):
-            return "⚠️ 尚無內容可寄送，請先產生衛教內容。", False, None
+            return "目前沒有衛教內容可供寄送。請先輸入健康主題產生內容。", False, None
         session["awaiting_email"] = True
-        return "📧 請輸入您要寄送至的 email 地址：", False, None
+        return "📧 請輸入收件人的 email 地址（例如：example@gmail.com）：", False, None
     
     # Generate content if none exists
     if not session.get("zh_output"):
@@ -221,7 +221,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
         ("🌐 翻譯", "translate"),
         ("📧 寄送", "mail")
     ])}
-    return "⚠️ 請選擇您要執行的操作。", False, quick_reply
+    return "請選擇您想執行的操作，或直接輸入健康主題查詢新內容：", False, quick_reply
 
 def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, Optional[Dict]]:
     """Process content modification"""
@@ -255,7 +255,7 @@ def handle_translate_response(session: Dict, language: str) -> Tuple[str, bool, 
         language = validate_language_code(language)
     except ValueError:
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-        return f"⚠️ 不支援的語言：{language}", False, quick_reply
+        return f"抱歉，目前不支援「{language}」。請從下方選擇其他語言，或嘗試輸入不同的語言名稱：", False, quick_reply
     
     translated = call_translate(session["zh_output"], language)
     session["translated_output"] = translated
@@ -288,19 +288,23 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
         try:
             dns.resolver.resolve(domain, "MX", lifetime=3)
         except:
-            return f"⚠️ 無法驗證 {domain} 的郵件伺服器，請確認 email 地址正確。", False, None
+            return f"無法驗證 {domain} 的郵件伺服器。請確認 email 地址是否正確（例如：name@gmail.com）。", False, None
     
     except ValueError as e:
-        return f"⚠️ 無效的 email 地址：{e}", False, None
+        return f"輸入的 email 格式不正確：{e}\n請輸入有效的 email 地址（例如：name@gmail.com）。", False, None
     
     session["awaiting_email"] = False
     success = send_last_txt_email(user_id, validated_email, session)
     
     if success:
-        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
+        quick_reply = {"items": create_quick_reply_items([
+            ("📧 寄送", "mail"),
+            ("🌐 翻譯", "translate"),
+            ("🆕 新對話", "new")
+        ])}
         return f"✅ 已成功寄出衛教內容至 {validated_email}", False, quick_reply
     else:
-        return "⚠️ 寄送失敗，請稍後再試。", False, None
+        return "郵件寄送失敗。請檢查網路連線後再試一次，或聯繫客服協助。", False, None
 
 # ============================================================
 # HELPER FUNCTIONS
