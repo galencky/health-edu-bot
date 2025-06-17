@@ -19,7 +19,8 @@ from utils.command_sets import (
     new_commands, edu_commands, chat_commands, modify_commands,
     translate_commands, mail_commands, speak_commands,
     create_quick_reply_items, MODE_SELECTION_OPTIONS,
-    COMMON_LANGUAGES, EDU_LANGUAGES, COMMON_DISEASES, TTS_OPTIONS
+    COMMON_LANGUAGES, EDU_LANGUAGES, COMMON_DISEASES, TTS_OPTIONS,
+    CHAT_CONTINUE_OPTIONS
 )
 
 # ============================================================
@@ -104,7 +105,10 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
     
     # Check if TTS audio already exists
     if session.get("tts_audio_url"):
-        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
+        if session.get("mode") == "chat":
+            quick_reply = {"items": create_quick_reply_items(CHAT_CONTINUE_OPTIONS)}
+        else:
+            quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已存在", False, quick_reply
     
     tts_source = session.get("translated_output")
@@ -128,7 +132,12 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
         
         session["tts_audio_url"] = url
         session["tts_audio_dur"] = duration
-        quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
+        
+        # Use continue options for chat mode
+        if session.get("mode") == "chat":
+            quick_reply = {"items": create_quick_reply_items(CHAT_CONTINUE_OPTIONS)}
+        else:
+            quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已生成", False, quick_reply
     except Exception as e:
         print(f"[TTS ERROR] {e}")

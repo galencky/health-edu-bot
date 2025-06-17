@@ -16,6 +16,17 @@ def _looks_like_language(token: str) -> bool:
 
 def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, dict]:
     
+    # Handle continue translate command
+    if raw.lower() in ["繼續翻譯", "continue"] and session.get("chat_target_lang"):
+        # Clear any TTS audio from previous translation
+        session.pop("tts_audio_url", None)
+        session.pop("tts_audio_dur", None)
+        session.pop("show_taigi_credit", None)
+        # Clear previous translations to avoid confusion
+        session.pop("zh_output", None)
+        session.pop("translated_output", None)
+        return f"請輸入您想翻譯的內容（目標語言：{session.get('chat_target_lang')}）：", False, None
+    
     # 1. Waiting for user to supply the target language -----------------
     if session.get("awaiting_chat_language"):
         if not _looks_like_language(raw):
