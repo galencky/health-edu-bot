@@ -62,6 +62,7 @@ COMMON_LANGUAGES = [
     ("🇪🇸 西班牙文", "西班牙文"),
     ("🇫🇷 法文", "法文")
 ]
+# Note: These are just common suggestions - the system supports ALL languages
 
 COMMON_DISEASES = [
     ("糖尿病", "糖尿病"),

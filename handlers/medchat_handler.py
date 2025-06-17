@@ -20,7 +20,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
             quick_reply = {
                 "items": create_quick_reply_items(COMMON_LANGUAGES)
             }
-            return "請先選擇或輸入您需要翻譯的目標語言（例如：英文、日文、泰文等）：", False, quick_reply
+            return "請先選擇或輸入您需要翻譯的目標語言（支援全球各種語言）：", False, quick_reply
 
         session["chat_target_lang"] = raw
         session["awaiting_chat_language"] = False
@@ -38,7 +38,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         quick_reply = {
             "items": create_quick_reply_items(COMMON_LANGUAGES)
         }
-        return "尚未設定翻譯語言。請選擇或輸入您需要的目標語言（例如：英文、日文等）：", False, quick_reply
+        return "尚未設定翻譯語言。請選擇或輸入您需要的目標語言（支援全球各種語言）：", False, quick_reply
 
     # 3. Plain‑ify Chinese, then translate + confirmation --------------
     plain_zh = plainify(raw)

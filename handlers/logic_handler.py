@@ -13,7 +13,7 @@ from services.prompt_config import modify_prompt
 from handlers.mail_handler import send_last_txt_email
 from handlers.medchat_handler import handle_medchat
 from utils.google_drive_service import upload_stt_translation_log
-from utils.validators import sanitize_text, validate_email, validate_language_code
+from utils.validators import sanitize_text, validate_email
 from utils.command_sets import (
     new_commands, edu_commands, chat_commands, modify_commands,
     translate_commands, mail_commands, speak_commands,
@@ -67,7 +67,7 @@ def handle_user_message(
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
             quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-            return "💬 進入對話模式。請選擇翻譯語言，或直接輸入您需要的語言：", False, quick_reply
+            return "💬 進入對話模式。請選擇或輸入任何您需要的翻譯語言（支援全球各種語言）：", False, quick_reply
         
         # Default
         quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
@@ -128,11 +128,10 @@ def handle_stt_translation(session: Dict, text: str) -> Tuple[str, bool, Optiona
     
     # Normalize language
     language = normalize_language_input(text)
-    try:
-        language = validate_language_code(language)
-    except ValueError:
+    # No validation needed - Gemini supports all languages
+    if not language or not language.strip():
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES + [("❌ 無", "無")])}
-        return "抱歉，目前不支援該語言。請從下方選擇支援的語言，或直接輸入其他語言名稱試試：", False, quick_reply
+        return "請輸入或選擇您需要的翻譯語言：", False, quick_reply
     
     # Translate
     transcription = session.get("stt_transcription", "")
@@ -184,7 +183,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
             return "目前沒有衛教內容可供翻譯。請先輸入健康主題產生內容。", False, None
         session["awaiting_translate_language"] = True
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-        return "🌐 請選擇要翻譯的語言，或直接輸入其他語言（如：德文、義大利文等）：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
+        return "🌐 請選擇或輸入任何您需要的翻譯語言（支援全球各種語言）：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
     
     if text_lower in mail_commands:
         if not session.get("zh_output"):
@@ -251,11 +250,10 @@ def handle_translate_response(session: Dict, language: str) -> Tuple[str, bool, 
     """Process translation"""
     language = normalize_language_input(language)
     
-    try:
-        language = validate_language_code(language)
-    except ValueError:
+    # No need to validate - Gemini supports all languages
+    if not language or not language.strip():
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-        return f"抱歉，目前不支援「{language}」。請從下方選擇其他語言，或嘗試輸入不同的語言名稱：", False, quick_reply
+        return "請輸入或選擇您需要的翻譯語言：", False, quick_reply
     
     translated = call_translate(session["zh_output"], language)
     session["translated_output"] = translated

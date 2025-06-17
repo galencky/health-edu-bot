@@ -108,7 +108,7 @@ def handle_audio_message(event: MessageEvent) -> None:
         session["mode"] = None
         
         # Send response
-        response_text = f"🎤 原始轉錄：\n{transcription}\n\n請選擇翻譯語言："
+        response_text = f"🎤 原始轉錄：\n{transcription}\n\n請選擇或輸入您需要的翻譯語言（支援全球各種語言）："
         if drive_link:
             response_text += f"\n\n🔗 語音檔連結：{drive_link}"
         
