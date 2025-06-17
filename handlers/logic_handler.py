@@ -49,7 +49,7 @@ def handle_user_message(
     # Handle unstarted session
     if not session.get("started"):
         quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
-        return "歡迎使用 Mededbot！請點擊【開始】按鈕，或直接發送語音訊息進行翻譯：", False, quick_reply
+        return "歡迎使用 MedEdBot！請點擊【開始】按鈕，或直接發送語音訊息進行翻譯：", False, quick_reply
     
     # Handle mode selection
     if session.get("mode") is None:
@@ -68,7 +68,7 @@ def handle_user_message(
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
             quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-            return "💬 進入對話模式。請選擇或輸入任何您需要的翻譯語言（支援全球各種語言）：", False, quick_reply
+            return "💬 進入對話模式。請選擇或輸入任何您需要的翻譯語言：", False, quick_reply
         
         # Default
         quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
@@ -197,18 +197,18 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
         if not session.get("zh_output"):
             return "目前沒有衛教內容可供修改。請先輸入健康主題產生內容。", False, None
         session["awaiting_modify"] = True
-        return "✏️ 請描述您想如何修改內容（例如：加入飲食建議、簡化說明、增加注意事項等）：\n(AI 處理約需 20 秒，請耐心等候)", False, None
+        return "✏️ 請描述您想如何修改內容：\n(AI 處理約需 20 秒，請耐心等候)", False, None
     
     if text_lower in translate_commands:
         if not session.get("zh_output"):
-            return "目前沒有衛教內容可供翻譯。請先輸入健康主題產生內容。", False, None
+            return "目前沒有衛教內容可供翻譯。請先輸入衛教主題產生內容。", False, None
         session["awaiting_translate_language"] = True
         quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
-        return "🌐 請選擇或輸入任何您需要的翻譯語言（支援全球各種語言）：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
+        return "🌐 請選擇或輸入任何您需要的翻譯語言：\n(AI 翻譯約需 20 秒，請耐心等候)", False, quick_reply
     
     if text_lower in mail_commands:
         if not session.get("zh_output"):
-            return "目前沒有衛教內容可供寄送。請先輸入健康主題產生內容。", False, None
+            return "目前沒有衛教內容可供寄送。請先輸入衛教主題產生內容。", False, None
         session["awaiting_email"] = True
         return "📧 請輸入收件人的 email 地址（例如：example@gmail.com）：", False, None
     

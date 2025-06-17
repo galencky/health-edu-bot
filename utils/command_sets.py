@@ -84,7 +84,6 @@ TTS_OPTIONS = [
 # Chat mode specific - includes new and continue translate
 CHAT_TTS_OPTIONS = [
     ("🔊 朗讀", "朗讀"),
-    ("💬 繼續翻譯", "continue_translate"),
     ("🆕 新對話", "new")
 ]
 

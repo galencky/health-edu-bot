@@ -21,7 +21,7 @@ _ACCENT_MAP = {
 }
 
 # Rate limiter for Taigi service
-taigi_limiter = RateLimiter(calls_per_minute=30, burst_size=5)
+taigi_limiter = RateLimiter(max_requests=30, window_seconds=60)  # 30 requests per minute
 
 def taigi_tts(
     *,

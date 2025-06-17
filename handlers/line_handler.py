@@ -61,7 +61,7 @@ def handle_line_message(event: MessageEvent) -> None:
         print(f"[LINE ERROR] {e}")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="系統發生錯誤，請稍後再試。如問題持續，請聯繫客服協助。")
+            TextSendMessage(text="系統發生錯誤，請稍後再試。")
         )
 
 def handle_audio_message(event: MessageEvent) -> None:
@@ -108,9 +108,9 @@ def handle_audio_message(event: MessageEvent) -> None:
         session["mode"] = None
         
         # Send response
-        response_text = f"🎤 原始轉錄：\n{transcription}\n\n請選擇或輸入您需要的翻譯語言（支援全球各種語言）："
-        if drive_link:
-            response_text += f"\n\n🔗 語音檔連結：{drive_link}"
+        response_text = f"🎤 原始轉錄：\n{transcription}\n\n請選擇或輸入您需要的翻譯語言（支援各種語言）："
+#        if drive_link:
+#            response_text += f"\n\n🔗 語音檔連結：{drive_link}"
         
         line_bot_api.reply_message(
             event.reply_token,
@@ -134,7 +134,7 @@ def handle_audio_message(event: MessageEvent) -> None:
         print(f"[Audio] Error: {e}")
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="語音處理失敗。請確認語音清晰後重試，或改用文字輸入。")
+            TextSendMessage(text="語音處理失敗。")
         )
 
 def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Optional[dict], gemini_called: bool) -> List:
