@@ -71,6 +71,8 @@ class RateLimiter:
         """
         Clean up old entries to prevent memory leaks
         
+        NOTE: This should be called periodically (e.g., hourly) to prevent unbounded memory growth
+        
         Args:
             max_age_seconds: Remove keys with no recent activity (default: 2 hours)
             
@@ -101,8 +103,6 @@ class RateLimiter:
 # Global rate limiters for different services
 gemini_limiter = RateLimiter(max_requests=30, window_seconds=60)  # 30 requests per minute
 tts_limiter = RateLimiter(max_requests=20, window_seconds=60)     # 20 TTS per minute
-email_limiter = RateLimiter(max_requests=5, window_seconds=300)   # 5 emails per 5 minutes
-webhook_limiter = RateLimiter(max_requests=100, window_seconds=60) # 100 webhooks per minute
 
 def rate_limit(limiter: RateLimiter, key_func: Optional[Callable] = None):
     """

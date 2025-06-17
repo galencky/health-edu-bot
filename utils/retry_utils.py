@@ -81,27 +81,3 @@ def exponential_backoff(
         return wrapper
     return decorator
 
-def retry_with_timeout(
-    func: Callable,
-    args: tuple = (),
-    kwargs: dict = None,
-    max_retries: int = 3,
-    timeout: float = 30.0,
-    retry_exceptions: Tuple[Type[Exception], ...] = (Exception,)
-) -> Any:
-    """
-    Execute a function with retry logic and timeout.
-    Simplified version that relies on function's own timeout handling.
-    """
-    if kwargs is None:
-        kwargs = {}
-    
-    @exponential_backoff(
-        max_retries=max_retries,
-        exceptions=retry_exceptions,
-        on_retry=lambda attempt, error: print(f"[RETRY-TIMEOUT] Attempt {attempt} failed: {error}")
-    )
-    def _wrapper():
-        return func(*args, **kwargs)
-    
-    return _wrapper()

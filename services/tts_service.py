@@ -19,22 +19,6 @@ from utils.logging import log_tts_async
 # Load environment
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-# BUG FIX: Function to list available models for debugging
-def list_available_models():
-    """List available Gemini models for debugging TTS issues"""
-    try:
-        models = client.models.list()
-        audio_models = []
-        for model in models:
-            # Look for models that support audio generation
-            if hasattr(model, 'supported_generation_methods'):
-                if 'generateContent' in model.supported_generation_methods:
-                    audio_models.append(model.name)
-        print(f"[TTS DEBUG] Available models: {audio_models[:5]}...")  # Show first 5
-        return audio_models
-    except Exception as e:
-        print(f"[TTS DEBUG] Could not list models: {e}")
-        return []
 
 # Internal helper: Save raw PCM as WAV
 def _wave_file(path, pcm, *, ch=1, rate=24_000, sampwidth=2):

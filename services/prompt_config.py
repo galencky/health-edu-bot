@@ -80,5 +80,3 @@ confirm_translate_prompt = """You are a translation assistant. Translate the pro
 Then add one short question in the translated language asking if the listener understands (e.g. 'Do you understand the translation?'). Return plain text only.
 """
 
-# --- Voicemail translate prompt --------------------------------------
-voicemail_prompt = """ Please translate the following transcribed text faithfully to {lang}."""
