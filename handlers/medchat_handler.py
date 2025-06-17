@@ -107,4 +107,4 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
         gemini_call=gemini_called,
     )
 
-    return reply_text, False, quick_reply
+    return reply_text, gemini_called == "yes", quick_reply

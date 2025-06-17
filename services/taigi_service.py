@@ -77,9 +77,15 @@ def taigi_tts(
         "gender": _GENDER_MAP[gender],
         "accent": _ACCENT_MAP[accent],
     }
-    r = requests.get(f"{base}{end_tlpa2wav}", params=params, timeout=120)
-    r.raise_for_status()
-    wav = r.content
+    print(f"[TAIGI TTS] Synthesizing TLPA: {tlpa[:50]}...")
+    try:
+        r = requests.get(f"{base}{end_tlpa2wav}", params=params, timeout=120)
+        r.raise_for_status()
+        wav = r.content
+        print(f"[TAIGI TTS] Generated {len(wav)} bytes of audio")
+    except requests.exceptions.RequestException as e:
+        print(f"[TAIGI TTS] Request failed: {e}")
+        raise RuntimeError(f"Failed to synthesize Taigi audio: {e}")
 
     if outfile:
         path = pathlib.Path(outfile).expanduser().resolve()
@@ -104,6 +110,7 @@ def translate_to_taigi(text: str) -> str:
         base = "http://tts001.iptcloud.net:8804"
         end_cn2tlpa = "/html_taigi_zh_tw_py"
         
+        print(f"[TAIGI] Translating text: {text[:50]}...")
         r = requests.get(
             f"{base}{end_cn2tlpa}",
             params={"text0": text},
@@ -112,6 +119,8 @@ def translate_to_taigi(text: str) -> str:
         r.raise_for_status()
         
         tlpa = r.text.strip()
+        print(f"[TAIGI] Translation result: {tlpa[:50]}...")
+        
         if not tlpa:
             raise RuntimeError("Server returned empty TLPA string")
             
@@ -138,8 +147,13 @@ def synthesize_taigi(text: str, user_id: str) -> Tuple[str, int]:
         # Sanitize inputs
         user_id = sanitize_user_id(user_id)
         
+        # Debug logging
+        print(f"[TAIGI TTS] Input text: {text[:100]}...")
+        
         # First get TLPA
         tlpa = translate_to_taigi(text)
+        print(f"[TAIGI TTS] TLPA result: {tlpa[:100]}...")
+        
         if tlpa.startswith("⚠️"):
             raise ValueError(tlpa)
         
