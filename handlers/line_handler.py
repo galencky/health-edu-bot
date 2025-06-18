@@ -15,7 +15,7 @@ from linebot.exceptions import LineBotApiError
 
 from handlers.logic_handler import handle_user_message
 from handlers.session_manager import get_user_session
-from utils.logging import log_chat, upload_voicemail
+from utils.logging import log_chat
 from services.gemini_service import references_to_flex
 from services.stt_service import transcribe_audio_file
 from utils.paths import VOICEMAIL_DIR
@@ -105,7 +105,7 @@ def handle_audio_message(event: MessageEvent) -> None:
         # Download audio
         audio_content = line_bot_api.get_message_content(message_id)
         
-        # Save audio file
+        # Save audio file temporarily for transcription only
         audio_path = save_audio_file(user_id, audio_content)
         if not audio_path:
             raise Exception("Failed to save audio")
@@ -116,14 +116,17 @@ def handle_audio_message(event: MessageEvent) -> None:
         if not transcription:
             raise Exception("Failed to transcribe audio")
         
-        # Upload to Drive
-        drive_link = upload_voicemail(str(audio_path), user_id, transcription=transcription)
+        # Delete audio file immediately - no uploads
+        try:
+            audio_path.unlink()
+        except:
+            pass
         
-        # Process transcription as chat input
+        # Process transcription exactly like text input through medchat
         from handlers.medchat_handler import handle_medchat
         reply_text, gemini_called, quick_reply_data = handle_medchat(user_id, transcription, session)
         
-        # Create response with voicemail indicator
+        # Add voicemail indicator to show it came from voice
         response_text = f"🎤 語音訊息：\n{transcription}\n\n{reply_text}"
         
         # Create response bubbles
@@ -132,18 +135,6 @@ def handle_audio_message(event: MessageEvent) -> None:
         # Send response
         if bubbles:
             line_bot_api.reply_message(event.reply_token, bubbles)
-        
-        # Log interaction as voicemail - note that handle_medchat returns boolean for gemini_called
-        # but medchat_handler logs "yes"/"no", so we need to check the actual value
-        gemini_str = "yes" if (gemini_called if isinstance(gemini_called, bool) else gemini_called == "yes") else "no"
-        log_chat(user_id, f"[AudioMessage] {transcription}", reply_text[:200], session, 
-                action_type="medchat_audio", gemini_call=gemini_str)
-        
-        # Cleanup
-        try:
-            audio_path.unlink()
-        except:
-            pass
             
     except Exception as e:
         print(f"[Audio] Error: {e}")
