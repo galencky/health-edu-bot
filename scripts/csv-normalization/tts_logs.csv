@@ -1,0 +1,18 @@
+"id","timestamp","user_id","text","audio_filename","audio_url","drive_link","status","created_at"
+"2","2025-06-09 23:06:36.530207","U61539d6d1bd2f05b77ea99c84332ce93","You have acute myocardial infarction and need immediate cardiac catheterization surgery. Are you allergic to contrast dye? Do you understand the translation?","U61539d6d1bd2f05b77ea99c84332ce93_20250610_070623.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_070623.wav","https://drive.google.com/file/d/1UNw2NSFoswqOBNUlyGr2NfMEztxrt0Fz/view?usp=drivesdk","success","2025-06-09 23:06:36.530207"
+"3","2025-06-10 00:41:44.127317","U61539d6d1bd2f05b77ea99c84332ce93","คุณตอนนี้เป็น ""กล้ามเนื้อหัวใจตายเฉียบพลัน"" และจำเป็นต้องทำ ""การสวนหัวใจ"" ทันที เข้าใจไหมครับ/คะ?","U61539d6d1bd2f05b77ea99c84332ce93_20250610_004126.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_004126.wav",,"drive_upload_failed_after_4_attempts","2025-06-10 00:41:44.12732"
+"4","2025-06-10 00:47:21.297844","U61539d6d1bd2f05b77ea99c84332ce93","あなたは現在、ST上昇型心筋梗塞です。これは重篤な心臓発作であり、直ちに経皮的冠動脈インターベンションという手術が必要です。ご理解いただけましたか？","U61539d6d1bd2f05b77ea99c84332ce93_20250610_004653.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_004653.wav","https://drive.google.com/file/d/1OvjA9Z7PK8g5ST2ig6iMrMO0ujWKD_rW/view?usp=drivesdk","success","2025-06-10 00:47:21.297848"
+"5","2025-06-10 00:48:59.58397","U61539d6d1bd2f05b77ea99c84332ce93","自動検出言語：英語
+
+音声認識：Test 1 2 3 test 1 2 3 to see if the STT API actually works properly.
+
+日本語訳：
+テスト1 2 3、テスト1 2 3、STT APIが正常に動作するかどうかを確認します。","U61539d6d1bd2f05b77ea99c84332ce93_20250610_004832.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_004832.wav","https://drive.google.com/file/d/1SBgJZAhnVH0iJhc-vcEeTZHTQHGNviuE/view?usp=drivesdk","success","2025-06-10 00:48:59.583974"
+"6","2025-06-10 00:50:45.337914","U61539d6d1bd2f05b77ea99c84332ce93","Chào bạn, tôi là bác sĩ. Xin cho biết bạn bị sốt bao lâu rồi, sốt cao bao nhiêu độ và sốt là liên tục hay ngắt quãng?","U61539d6d1bd2f05b77ea99c84332ce93_20250610_005029.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_005029.wav","https://drive.google.com/file/d/1JkmCldjFX4pdGnrksh_tTtF38DrwTEfM/view?usp=drivesdk","success","2025-06-10 00:50:45.337918"
+"7","2025-06-10 01:56:10.220287","U61539d6d1bd2f05b77ea99c84332ce93","""ST 분절 상승 심근경색""이 있으시며, 이는 혈관을 뚫기 위해 ""응급 심장 도관 삽입술""이 필요한 심각한 심장마비입니다. 이해하셨습니까?","U61539d6d1bd2f05b77ea99c84332ce93_20250610_015554.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_015554.wav","https://drive.google.com/file/d/1pmtUJXJDiz2sHc9pyJs-GUTPFO4rgVuM/view?usp=drivesdk","success","2025-06-10 01:56:10.220291"
+"8","2025-06-10 01:58:31.083046","U61539d6d1bd2f05b77ea99c84332ce93","「急性心筋梗塞」を発症されています。これは重度の心臓発作であり、詰まった血管を広げるために、直ちに「心臓カテーテル手術」を行う必要があります。
+
+ご理解いただけましたでしょうか？","U61539d6d1bd2f05b77ea99c84332ce93_20250610_015814.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_015814.wav","https://drive.google.com/file/d/1Zs6GXJWqv_diVMcxSGCbtEX3vtKsUkc4/view?usp=drivesdk","success","2025-06-10 01:58:31.08305"
+"9","2025-06-10 02:03:53.615805","U61539d6d1bd2f05b77ea99c84332ce93","ตอนนี้คุณกำลังเป็นโรคกล้ามเนื้อหัวใจตายเฉียบพลัน หรือที่เรียกกันทั่วไปว่า ""อาการหัวใจวาย"" อย่างรุนแรง ซึ่งหลอดเลือดหัวใจของคุณอุดตันโดยสมบูรณ์ เราจำเป็นต้องทำการ ""สวนหัวใจ"" ทันทีเพื่อเปิดหลอดเลือดที่อุดตัน
+
+คุณเข้าใจไหมครับ/คะ?","U61539d6d1bd2f05b77ea99c84332ce93_20250610_020332.wav","https://dev.galenchen.uk/static/U61539d6d1bd2f05b77ea99c84332ce93_20250610_020332.wav","https://drive.google.com/file/d/1lc_SDdd-z0TEnrujRDlaRr9azpwrZ0QV/view?usp=drivesdk","success","2025-06-10 02:03:53.615809"
