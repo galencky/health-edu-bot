@@ -365,21 +365,6 @@ def get_db_engine():
     )
     return engine
 
-@contextmanager  
-def get_db_session_sync():
-    """Provide a transactional scope for sync database operations"""
-    engine = get_db_engine()
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
 @asynccontextmanager
 async def get_db_session():
     """Legacy sync session getter - redirects to async version"""

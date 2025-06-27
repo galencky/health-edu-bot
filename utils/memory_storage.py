@@ -4,6 +4,7 @@ import time
 from typing import Dict, Optional, Tuple
 from threading import Lock
 from collections import OrderedDict
+from .validators import sanitize_filename
 
 class MemoryStorage:
     """Thread-safe in-memory storage with LRU eviction"""
@@ -18,14 +19,21 @@ class MemoryStorage:
     
     def save(self, filename: str, data: bytes, content_type: str = "audio/wav") -> bool:
         """Save file to memory"""
+        # Sanitize filename to prevent path traversal
+        try:
+            safe_filename = sanitize_filename(filename)
+        except ValueError as e:
+            print(f"⚠️ Invalid filename rejected: {filename} - {e}")
+            return False
+            
         with self.lock:
             # Remove if exists
-            if filename in self.files:
-                self.remove(filename)
+            if safe_filename in self.files:
+                self.remove(safe_filename)
             
             # Check size limit
             if len(data) > self.max_size_bytes:
-                print(f"⚠️ File {filename} too large ({len(data)} bytes)")
+                print(f"⚠️ File {safe_filename} too large ({len(data)} bytes)")
                 return False
             
             # Simple eviction: remove oldest files until we have space
@@ -37,39 +45,57 @@ class MemoryStorage:
                 self.remove(oldest_key)
             
             # Store file
-            self.files[filename] = (data, time.time(), content_type)
+            self.files[safe_filename] = (data, time.time(), content_type)
             self.total_size += len(data)
             
             # Move to end (most recently used)
-            self.files.move_to_end(filename)
+            self.files.move_to_end(safe_filename)
             
-            print(f"💾 Stored {filename} in memory ({len(data)} bytes)")
+            print(f"💾 Stored {safe_filename} in memory ({len(data)} bytes)")
             return True
     
     def get(self, filename: str) -> Optional[Tuple[bytes, str]]:
         """Get file from memory"""
+        # Sanitize filename to prevent path traversal
+        try:
+            safe_filename = sanitize_filename(filename)
+        except ValueError:
+            return None
+            
         with self.lock:
-            if filename in self.files:
-                data, timestamp, content_type = self.files[filename]
+            if safe_filename in self.files:
+                data, timestamp, content_type = self.files[safe_filename]
                 # Move to end (most recently used)
-                self.files.move_to_end(filename)
+                self.files.move_to_end(safe_filename)
                 return data, content_type
             return None
     
     def remove(self, filename: str) -> bool:
         """Remove file from memory"""
+        # Sanitize filename to prevent path traversal
+        try:
+            safe_filename = sanitize_filename(filename)
+        except ValueError:
+            return False
+            
         with self.lock:
-            if filename in self.files:
-                data, _, _ = self.files[filename]
+            if safe_filename in self.files:
+                data, _, _ = self.files[safe_filename]
                 self.total_size -= len(data)
-                del self.files[filename]
+                del self.files[safe_filename]
                 return True
             return False
     
     def exists(self, filename: str) -> bool:
         """Check if file exists"""
+        # Sanitize filename to prevent path traversal
+        try:
+            safe_filename = sanitize_filename(filename)
+        except ValueError:
+            return False
+            
         with self.lock:
-            return filename in self.files
+            return safe_filename in self.files
     
     def get_info(self) -> Dict[str, any]:
         """Get storage statistics"""

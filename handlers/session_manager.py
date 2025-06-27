@@ -18,8 +18,10 @@ def get_user_session(user_id: str) -> Dict:
     """Get or create a user session"""
     with _global_lock:
         if user_id not in _sessions:
+            # Create lock first to ensure atomicity
+            new_lock = threading.RLock()
+            _session_locks[user_id] = new_lock
             _sessions[user_id] = {}
-            _session_locks[user_id] = threading.RLock()
         
         _session_last_access[user_id] = datetime.now()
         return _sessions[user_id]
@@ -32,11 +34,12 @@ def get_session_lock(user_id: str) -> threading.RLock:
 def reset_user_session(user_id: str) -> None:
     """Reset a user's session to initial state"""
     with _global_lock:
-        _sessions[user_id] = {}
-        _session_last_access[user_id] = datetime.now()
-        
+        # Ensure lock exists first
         if user_id not in _session_locks:
             _session_locks[user_id] = threading.RLock()
+            
+        _sessions[user_id] = {}
+        _session_last_access[user_id] = datetime.now()
 
 def cleanup_expired_sessions() -> int:
     """Remove sessions that haven't been accessed in SESSION_EXPIRY_HOURS"""

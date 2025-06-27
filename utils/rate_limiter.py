@@ -47,6 +47,11 @@ class RateLimiter:
             
             # Add current timestamp
             timestamps.append(now)
+            
+            # Automatic cleanup: Remove old keys periodically (every 100 requests)
+            if len(self.requests) > 0 and sum(len(ts) for ts in self.requests.values()) % 100 == 0:
+                self._cleanup_old_entries_internal(now)
+            
             return True
     
     def reset(self, key: str) -> None:
@@ -66,6 +71,23 @@ class RateLimiter:
                 timestamps.popleft()
             
             return max(0, self.max_requests - len(timestamps))
+    
+    def _cleanup_old_entries_internal(self, now: float, max_age_seconds: int = 3600) -> None:
+        """Internal cleanup method - must be called with lock held"""
+        keys_to_remove = []
+        
+        for key, timestamps in self.requests.items():
+            # Remove old timestamps from this key
+            while timestamps and timestamps[0] < now - self.window_seconds:
+                timestamps.popleft()
+            
+            # If no timestamps remain or all are very old, mark for removal
+            if not timestamps or (timestamps and timestamps[-1] < now - max_age_seconds):
+                keys_to_remove.append(key)
+        
+        # Remove empty/old keys
+        for key in keys_to_remove:
+            del self.requests[key]
     
     def cleanup_old_entries(self, max_age_seconds: int = 7200) -> int:
         """
