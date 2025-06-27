@@ -54,10 +54,3 @@ STORAGE_BACKEND = get_storage_backend()
 TTS_USE_MEMORY = STORAGE_BACKEND == StorageBackend.MEMORY
 TTS_USE_DRIVE = STORAGE_BACKEND == StorageBackend.GOOGLE_DRIVE
 
-# Debug info
-print(f"📁 Storage backend: {STORAGE_BACKEND.value}")
-print(f"🧠 Memory storage: {TTS_USE_MEMORY}")
-print(f"☁️ Drive storage: {TTS_USE_DRIVE}")
-print(f"🌐 PORT env: {os.getenv('PORT', 'not set')}")
-print(f"🏠 /home exists: {os.path.exists('/home')}")
-print(f"📡 RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'not set')}")

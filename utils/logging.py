@@ -325,18 +325,15 @@ def upload_voicemail_sync(local_path: str, user_id: str, transcription: str = No
     Synchronous wrapper for upload_voicemail.
     Blocks until upload is complete.
     """
-    # Try to get current event loop
     try:
         loop = asyncio.get_running_loop()
-        # We're in an async context, can't use run_until_complete
-        # Create a new thread with its own event loop
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                asyncio.run,
-                _async_upload_voicemail(local_path, user_id, transcription, translation)
-            )
-            return future.result()
+        # We're in an async context, run in the loop's executor
+        future = loop.run_in_executor(
+            None, # Use default executor
+            asyncio.run,
+            _async_upload_voicemail(local_path, user_id, transcription, translation)
+        )
+        return future.result()
     except RuntimeError:
         # No event loop, we can create one
         return asyncio.run(_async_upload_voicemail(local_path, user_id, transcription, translation))
@@ -349,10 +346,9 @@ def log_chat(*args, **kwargs):
     If async, returns coroutine. If sync, runs in thread.
     """
     try:
-        loop = asyncio.get_running_loop()
-        # We're in async context - but we need to check if we're actually in a coroutine
-        # For now, just use sync version to avoid issues
-        log_chat_sync(*args, **kwargs)
+        asyncio.get_running_loop()
+        # We're in async context, return the coroutine
+        return _async_log_chat(*args, **kwargs)
     except RuntimeError:
         # We're in sync context, use the sync wrapper
         log_chat_sync(*args, **kwargs)
