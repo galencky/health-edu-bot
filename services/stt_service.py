@@ -60,7 +60,7 @@ def transcribe_audio_file(file_path: str) -> str:
 
     # 2. Call generate_content with a prompt that asks for a transcript.
     #    According to Gemini docs, "gemini-2.0-flash" (or "gemini-1.5-flash") can handle audio.
-    model_name = "gemini-2.0-flash"
+    model_name = "gemini-2.5-flash"
 
     prompt = """
 You are a transcription assistant.    

@@ -29,7 +29,7 @@ if not API_KEY:
 API_TIMEOUT_SECONDS = 45
 MAX_RETRIES = 2
 RETRY_DELAY = 3
-MODEL_NAME = "gemini-2.5-flash-preview-05-20"
+MODEL_NAME = "gemini-2.5-flash"
 
 # Shared resources
 _client = genai.Client(api_key=API_KEY)
@@ -55,6 +55,7 @@ def _call_genai(user_text: str, sys_prompt: Optional[str] = None, temp: float = 
     
     config = types.GenerateContentConfig(
         temperature=temp,
+        max_output_tokens=2000,
         tools=_tools,
         response_mime_type="text/plain",
         system_instruction=system_instructions

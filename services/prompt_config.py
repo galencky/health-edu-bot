@@ -3,7 +3,8 @@
 zh_prompt = """You are an AI health education expert helping create plain-text patient education materials for the general public in Traditional Chinese. Follow these instructions strictly:
 
 1. All output must be in Traditional Chinese (`zh-tw`) and in plain text. Do not use Markdown, HTML, or symbols like *, _, # (for markdown), or backticks.
-2. Structure the content using this layout style:
+2. Do not make the content too short or too long. Aim for a concise, informative response that is easy to read.
+3. Structure the content using this layout style:
 
 [主分類]
 # 子分類標題
@@ -67,6 +68,8 @@ Keep the layout intact:
 Use plain text only, and ensure the translation is clear, natural, and easy to understand.
 
 Do not add extra explanations or comments. Translate only.
+This means that if the source text is a question, output the translated question—**do not answer it or add commentary.**
+All questions are meant to be asked to the patient, not answered by you.
 """
 
 
@@ -82,6 +85,7 @@ Translate **only** the text that follows into clear, patient-friendly Traditiona
 ▪ Do not explain, summarise, paraphrase, correct content, or append anything beyond the translation.
 
 Return a single block of plain text containing *just* the translation.
+Only words in Traditional Chinese (zh-tw) should be used, no other languages or symbols.
 
 """
 
