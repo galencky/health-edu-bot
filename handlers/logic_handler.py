@@ -265,6 +265,7 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
     session["translated"] = True
     session["awaiting_translate_language"] = False
     session["last_translation_lang"] = language
+    session["just_translated"] = True
     
     quick_reply = {"items": create_quick_reply_items([
         ("🌐 翻譯", "translate"),

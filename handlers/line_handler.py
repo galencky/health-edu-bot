@@ -181,17 +181,17 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             # Only show content bubbles when new content is generated
             zh_content = session.get("zh_output", "")
             translated_content = session.get("translated_output", "")
+            just_translated = session.pop("just_translated", False)
             
-            # Add content if newly generated
-            if zh_content or translated_content:
-                content_text = ""
-                if zh_content:
-                    content_text += f"📄 原文：\n{zh_content[:2000]}\n\n"
-                if translated_content:
-                    content_text += f"🌐 譯文：\n{translated_content[:2000]}"
-                
-                if content_text:
-                    bubbles.append(TextSendMessage(text=content_text.strip()))
+            # Add content based on what action was performed
+            if just_translated and translated_content:
+                # Show only translated content after translation
+                content_text = f"🌐 譯文：\n{translated_content[:2000]}"
+                bubbles.append(TextSendMessage(text=content_text))
+            elif zh_content and not just_translated:
+                # Show only Chinese content for initial generation or modification
+                content_text = f"📄 原文：\n{zh_content[:2000]}"
+                bubbles.append(TextSendMessage(text=content_text))
     
     # Add references only when showing edu content (new generation, modify, or translate)
     if session.get("mode") == "edu" and gemini_called:
