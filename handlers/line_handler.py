@@ -46,21 +46,22 @@ def handle_line_message(event: MessageEvent) -> None:
         if bubbles:
             line_bot_api.reply_message(event.reply_token, bubbles)
         
-        # Log interaction
-        # Include language selection in user input for logging
-        logged_input = user_input
-        if session.get("awaiting_translate_language") or session.get("awaiting_chat_language"):
-            # This input was a language selection
-            logged_input = f"[Language: {user_input}] {user_input}"
-        
-        log_chat(
-            user_id,
-            logged_input,
-            reply_text[:200],
-            session,
-            action_type="Gemini reply" if gemini_called else "sync reply",
-            gemini_call="yes" if gemini_called else "no"
-        )
+        # Log interaction (skip for chat mode to avoid duplicates)
+        if session.get("mode") != "chat":
+            # Include language selection in user input for logging
+            logged_input = user_input
+            if session.get("awaiting_translate_language") or session.get("awaiting_chat_language"):
+                # This input was a language selection
+                logged_input = f"[Language: {user_input}] {user_input}"
+            
+            log_chat(
+                user_id,
+                logged_input,
+                reply_text[:200],
+                session,
+                action_type="Gemini reply" if gemini_called else "sync reply",
+                gemini_call="yes" if gemini_called else "no"
+            )
     
     except Exception as e:
         print(f"[LINE ERROR] {e}")

@@ -64,12 +64,19 @@ def taigi_tts(
 
     # 1️⃣ Mandarin → TLPA (unless user supplied TLPA directly)
     if tlpa is None:
-        r = requests.get(f"{base}{end_cn2tlpa}",
-                         params={"text0": mandarin}, timeout=60)
-        r.raise_for_status()
-        tlpa = r.text.strip()
-        if not tlpa:
-            raise RuntimeError("Server returned empty TLPA string")
+        try:
+            r = requests.get(f"{base}{end_cn2tlpa}",
+                             params={"text0": mandarin}, timeout=30)  # Reduced timeout
+            r.raise_for_status()
+            tlpa = r.text.strip()
+            if not tlpa:
+                raise RuntimeError("Server returned empty TLPA string")
+        except requests.exceptions.Timeout:
+            print(f"[TAIGI] Translation timeout after 30s")
+            raise RuntimeError("台語翻譯服務逾時，請稍後再試")
+        except requests.exceptions.RequestException as e:
+            print(f"[TAIGI] Translation request failed: {e}")
+            raise RuntimeError(f"台語翻譯服務暫時無法使用：{str(e)}")
 
     # 2️⃣ TLPA → WAV
     params = {
@@ -79,13 +86,16 @@ def taigi_tts(
     }
     print(f"[TAIGI TTS] Synthesizing TLPA: {tlpa[:50]}...")
     try:
-        r = requests.get(f"{base}{end_tlpa2wav}", params=params, timeout=120)
+        r = requests.get(f"{base}{end_tlpa2wav}", params=params, timeout=60)  # Reduced timeout
         r.raise_for_status()
         wav = r.content
         print(f"[TAIGI TTS] Generated {len(wav)} bytes of audio")
+    except requests.exceptions.Timeout:
+        print(f"[TAIGI TTS] Synthesis timeout after 60s")
+        raise RuntimeError("台語語音合成逾時，請稍後再試")
     except requests.exceptions.RequestException as e:
         print(f"[TAIGI TTS] Request failed: {e}")
-        raise RuntimeError(f"Failed to synthesize Taigi audio: {e}")
+        raise RuntimeError(f"台語語音合成失敗：{str(e)}")
 
     if outfile:
         path = pathlib.Path(outfile).expanduser().resolve()
@@ -114,7 +124,7 @@ def translate_to_taigi(text: str) -> str:
         r = requests.get(
             f"{base}{end_cn2tlpa}",
             params={"text0": text},
-            timeout=60
+            timeout=20  # Reduced timeout
         )
         r.raise_for_status()
         
@@ -126,6 +136,12 @@ def translate_to_taigi(text: str) -> str:
             
         return tlpa
         
+    except requests.exceptions.Timeout:
+        print(f"[TAIGI] Translation timeout after 20s")
+        return "⚠️ 台語翻譯服務逾時，請稍後再試。"
+    except requests.exceptions.ConnectionError:
+        print(f"[TAIGI] Connection failed to Taigi service")
+        return "⚠️ 無法連接台語服務，請檢查網路連線。"
     except Exception as e:
         print(f"[TAIGI] Translation error: {e}")
         return "⚠️ 台語翻譯服務暫時無法使用，請稍後再試。"
