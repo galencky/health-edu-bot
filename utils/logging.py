@@ -282,20 +282,37 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
 def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_call=None):
     """
     Synchronous wrapper for log_chat for use in sync contexts.
-    Uses asyncio.run() which handles event loop creation/cleanup properly.
+    Handles both cases: with and without existing event loop.
     """
     print(f"🔍 [LOGGING] log_chat_sync called with action_type='{action_type}', gemini_call='{gemini_call}'")
     
     def _worker():
         try:
             print(f"🔄 [LOGGING] Starting async chat log for user {user_id[:10]}...")
-            success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call))
+            # Try to get existing event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # If we're here, we're in an async context but called from sync code
+                # This shouldn't happen with our current fix, but handle it anyway
+                print(f"⚠️ [LOGGING] Unexpected: sync function called with active event loop")
+                # Create task in existing loop
+                future = asyncio.run_coroutine_threadsafe(
+                    _async_log_chat(user_id, message, reply, session, action_type, gemini_call),
+                    loop
+                )
+                success = future.result(timeout=30)
+            except RuntimeError:
+                # No event loop, create one
+                success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call))
+            
             if success:
                 print(f"✅ [LOGGING] Chat logging completed successfully")
             else:
                 print(f"❌ [LOGGING] Chat logging failed")
         except Exception as e:
             print(f"❌ [LOGGING] Chat logging thread failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Use bounded thread pool executor instead of unlimited threading
     _logging_executor.submit(_worker)
@@ -304,17 +321,31 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
 def log_tts_async(user_id, text, audio_path, audio_url):
     """
     Fire-and-forget async logging for TTS generation with Drive upload.
-    Uses asyncio.run() which handles event loop creation/cleanup properly.
+    Handles both cases: with and without existing event loop.
     """
     print(f"🔍 [TTS LOG] Starting TTS logging for user {user_id[:10]}..., file: {os.path.basename(audio_path) if '/' in str(audio_path) else audio_path}")
     
     def _worker():
         try:
             print(f"🔄 [TTS] Starting TTS logging and Drive upload for user {user_id[:10]}...")
-            asyncio.run(_log_tts_internal(user_id, text, audio_path, audio_url))
+            # Try to get existing event loop
+            try:
+                loop = asyncio.get_running_loop()
+                print(f"⚠️ [TTS] Unexpected: sync function called with active event loop")
+                # Create task in existing loop
+                future = asyncio.run_coroutine_threadsafe(
+                    _log_tts_internal(user_id, text, audio_path, audio_url),
+                    loop
+                )
+                future.result(timeout=30)
+            except RuntimeError:
+                # No event loop, create one
+                asyncio.run(_log_tts_internal(user_id, text, audio_path, audio_url))
             print(f"✅ [TTS] TTS logging thread completed")
         except Exception as e:
             print(f"❌ [TTS] TTS logging thread failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Use bounded thread pool executor instead of unlimited threading
     _logging_executor.submit(_worker)
@@ -327,13 +358,12 @@ def upload_voicemail_sync(local_path: str, user_id: str, transcription: str = No
     """
     try:
         loop = asyncio.get_running_loop()
-        # We're in an async context, run in the loop's executor
-        future = loop.run_in_executor(
-            None, # Use default executor
-            asyncio.run,
-            _async_upload_voicemail(local_path, user_id, transcription, translation)
+        # We're in an async context, use run_coroutine_threadsafe
+        future = asyncio.run_coroutine_threadsafe(
+            _async_upload_voicemail(local_path, user_id, transcription, translation),
+            loop
         )
-        return future.result()
+        return future.result(timeout=60)  # 60 second timeout for uploads
     except RuntimeError:
         # No event loop, we can create one
         return asyncio.run(_async_upload_voicemail(local_path, user_id, transcription, translation))
@@ -343,12 +373,19 @@ def upload_voicemail_sync(local_path: str, user_id: str, transcription: str = No
 def log_chat(*args, **kwargs):
     """
     Smart wrapper that detects if we're in async context.
-    If async, returns coroutine. If sync, runs in thread.
+    If async, creates a task. If sync, runs in thread.
     """
     try:
-        asyncio.get_running_loop()
-        # We're in async context, return the coroutine
-        return _async_log_chat(*args, **kwargs)
+        loop = asyncio.get_running_loop()
+        # We're in async context, create a task to run the coroutine
+        task = loop.create_task(_async_log_chat(*args, **kwargs))
+        # Add error handler to catch exceptions
+        def _handle_task_error(task):
+            try:
+                task.result()
+            except Exception as e:
+                print(f"❌ [LOGGING] Async task failed: {e}")
+        task.add_done_callback(_handle_task_error)
     except RuntimeError:
         # We're in sync context, use the sync wrapper
         log_chat_sync(*args, **kwargs)
