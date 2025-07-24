@@ -30,7 +30,13 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(test:*)",
-      "WebFetch(domain:tts001.iptcloud.net)"
+      "WebFetch(domain:tts001.iptcloud.net)",
+      "Bash(./venv/bin/python -c \"import asyncpg; print(''asyncpg version:'', asyncpg.__version__)\")",
+      "Bash(git log:*)",
+      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe -c \"try: import asyncpg; print(''asyncpg installed:'', asyncpg.__version__); except: print(''asyncpg NOT installed'')\")",
+      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe -c \"\ntry:\n    import asyncpg\n    print(''asyncpg installed:'', asyncpg.__version__)\nexcept Exception as e:\n    print(''asyncpg NOT installed:'', e)\n\")",
+      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_db_connection.py)",
+      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_threading_issue.py)"
     ],
     "deny": []
   }
