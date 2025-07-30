@@ -22,7 +22,7 @@ from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import create_quick_reply_items, MODE_SELECTION_OPTIONS, COMMON_LANGUAGES
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.taigi_credit import create_taigi_credit_bubble
-from utils.message_splitter import split_long_text, truncate_for_line, calculate_bubble_budget
+from utils.message_splitter import split_long_text, truncate_for_line, calculate_bubble_budget, MAX_BUBBLE_COUNT
 
 # Configuration
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -49,19 +49,37 @@ def handle_line_message(event: MessageEvent) -> None:
         
         # Log interaction (skip for chat mode to avoid duplicates)
         if session.get("mode") != "chat":
-            # Include language selection in user input for logging
+            # Include context in user input for logging
             logged_input = user_input
+            action_type = "sync reply"
+            
             if session.get("awaiting_translate_language") or session.get("awaiting_chat_language"):
                 # This input was a language selection
                 logged_input = f"[Language: {user_input}] {user_input}"
+            elif session.get("awaiting_email"):
+                # This input was an email address
+                logged_input = f"[Email to: {user_input}]"
+                action_type = "Email sent" if "成功寄出" in reply_text else "Email failed"
+                
+                # Check if we have R2 URL from email upload
+                email_r2_url = session.pop("email_r2_url", None)
             
+            if gemini_called:
+                action_type = "Gemini reply"
+            
+            # Use email R2 URL if available, otherwise use regular gemini URL logic
+            gemini_url = None
+            if 'email_r2_url' in locals() and email_r2_url:
+                gemini_url = email_r2_url
+                
             log_chat(
                 user_id,
                 logged_input,
                 reply_text[:200],
                 session,
-                action_type="Gemini reply" if gemini_called else "sync reply",
-                gemini_call="yes" if gemini_called else "no"
+                action_type=action_type,
+                gemini_call="yes" if gemini_called else "no",
+                gemini_output_url=gemini_url
             )
     
     except Exception as e:
@@ -221,6 +239,14 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
         )
     else:
         bubbles.append(TextSendMessage(text=truncated_reply))
+    
+    # Ensure we never exceed LINE's bubble limit per message
+    if len(bubbles) > MAX_BUBBLE_COUNT:
+        print(f"⚠️ [LINE] Warning: {len(bubbles)} bubbles created, truncating to {MAX_BUBBLE_COUNT}")
+        # Keep the main reply (last bubble) and as many content bubbles as possible
+        main_reply = bubbles[-1]
+        content_bubbles = bubbles[:-1][:MAX_BUBBLE_COUNT-1]  # Keep up to 4 content bubbles
+        bubbles = content_bubbles + [main_reply]
     
     return bubbles
 

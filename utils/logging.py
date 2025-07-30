@@ -17,20 +17,21 @@ from utils.retry_utils import exponential_backoff, RetryError
 _logging_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="logging-")
 
 
-async def _async_log_chat(user_id, message, reply, session, action_type=None, gemini_call=None):
+async def _async_log_chat(user_id, message, reply, session, action_type=None, gemini_call=None, gemini_output_url=None):
     """
     Log chat interaction to database asynchronously.
     If gemini_call is "yes", also uploads detailed log to Drive.
     """
     print(f"🔍 [LOGGING] _async_log_chat called with action_type='{action_type}', gemini_call='{gemini_call}'")
-    drive_url = None
+    drive_url = gemini_output_url  # Use provided URL if available
     
     # Log language choice if present
     language = session.get("last_translation_lang") or session.get("chat_target_lang")
     if language:
         print(f"🌍 [LOGGING] Language choice: {language}")
     
-    if gemini_call == "yes" or (language and language in ["台語", "臺語", "taiwanese", "taigi"]):
+    # Only upload to R2 if no URL was provided
+    if not drive_url and (gemini_call == "yes" or (language and language in ["台語", "臺語", "taiwanese", "taigi"])):
         try:
             # Run R2 upload in bounded thread pool since it's sync
             loop = asyncio.get_event_loop()
@@ -246,81 +247,10 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         raise RuntimeError(error_msg) from e
 
 
-async def _async_log_email(user_id: str, to_email: str, subject: str, body: str, session: dict, success: bool):
-    """
-    Log email sending to R2 as a text file
-    """
-    print(f"📧 [LOGGING] Logging email to {to_email} for user {user_id}")
-    
-    try:
-        # Create email log content with all parameters
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        email_content = f"""Email Log
-========================================
-Timestamp: {timestamp}
-User ID: {user_id}
-Recipient: {to_email}
-Status: {'Success' if success else 'Failed'}
-Subject: {subject}
-
-Original Content:
-----------------------------------------
-{session.get('zh_output', 'N/A')}
-
-Translated Content:
-----------------------------------------
-Language: {session.get('last_translation_lang', 'N/A')}
-{session.get('translated_output', 'N/A')}
-
-References:
-----------------------------------------"""
-        
-        # Add references if available
-        references = session.get('references', [])
-        if references:
-            for i, ref in enumerate(references):
-                if isinstance(ref, dict):
-                    email_content += f"\n{i+1}. {ref.get('title', '')}: {ref.get('url', '')}"
-        else:
-            email_content += "\nNo references"
-        
-        email_content += f"""
-
-Email Details:
-----------------------------------------
-Subject: {subject}
-Body Length: {len(body)} characters
-Send Status: {'Sent successfully' if success else 'Failed to send'}
-Topic: {session.get('last_topic', 'Unknown')}
-
-Full Email Body:
-========================================
-{body}"""
-        
-        # Upload to R2
-        loop = asyncio.get_event_loop()
-        service = get_r2_service()
-        
-        # Create filename with email indicator
-        filename = f"{user_id}-email-{timestamp}.txt"
-        result = await loop.run_in_executor(
-            _logging_executor,
-            service.upload_text_file,
-            email_content,
-            filename,
-            f"text/{user_id}"
-        )
-        
-        print(f"✅ [LOGGING] Email log uploaded: {result.get('webViewLink')}")
-        return result.get('webViewLink')
-        
-    except Exception as e:
-        print(f"❌ [LOGGING] Failed to log email: {e}")
-        return None
 
 
 # Synchronous wrappers for backward compatibility
-def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_call=None):
+def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_call=None, gemini_output_url=None):
     """
     Synchronous wrapper for log_chat for use in sync contexts.
     Handles both cases: with and without existing event loop.
@@ -338,13 +268,13 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
                 print(f"⚠️ [LOGGING] Unexpected: sync function called with active event loop")
                 # Create task in existing loop
                 future = asyncio.run_coroutine_threadsafe(
-                    _async_log_chat(user_id, message, reply, session, action_type, gemini_call),
+                    _async_log_chat(user_id, message, reply, session, action_type, gemini_call, gemini_output_url),
                     loop
                 )
                 success = future.result(timeout=30)
             except RuntimeError:
                 # No event loop, create one
-                success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call))
+                success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call, gemini_output_url))
             
             if success:
                 print(f"✅ [LOGGING] Chat logging completed successfully")
@@ -410,41 +340,10 @@ def upload_voicemail_sync(local_path: str, user_id: str, transcription: str = No
         return asyncio.run(_async_upload_voicemail(local_path, user_id, transcription, translation))
 
 
-def log_email_async(user_id: str, to_email: str, subject: str, body: str, session: dict, success: bool):
-    """
-    Async wrapper for email logging that creates a background task
-    """
-    try:
-        loop = asyncio.get_running_loop()
-        # Create a task to run the coroutine
-        task = loop.create_task(_async_log_email(user_id, to_email, subject, body, session, success))
-        
-        # Add error handler
-        def _handle_task_error(task):
-            try:
-                task.result()
-            except Exception as e:
-                print(f"❌ [LOGGING] Email log task error: {e}")
-        
-        task.add_done_callback(_handle_task_error)
-        print(f"📧 [LOGGING] Email log task created for {to_email}")
-        
-    except RuntimeError:
-        # No event loop, fall back to sync version
-        print(f"📧 [LOGGING] No event loop, using sync email logging")
-        
-        def _worker():
-            try:
-                asyncio.run(_async_log_email(user_id, to_email, subject, body, session, success))
-            except Exception as e:
-                print(f"❌ [LOGGING] Sync email log error: {e}")
-        
-        thread = threading.Thread(target=_worker, daemon=True)
-        thread.start()
 
 
 # Smart wrappers that detect context and call appropriate version
-def log_chat(*args, **kwargs):
+def log_chat(user_id, message, reply, session, action_type=None, gemini_call=None, gemini_output_url=None):
     """
     Smart wrapper that detects if we're in async context.
     If async, creates a task. If sync, runs in thread.
@@ -452,7 +351,7 @@ def log_chat(*args, **kwargs):
     try:
         loop = asyncio.get_running_loop()
         # We're in async context, create a task to run the coroutine
-        task = loop.create_task(_async_log_chat(*args, **kwargs))
+        task = loop.create_task(_async_log_chat(user_id, message, reply, session, action_type, gemini_call, gemini_output_url))
         # Add error handler to catch exceptions
         def _handle_task_error(task):
             try:
@@ -462,7 +361,7 @@ def log_chat(*args, **kwargs):
         task.add_done_callback(_handle_task_error)
     except RuntimeError:
         # We're in sync context, use the sync wrapper
-        log_chat_sync(*args, **kwargs)
+        log_chat_sync(user_id, message, reply, session, action_type, gemini_call, gemini_output_url)
 
 
 def upload_voicemail(*args, **kwargs):

@@ -290,7 +290,11 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
         return f"輸入的 email 格式不正確：{e}\n請輸入有效的 email 地址（例如：name@gmail.com）。", False, None
     
     session["awaiting_email"] = False
-    success = send_last_txt_email(user_id, validated_email, session)
+    success, r2_url = send_last_txt_email(user_id, validated_email, session)
+    
+    # Store R2 URL in session for logging
+    if r2_url:
+        session["email_r2_url"] = r2_url
     
     if success:
         quick_reply = {"items": create_quick_reply_items([

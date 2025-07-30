@@ -1,7 +1,8 @@
 from utils.email_service import send_email
-from utils.logging import log_email_async
+from utils.r2_service import get_r2_service
+from datetime import datetime
 
-def send_last_txt_email(user_id: str, to_email: str, session: dict) -> bool:
+def send_last_txt_email(user_id: str, to_email: str, session: dict) -> tuple[bool, str]:
     zh = session.get("zh_output")
     translated = session.get("translated_output")
     translated_lang = session.get("last_translation_lang")
@@ -35,10 +36,49 @@ def send_last_txt_email(user_id: str, to_email: str, session: dict) -> bool:
 
     # Email content prepared successfully
     
+    # Upload email content to R2
+    r2_url = None
+    try:
+        r2_service = get_r2_service()
+        if r2_service:
+            # Create timestamp for filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Create email log content with metadata
+            email_log_content = f"""Email Log
+========================================
+Timestamp: {timestamp}
+User ID: {user_id}
+Recipient: {to_email}
+Subject: {subject}
+Topic: {topic}
+Language: {translated_lang or 'Chinese only'}
+
+Email Content:
+========================================
+{content}
+
+Metadata:
+========================================
+Original content length: {len(zh) if zh else 0} characters
+Translated content length: {len(translated) if translated else 0} characters
+References count: {len(references)}
+"""
+            
+            # Upload to R2 with email indicator in filename
+            filename = f"{user_id}-email-{timestamp}.txt"
+            result = r2_service.upload_text_file(
+                email_log_content, 
+                filename, 
+                folder=f"text/{user_id}"
+            )
+            r2_url = result.get('webViewLink')
+            print(f"✅ [Email] Content uploaded to R2: {r2_url}")
+    except Exception as e:
+        print(f"⚠️ [Email] Failed to upload to R2: {e}")
+        # Continue with email sending even if R2 upload fails
+    
     # Send email
     success = send_email(to_email, subject, content)
     
-    # Log email to R2 (asynchronously in background)
-    log_email_async(user_id, to_email, subject, content, session, success)
-    
-    return success
+    return success, r2_url

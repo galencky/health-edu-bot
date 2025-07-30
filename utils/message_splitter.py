@@ -6,10 +6,11 @@ from typing import List, Tuple
 import re
 
 # LINE API Limits
-MAX_BUBBLE_COUNT = 5  # Maximum bubbles in one reply
+MAX_BUBBLE_COUNT = 5  # Maximum bubbles in one reply message (LINE hard limit)
 MAX_CONTENT_BUBBLES = 3  # Max content bubbles (leaving room for references and main reply)
-MAX_TEXT_LENGTH = 5000  # LINE's maximum text message length
-SAFE_TEXT_LENGTH = 4900  # Safe limit with some buffer
+MAX_TEXT_LENGTH = 5000  # LINE's maximum text message length (API limit)
+MAX_CHARS_PER_BUBBLE = 1000  # Maximum characters per bubble for readability
+SAFE_CHARS_PER_BUBBLE = 950  # Safe limit with some buffer
 
 def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_BUBBLES) -> List[str]:
     """
@@ -28,7 +29,7 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
     
     # Calculate available length per bubble (accounting for prefix)
     prefix_length = len(prefix)
-    available_length = SAFE_TEXT_LENGTH - prefix_length - 10  # Extra buffer for safety
+    available_length = SAFE_CHARS_PER_BUBBLE - prefix_length - 10  # Extra buffer for safety
     
     # If text fits in one bubble, return as is
     if len(text) <= available_length:
@@ -92,13 +93,13 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
     
     return chunks
 
-def truncate_for_line(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
+def truncate_for_line(text: str, max_length: int = MAX_CHARS_PER_BUBBLE) -> str:
     """
-    Truncate text to fit LINE's maximum message length
+    Truncate text to fit LINE's bubble character limit
     
     Args:
         text: Text to truncate
-        max_length: Maximum allowed length
+        max_length: Maximum allowed length (default 1000 chars)
         
     Returns:
         Truncated text with ellipsis if needed
