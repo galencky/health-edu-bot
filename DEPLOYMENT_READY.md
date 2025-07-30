@@ -54,6 +54,10 @@ The project is now clean and ready for deployment to Render or any Docker-compat
 - `R2_BUCKET_NAME`
 - `R2_PUBLIC_URL` (should be https://galenchen.uk)
 
+### 🔧 Recent Fixes
+- Fixed `TTS_USE_DRIVE` import error in `services/tts_service.py`
+- Added `boto3==1.34.0` to `requirements.txt` for R2 storage support
+
 ### 📝 Pending Tasks
 1. Run `python scripts/archive/fixes/simple_url_fix.py --live` to fix existing database URLs
 2. Upload any missing files from local to R2
