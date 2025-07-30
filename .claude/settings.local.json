@@ -38,7 +38,14 @@
       "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_db_connection.py)",
       "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_threading_issue.py)",
       "Bash(true)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(docs/BUG_ANALYSIS.md )",
+      "Bash(docs/CONCURRENCY_AND_INTERRUPTIONS.md )",
+      "Bash(docs/PYDANTIC_MIGRATION_PLAN.md )",
+      "Bash(docs/SYNOLOGY_LOGS_FIX.md )",
+      "Bash(docs/TECHNICAL_DETAILS.md )",
+      "Bash(docs/stability_analysis.md )",
+      "Bash(archive/docs/)"
     ],
     "deny": []
   }
