@@ -7,7 +7,7 @@ from pathlib import Path
 from utils.paths import TTS_AUDIO_DIR
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.rate_limiter import rate_limit, tts_limiter
-from utils.storage_config import TTS_USE_MEMORY, TTS_USE_DRIVE
+from utils.storage_config import TTS_USE_MEMORY, TTS_USE_R2
 from utils.memory_storage import memory_storage
 
 import os, time, wave
@@ -40,7 +40,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
 
     Returns:
         (audio_url, duration_ms) tuple
-    Saves WAV to ./tts_audio and uploads to Google Drive in background.
+    Saves WAV to ./tts_audio and uploads to R2 storage in background.
     
     BUG FIX: Added comprehensive error handling for TTS failures
     """
@@ -140,11 +140,11 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         else:
             url = f"{base}/audio/{safe_fn}"
         
-        # Log to database (no physical file to upload to Drive)
+        # Log to database (no physical file to upload to storage)
         log_tts_async(user_id, text, safe_fn, url)
         
     else:
-        # Save to disk (local or for Drive upload)
+        # Save to disk (local or for R2 upload)
         _wave_file(str(path), pcm)
         
         # Build public URL
@@ -156,7 +156,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         else:
             url = f"{base}/static/{safe_fn}"
         
-        # Log to Google Drive & database (in background)
+        # Log to R2 storage & database (in background)
         log_tts_async(user_id, text, str(path), url)
 
     return url, dur_ms
