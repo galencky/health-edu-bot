@@ -22,6 +22,7 @@ from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import create_quick_reply_items, MODE_SELECTION_OPTIONS, COMMON_LANGUAGES
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.taigi_credit import create_taigi_credit_bubble
+from utils.message_splitter import split_long_text, truncate_for_line, calculate_bubble_budget
 
 # Configuration
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -183,15 +184,23 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             translated_content = session.get("translated_output", "")
             just_translated = session.pop("just_translated", False)
             
+            # Calculate bubble budget
+            has_references = bool(session.get("references", []))
+            has_audio = bool(session.get("tts_audio_url"))
+            has_taigi_credit = show_taigi_credit
+            available_bubbles = calculate_bubble_budget(has_references, has_audio, has_taigi_credit)
+            
             # Add content based on what action was performed
             if just_translated and translated_content:
                 # Show only translated content after translation
-                content_text = f"🌐 譯文：\n{translated_content[:2000]}"
-                bubbles.append(TextSendMessage(text=content_text))
+                chunks = split_long_text(translated_content, "🌐 譯文：\n", available_bubbles)
+                for chunk in chunks:
+                    bubbles.append(TextSendMessage(text=chunk))
             elif zh_content and not just_translated:
                 # Show only Chinese content for initial generation or modification
-                content_text = f"📄 原文：\n{zh_content[:2000]}"
-                bubbles.append(TextSendMessage(text=content_text))
+                chunks = split_long_text(zh_content, "📄 原文：\n", available_bubbles)
+                for chunk in chunks:
+                    bubbles.append(TextSendMessage(text=chunk))
     
     # Add references only when showing edu content (new generation, modify, or translate)
     if session.get("mode") == "edu" and gemini_called:
@@ -201,16 +210,17 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             if flex:
                 bubbles.append(FlexSendMessage(alt_text="參考來源", contents=flex))
     
-    # Add main reply
+    # Add main reply (ensure it fits LINE's limits)
+    truncated_reply = truncate_for_line(reply_text)
     if quick_reply_data:
         bubbles.append(
             TextSendMessage(
-                text=reply_text,
+                text=truncated_reply,
                 quick_reply=QuickReply(items=quick_reply_data["items"])
             )
         )
     else:
-        bubbles.append(TextSendMessage(text=reply_text))
+        bubbles.append(TextSendMessage(text=truncated_reply))
     
     return bubbles
 

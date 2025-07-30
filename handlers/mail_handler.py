@@ -1,4 +1,5 @@
 from utils.email_service import send_email
+from utils.logging import log_email_async
 
 def send_last_txt_email(user_id: str, to_email: str, session: dict) -> bool:
     zh = session.get("zh_output")
@@ -33,5 +34,11 @@ def send_last_txt_email(user_id: str, to_email: str, session: dict) -> bool:
         subject = f"[Mededbot-多語言衛教AI] 中文 {topic} 衛教單張"
 
     # Email content prepared successfully
-
-    return send_email(to_email, subject, content)
+    
+    # Send email
+    success = send_email(to_email, subject, content)
+    
+    # Log email to R2 (asynchronously in background)
+    log_email_async(user_id, to_email, subject, content, session, success)
+    
+    return success
