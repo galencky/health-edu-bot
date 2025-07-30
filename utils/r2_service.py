@@ -128,6 +128,10 @@ class R2Service:
         # Create text content matching existing format
         input_message = session_data.get('last_user_message', 'N/A')
         
+        # Get additional content if available
+        translated_output = session_data.get('translated_output', '')
+        translation_lang = session_data.get('last_translation_lang', '')
+        
         # Format content to match existing structure
         text_content = f"""Timestamp: {timestamp}
 User ID: {user_id}
@@ -135,6 +139,13 @@ Input Message: {input_message}
 
 Gemini zh_output:
 {content}"""
+        
+        # Add translation if available
+        if translated_output and translation_lang:
+            text_content += f"""
+
+Translated Output ({translation_lang}):
+{translated_output}"""
         
         # Upload to R2 - matching existing format
         # Format: text/{user_id}/{user_id}-{timestamp}.txt
@@ -175,7 +186,16 @@ async def upload_gemini_log_async(user_id: str, session: dict, message: str) -> 
     service = get_r2_service()
     
     # Get the Gemini output from session
+    # Try multiple possible keys where output might be stored
     gemini_output = session.get('gemini_output', '')
+    if not gemini_output:
+        gemini_output = session.get('zh_output', '')  # Education mode
+    if not gemini_output:
+        gemini_output = session.get('chinese_output', '')  # MedChat mode
+    if not gemini_output:
+        gemini_output = session.get('translation_output', '')  # MedChat translation
+    if not gemini_output:
+        gemini_output = session.get('translated_output', '')  # Education translation
     if not gemini_output:
         gemini_output = session.get('last_bot_message', 'No output available')
     
@@ -197,7 +217,16 @@ def upload_gemini_log(user_id: str, session: dict, message: str) -> Tuple[str, s
     service = get_r2_service()
     
     # Get the Gemini output from session
+    # Try multiple possible keys where output might be stored
     gemini_output = session.get('gemini_output', '')
+    if not gemini_output:
+        gemini_output = session.get('zh_output', '')  # Education mode
+    if not gemini_output:
+        gemini_output = session.get('chinese_output', '')  # MedChat mode
+    if not gemini_output:
+        gemini_output = session.get('translation_output', '')  # MedChat translation
+    if not gemini_output:
+        gemini_output = session.get('translated_output', '')  # Education translation
     if not gemini_output:
         gemini_output = session.get('last_bot_message', 'No output available')
     
