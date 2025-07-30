@@ -4,7 +4,7 @@ from enum import Enum
 
 class StorageBackend(Enum):
     LOCAL = "local"
-    GOOGLE_DRIVE = "google_drive"
+    R2 = "r2"  # Cloudflare R2
     MEMORY = "memory"  # For ephemeral deployments
 
 def get_storage_backend() -> StorageBackend:
@@ -13,10 +13,11 @@ def get_storage_backend() -> StorageBackend:
     if os.getenv("USE_MEMORY_STORAGE", "").lower() == "true":
         return StorageBackend.MEMORY
     
-    # Check if Google Drive is configured
-    has_drive_config = bool(
-        os.getenv("GOOGLE_DRIVE_FOLDER_ID") and 
-        (os.getenv("GOOGLE_CREDS_B64") or os.path.exists("credentials.json"))
+    # Check if R2 is configured
+    has_r2_config = bool(
+        os.getenv("R2_ENDPOINT_URL") and 
+        os.getenv("R2_ACCESS_KEY_ID") and
+        os.getenv("R2_SECRET_ACCESS_KEY")
     )
     
     # Check if we're on cloud platform (ephemeral filesystem)
@@ -36,15 +37,15 @@ def get_storage_backend() -> StorageBackend:
         return StorageBackend.MEMORY
     
     if is_cloud:
-        # Use Google Drive if configured, otherwise memory
-        if has_drive_config:
-            return StorageBackend.GOOGLE_DRIVE
+        # Use R2 if configured, otherwise memory
+        if has_r2_config:
+            return StorageBackend.R2
         return StorageBackend.MEMORY
     
     # Local development or persistent filesystem
-    # Use Google Drive if configured, otherwise local
-    if has_drive_config:
-        return StorageBackend.GOOGLE_DRIVE
+    # Use R2 if configured, otherwise local
+    if has_r2_config:
+        return StorageBackend.R2
     return StorageBackend.LOCAL
 
 # Get current backend
@@ -52,5 +53,5 @@ STORAGE_BACKEND = get_storage_backend()
 
 # Configure TTS storage
 TTS_USE_MEMORY = STORAGE_BACKEND == StorageBackend.MEMORY
-TTS_USE_DRIVE = STORAGE_BACKEND == StorageBackend.GOOGLE_DRIVE
+TTS_USE_R2 = STORAGE_BACKEND == StorageBackend.R2
 

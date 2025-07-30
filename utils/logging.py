@@ -1,6 +1,6 @@
 """
 Async logging module that uses async PostgreSQL for database operations.
-Google Drive is still used for file storage, but not for logging.
+Cloudflare R2 is used for file storage instead of Google Drive.
 """
 import os
 import asyncio
@@ -8,7 +8,7 @@ import traceback
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from utils.database import log_chat_to_db, log_tts_to_db
-from utils.google_drive_service import get_drive_service, upload_gemini_log as _upload_gemini_log_original
+from utils.r2_service import upload_gemini_log as _upload_gemini_log_r2, get_r2_service
 from utils.retry_utils import exponential_backoff, RetryError
 
 # Global thread pool executor to limit thread creation
@@ -31,17 +31,17 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     
     if gemini_call == "yes" or (language and language in ["台語", "臺語", "taiwanese", "taigi"]):
         try:
-            # Run Drive upload in bounded thread pool since it's sync
+            # Run R2 upload in bounded thread pool since it's sync
             loop = asyncio.get_event_loop()
             drive_url, _ = await loop.run_in_executor(
                 _logging_executor, 
-                _upload_gemini_log_original, 
+                _upload_gemini_log_r2, 
                 user_id, 
                 session, 
                 message
             )
         except Exception as e:
-            print(f"Failed to upload Gemini log to Drive: {e}")
+            print(f"Failed to upload Gemini log to R2: {e}")
     
     # Log to database asynchronously
     try:
@@ -64,7 +64,7 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
 
 async def _log_tts_internal(user_id, text, audio_path, audio_url):
     """
-    Internal async function to log TTS generation and upload audio to Drive.
+    Internal async function to log TTS generation and upload audio to R2.
     """
     from utils.storage_config import TTS_USE_MEMORY
     
@@ -72,8 +72,8 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
     upload_status = "pending"
     retry_count = 0
     
-    # Handle Drive upload for both memory and disk storage
-    if os.getenv("GOOGLE_DRIVE_FOLDER_ID"):
+    # Handle R2 upload for both memory and disk storage
+    if os.getenv("R2_ENDPOINT_URL"):
         @exponential_backoff(
             max_retries=3,
             initial_delay=1.0,
@@ -138,10 +138,9 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
     """Unified audio file upload logic for both TTS and voicemail"""
     from utils.storage_config import TTS_USE_MEMORY
     
-    service = get_drive_service()
-    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-    if not folder_id:
-        raise ValueError("GOOGLE_DRIVE_FOLDER_ID not configured")
+    service = get_r2_service()
+    if not service:
+        raise ValueError("R2 service not configured")
     
     filename = os.path.basename(audio_path)
     
@@ -149,19 +148,8 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
     if "_taigi_" in filename:
         print(f"🇹🇼 [{log_prefix}] Uploading Taigi audio file: {filename}")
     
-    # Detect file type and set appropriate mimetype
-    ext = filename.lower().split('.')[-1]
-    mimetype_map = {
-        'wav': 'audio/wav',
-        'm4a': 'audio/mp4', 
-        'mp3': 'audio/mpeg',
-        'aac': 'audio/aac'
-    }
-    mimetype = mimetype_map.get(ext, 'audio/wav')
-    
-    file_metadata = {"name": filename, "parents": [folder_id]}
-    
-    from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
+    # Get user_id from filename (format: U{user_id}_{rest})
+    user_id = filename.split('_')[0] if '_' in filename else 'unknown'
     
     # Handle memory vs disk storage
     if TTS_USE_MEMORY and log_prefix == "TTS Upload":
@@ -181,12 +169,6 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         file_size = len(audio_data)
         if file_size == 0:
             raise ValueError("Audio file is empty")
-        
-        media = MediaIoBaseUpload(
-            io.BytesIO(audio_data),
-            mimetype=mimetype,
-            resumable=(file_size > 5 * 1024 * 1024)
-        )
     else:
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -195,44 +177,29 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         if file_size == 0:
             raise ValueError(f"Audio file is empty: {audio_path}")
         
-        media = MediaFileUpload(
-            audio_path,
-            mimetype=mimetype,
-            resumable=(file_size > 5 * 1024 * 1024),
-            chunksize=1024*1024 if file_size > 5 * 1024 * 1024 else None
-        )
+        # Read file data
+        with open(audio_path, 'rb') as f:
+            audio_data = f.read()
     
-    print(f"[{log_prefix}] File: {filename}, Size: {file_size} bytes, MIME: {mimetype}")
+    print(f"[{log_prefix}] File: {filename}, Size: {file_size} bytes")
     
-    # Upload file
+    # Determine folder based on prefix
+    if log_prefix == "TTS Upload":
+        folder = f"tts_audio/{user_id}"
+    elif log_prefix == "Voicemail Upload":
+        folder = f"voicemail/{user_id}"
+    else:
+        folder = f"audio/{user_id}"
+    
+    # Upload to R2
     try:
-        if media._resumable:
-            request = service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id,webViewLink"
-            )
-            uploaded = None
-            while uploaded is None:
-                status, uploaded = request.next_chunk()
-                if status:
-                    print(f"[{log_prefix}] Progress: {int(status.progress() * 100)}%")
-        else:
-            uploaded = service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id,webViewLink"
-            ).execute()
+        result = service.upload_audio_file(audio_data, filename, folder=folder)
+        print(f"[{log_prefix}] Upload completed successfully, URL: {result.get('webViewLink')}")
+        return result
         
-        print(f"[{log_prefix}] Upload completed successfully, File ID: {uploaded.get('id')}")
-        return uploaded
-        
-    finally:
-        if media and hasattr(media, '_fd') and media._fd and not media._fd.closed:
-            try:
-                media._fd.close()
-            except Exception as e:
-                print(f"[{log_prefix}] Failed to close media file descriptor: {e}")
+    except Exception as e:
+        print(f"[{log_prefix}] Upload failed: {e}")
+        raise
 
 
 async def _async_upload_voicemail(local_path: str, user_id: str, transcription: str = None, translation: str = None) -> str:

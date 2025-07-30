@@ -36,7 +36,9 @@
       "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe -c \"try: import asyncpg; print(''asyncpg installed:'', asyncpg.__version__); except: print(''asyncpg NOT installed'')\")",
       "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe -c \"\ntry:\n    import asyncpg\n    print(''asyncpg installed:'', asyncpg.__version__)\nexcept Exception as e:\n    print(''asyncpg NOT installed:'', e)\n\")",
       "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_db_connection.py)",
-      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_threading_issue.py)"
+      "Bash(/mnt/d/coding-projects/Mededbot/venv/Scripts/python.exe test_threading_issue.py)",
+      "Bash(true)",
+      "Bash(source:*)"
     ],
     "deny": []
   }

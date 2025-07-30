@@ -90,9 +90,12 @@ GEMINI_API_KEY=your_gemini_api_key
 GMAIL_ADDRESS=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_app_password
 
-# Google Drive (Optional)
-GOOGLE_DRIVE_FOLDER_ID=your_folder_id
-GOOGLE_CREDS_B64=base64_encoded_service_account_json
+# Cloudflare R2 Storage (Replaces Google Drive)
+R2_ENDPOINT_URL=https://your-account-id.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
+R2_BUCKET_NAME=mededbot
+R2_PUBLIC_URL=https://your-domain.com
 
 # Deployment
 BASE_URL=https://your-domain.com

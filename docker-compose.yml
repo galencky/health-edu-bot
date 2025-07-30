@@ -25,8 +25,11 @@ services:
       # - GEMINI_API_KEY=your_key
       # - GMAIL_ADDRESS=your_email
       # - GMAIL_APP_PASSWORD=your_password
-      # - GOOGLE_DRIVE_FOLDER_ID=your_folder_id
-      # - GOOGLE_CREDS_B64=your_base64_creds
+      # - R2_ENDPOINT_URL=https://your-account-id.r2.cloudflarestorage.com
+      # - R2_ACCESS_KEY_ID=your_access_key
+      # - R2_SECRET_ACCESS_KEY=your_secret_key
+      # - R2_BUCKET_NAME=mededbot
+      # - R2_PUBLIC_URL=https://your-domain.com
       # - BASE_URL=https://your-domain.com
       # For local development on Windows with WSL:
       # - BASE_URL=http://192.168.0.109:10001
