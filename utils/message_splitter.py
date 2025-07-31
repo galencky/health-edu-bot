@@ -8,11 +8,11 @@ import re
 # LINE API Limits
 MAX_BUBBLE_COUNT = 5  # Maximum bubbles in one reply message (LINE hard limit)
 MAX_CONTENT_BUBBLES = 3  # Max content bubbles (leaving room for references and main reply)
-MAX_TEXT_LENGTH = 5000  # LINE's maximum text message length (API limit)
-MAX_CHARS_PER_BUBBLE = 1000  # Maximum characters per bubble for readability
-SAFE_CHARS_PER_BUBBLE = 950  # Safe limit with some buffer
+MAX_TOTAL_CHARS = 5000  # Maximum total characters across all bubbles
+MAX_CHARS_PER_BUBBLE = 2000  # Maximum characters per bubble
+SAFE_CHARS_PER_BUBBLE = 1950  # Safe limit with some buffer
 
-def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_BUBBLES) -> List[str]:
+def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_BUBBLES, char_budget: int = None) -> List[str]:
     """
     Split long text into multiple chunks for LINE bubbles
     
@@ -20,6 +20,7 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
         text: The text to split
         prefix: Prefix to add to each chunk (e.g., "📄 原文：\n")
         max_bubbles: Maximum number of bubbles to create
+        char_budget: Optional character budget for all content bubbles
         
     Returns:
         List of text chunks, each suitable for a LINE bubble
@@ -29,10 +30,25 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
     
     # Calculate available length per bubble (accounting for prefix)
     prefix_length = len(prefix)
-    available_length = SAFE_CHARS_PER_BUBBLE - prefix_length - 10  # Extra buffer for safety
+    available_length = SAFE_CHARS_PER_BUBBLE - prefix_length
+    
+    # Use provided budget or default to max total chars
+    if char_budget:
+        total_available = char_budget - (prefix_length * max_bubbles)
+    else:
+        total_available = MAX_TOTAL_CHARS - (prefix_length * max_bubbles)
+        
+    if len(text) > total_available:
+        # Text exceeds limit, will need to truncate
+        text = text[:total_available]
+        truncated = True
+    else:
+        truncated = False
     
     # If text fits in one bubble, return as is
     if len(text) <= available_length:
+        if truncated:
+            return [prefix + text + "\n\n⚠️ 內容因超過 LINE 限制已截斷"]
         return [prefix + text]
     
     chunks = []
@@ -42,14 +58,12 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
         if not remaining_text:
             break
             
-        # For the last bubble, we might need to truncate
+        # For the last bubble
         if i == max_bubbles - 1:
-            # Check if remaining text fits
-            if len(remaining_text) > available_length:
-                # Truncate with ellipsis
-                chunk = remaining_text[:available_length - 5] + "\n..."
-            else:
-                chunk = remaining_text
+            # Take whatever remains
+            chunk = remaining_text
+            if truncated:
+                chunk += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
             chunks.append(prefix + chunk)
             break
         
@@ -85,11 +99,13 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
         chunk = remaining_text[:break_point].rstrip()
         remaining_text = remaining_text[break_point:].lstrip()
         
-        # Add continuation indicator if not the last chunk
-        if remaining_text and i < max_bubbles - 1:
-            chunk += "\n(續...)"
-        
         chunks.append(prefix + chunk)
+    
+    # If we still have remaining text after max bubbles, add truncation notice
+    if remaining_text and not truncated:
+        # Text was split across max bubbles but more remains
+        if chunks:
+            chunks[-1] += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
     
     return chunks
 
@@ -99,16 +115,42 @@ def truncate_for_line(text: str, max_length: int = MAX_CHARS_PER_BUBBLE) -> str:
     
     Args:
         text: Text to truncate
-        max_length: Maximum allowed length (default 1000 chars)
+        max_length: Maximum allowed length (default 2000 chars)
         
     Returns:
-        Truncated text with ellipsis if needed
+        Truncated text with notice if needed
     """
     if len(text) <= max_length:
         return text
     
-    # Truncate with ellipsis
-    return text[:max_length - 5] + "\n..."
+    # Truncate with notice
+    truncation_notice = "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+    return text[:max_length - len(truncation_notice)] + truncation_notice
+
+def calculate_total_characters(bubbles: List) -> int:
+    """
+    Calculate total character count across all bubbles
+    
+    Args:
+        bubbles: List of message bubbles (TextSendMessage, FlexSendMessage, etc.)
+        
+    Returns:
+        Total character count
+    """
+    total_chars = 0
+    
+    for bubble in bubbles:
+        if hasattr(bubble, 'text'):
+            # TextSendMessage
+            total_chars += len(bubble.text)
+        elif hasattr(bubble, 'alt_text'):
+            # FlexSendMessage - count alt_text as minimum
+            # Flex messages can be large, so we estimate conservatively
+            total_chars += len(bubble.alt_text) * 10  # Rough estimate for flex content
+        # AudioSendMessage doesn't count towards character limit
+    
+    return total_chars
+
 
 def calculate_bubble_budget(has_references: bool, has_audio: bool, has_taigi_credit: bool) -> int:
     """

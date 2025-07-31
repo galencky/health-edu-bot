@@ -295,6 +295,7 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
     # Store R2 URL in session for logging
     if r2_url:
         session["email_r2_url"] = r2_url
+        print(f"📧 [LOGIC] Stored email R2 URL in session: {r2_url}")
     
     if success:
         quick_reply = {"items": create_quick_reply_items([

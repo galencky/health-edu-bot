@@ -22,7 +22,10 @@ from utils.paths import VOICEMAIL_DIR
 from utils.command_sets import create_quick_reply_items, MODE_SELECTION_OPTIONS, COMMON_LANGUAGES
 from utils.validators import sanitize_user_id, sanitize_filename, create_safe_path
 from utils.taigi_credit import create_taigi_credit_bubble
-from utils.message_splitter import split_long_text, truncate_for_line, calculate_bubble_budget, MAX_BUBBLE_COUNT
+from utils.message_splitter import (
+    split_long_text, truncate_for_line, calculate_bubble_budget, 
+    calculate_total_characters, MAX_BUBBLE_COUNT, MAX_TOTAL_CHARS
+)
 
 # Configuration
 MAX_AUDIO_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -43,34 +46,51 @@ def handle_line_message(event: MessageEvent) -> None:
         # Create response bubbles
         bubbles = create_message_bubbles(session, reply_text, quick_reply_data, gemini_called)
         
-        # Send response
+        # Send response with final validation
         if bubbles:
-            line_bot_api.reply_message(event.reply_token, bubbles)
+            # Final safety check
+            final_chars = calculate_total_characters(bubbles)
+            if final_chars > MAX_TOTAL_CHARS:
+                print(f"❌ [LINE] CRITICAL: Total chars ({final_chars}) still exceeds limit! Sending anyway...")
+            
+            try:
+                line_bot_api.reply_message(event.reply_token, bubbles)
+            except LineBotApiError as e:
+                print(f"❌ [LINE] API Error: {e}")
+                # If we hit an error, try sending just a simple error message
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="系統錯誤：訊息內容過長，請嘗試較短的查詢。")
+                )
         
         # Log interaction (skip for chat mode to avoid duplicates)
         if session.get("mode") != "chat":
             # Include context in user input for logging
             logged_input = user_input
             action_type = "sync reply"
+            email_r2_url = None
             
             if session.get("awaiting_translate_language") or session.get("awaiting_chat_language"):
                 # This input was a language selection
                 logged_input = f"[Language: {user_input}] {user_input}"
-            elif session.get("awaiting_email"):
-                # This input was an email address
+            elif session.get("awaiting_email") or "email_r2_url" in session:
+                # This input was an email address (or we just sent an email)
                 logged_input = f"[Email to: {user_input}]"
                 action_type = "Email sent" if "成功寄出" in reply_text else "Email failed"
                 
                 # Check if we have R2 URL from email upload
                 email_r2_url = session.pop("email_r2_url", None)
+                if email_r2_url:
+                    print(f"📧 [LINE] Found email R2 URL: {email_r2_url}")
             
             if gemini_called:
                 action_type = "Gemini reply"
             
             # Use email R2 URL if available, otherwise use regular gemini URL logic
             gemini_url = None
-            if 'email_r2_url' in locals() and email_r2_url:
+            if email_r2_url:
                 gemini_url = email_r2_url
+                print(f"📧 [LINE] Using email R2 URL for logging: {gemini_url}")
                 
             log_chat(
                 user_id,
@@ -202,6 +222,20 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             translated_content = session.get("translated_output", "")
             just_translated = session.pop("just_translated", False)
             
+            # Pre-calculate character usage from other elements
+            char_usage = 0
+            
+            # Estimate main reply text size
+            char_usage += len(reply_text)
+            
+            # Estimate references size if they exist
+            if session.get("references", []):
+                # Rough estimate: 200 chars per reference
+                char_usage += len(session.get("references", [])) * 200
+            
+            # Calculate remaining character budget for content
+            remaining_char_budget = MAX_TOTAL_CHARS - char_usage - 200  # 200 char safety buffer
+            
             # Calculate bubble budget
             has_references = bool(session.get("references", []))
             has_audio = bool(session.get("tts_audio_url"))
@@ -211,12 +245,12 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             # Add content based on what action was performed
             if just_translated and translated_content:
                 # Show only translated content after translation
-                chunks = split_long_text(translated_content, "🌐 譯文：\n", available_bubbles)
+                chunks = split_long_text(translated_content, "🌐 譯文：\n", available_bubbles, remaining_char_budget)
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
             elif zh_content and not just_translated:
                 # Show only Chinese content for initial generation or modification
-                chunks = split_long_text(zh_content, "📄 原文：\n", available_bubbles)
+                chunks = split_long_text(zh_content, "📄 原文：\n", available_bubbles, remaining_char_budget)
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
     
@@ -240,13 +274,57 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     else:
         bubbles.append(TextSendMessage(text=truncated_reply))
     
-    # Ensure we never exceed LINE's bubble limit per message
-    if len(bubbles) > MAX_BUBBLE_COUNT:
-        print(f"⚠️ [LINE] Warning: {len(bubbles)} bubbles created, truncating to {MAX_BUBBLE_COUNT}")
-        # Keep the main reply (last bubble) and as many content bubbles as possible
+    # Check total character count and bubble count limits
+    total_chars = calculate_total_characters(bubbles)
+    
+    if len(bubbles) > MAX_BUBBLE_COUNT or total_chars > MAX_TOTAL_CHARS:
+        print(f"⚠️ [LINE] Limits exceeded - Bubbles: {len(bubbles)}/{MAX_BUBBLE_COUNT}, Chars: {total_chars}/{MAX_TOTAL_CHARS}")
+        
+        # We need to reorganize to fit within limits
+        # Priority: 1) Main reply (required), 2) Audio, 3) References, 4) Content
+        
+        essential_bubbles = []
+        content_bubbles = []
+        
+        # Separate bubbles by type
+        for bubble in bubbles[:-1]:  # All except main reply
+            if isinstance(bubble, AudioSendMessage) or (hasattr(bubble, 'alt_text') and 'credit' in bubble.alt_text.lower()):
+                essential_bubbles.append(bubble)
+            elif hasattr(bubble, 'alt_text') and '參考' in bubble.alt_text:
+                essential_bubbles.append(bubble)
+            else:
+                content_bubbles.append(bubble)
+        
         main_reply = bubbles[-1]
-        content_bubbles = bubbles[:-1][:MAX_BUBBLE_COUNT-1]  # Keep up to 4 content bubbles
-        bubbles = content_bubbles + [main_reply]
+        
+        # Rebuild bubbles within limits
+        new_bubbles = []
+        char_count = len(main_reply.text) if hasattr(main_reply, 'text') else 0
+        
+        # Add essential bubbles first
+        for bubble in essential_bubbles:
+            bubble_chars = calculate_total_characters([bubble])
+            if len(new_bubbles) + 1 < MAX_BUBBLE_COUNT - 1 and char_count + bubble_chars < MAX_TOTAL_CHARS:
+                new_bubbles.append(bubble)
+                char_count += bubble_chars
+        
+        # Add content bubbles if space allows
+        for bubble in content_bubbles:
+            bubble_chars = calculate_total_characters([bubble])
+            if len(new_bubbles) + 1 < MAX_BUBBLE_COUNT - 1 and char_count + bubble_chars < MAX_TOTAL_CHARS:
+                new_bubbles.append(bubble)
+                char_count += bubble_chars
+            else:
+                # Can't fit more content, add truncation notice to main reply
+                if hasattr(main_reply, 'text') and "⚠️ 內容因超過 LINE 限制已截斷" not in main_reply.text:
+                    main_reply.text += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+                break
+        
+        # Add main reply last
+        new_bubbles.append(main_reply)
+        bubbles = new_bubbles
+        
+        print(f"✅ [LINE] Adjusted to {len(bubbles)} bubbles, {calculate_total_characters(bubbles)} chars")
     
     return bubbles
 
