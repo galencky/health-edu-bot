@@ -158,11 +158,15 @@ Translated Output ({translation_lang}):
 # Singleton instance
 _r2_service = None
 
-def get_r2_service() -> R2Service:
+def get_r2_service():
     """Get or create R2 service instance"""
     global _r2_service
     if _r2_service is None:
-        _r2_service = R2Service()
+        try:
+            _r2_service = R2Service()
+        except Exception as e:
+            print(f"❌ [R2] Failed to initialize R2 service: {e}")
+            return None
     return _r2_service
 
 

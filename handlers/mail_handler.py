@@ -40,6 +40,7 @@ def send_last_txt_email(user_id: str, to_email: str, session: dict) -> tuple[boo
     r2_url = None
     try:
         r2_service = get_r2_service()
+        print(f"📧 [Email] R2 service available: {r2_service is not None}")
         if r2_service:
             # Create timestamp for filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -67,15 +68,19 @@ References count: {len(references)}
             
             # Upload to R2 with email indicator in filename
             filename = f"{user_id}-email-{timestamp}.txt"
+            print(f"📧 [Email] Uploading file: {filename} to folder: text/{user_id}")
             result = r2_service.upload_text_file(
                 email_log_content, 
                 filename, 
                 folder=f"text/{user_id}"
             )
+            print(f"📧 [Email] Upload result: {result}")
             r2_url = result.get('webViewLink')
             print(f"✅ [Email] Content uploaded to R2: {r2_url}")
     except Exception as e:
         print(f"⚠️ [Email] Failed to upload to R2: {e}")
+        import traceback
+        traceback.print_exc()
         # Continue with email sending even if R2 upload fails
     
     # Send email

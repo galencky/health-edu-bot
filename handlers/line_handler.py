@@ -186,6 +186,9 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     """Create message bubbles based on session state"""
     bubbles = []
     
+    # Debug: Log that we're starting fresh
+    print(f"📱 [LINE] Creating new message bubbles - Mode: {session.get('mode')}, Gemini: {gemini_called}")
+    
     # Check if we need to show Taigi credit with audio
     show_taigi_credit = session.pop("show_taigi_credit", False)
     
@@ -227,14 +230,18 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             
             # Estimate main reply text size
             char_usage += len(reply_text)
+            print(f"📊 [LINE] Reply text chars: {len(reply_text)}")
             
             # Estimate references size if they exist
             if session.get("references", []):
                 # Rough estimate: 200 chars per reference
-                char_usage += len(session.get("references", [])) * 200
+                ref_chars = len(session.get("references", [])) * 200
+                char_usage += ref_chars
+                print(f"📊 [LINE] References chars (estimated): {ref_chars}")
             
             # Calculate remaining character budget for content
             remaining_char_budget = MAX_TOTAL_CHARS - char_usage - 200  # 200 char safety buffer
+            print(f"📊 [LINE] Character budget - Used: {char_usage}, Remaining: {remaining_char_budget}, Total: {MAX_TOTAL_CHARS}")
             
             # Calculate bubble budget
             has_references = bool(session.get("references", []))
@@ -245,12 +252,16 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             # Add content based on what action was performed
             if just_translated and translated_content:
                 # Show only translated content after translation
+                print(f"📝 [LINE] Adding translated content: {len(translated_content)} chars")
                 chunks = split_long_text(translated_content, "🌐 譯文：\n", available_bubbles, remaining_char_budget)
+                print(f"📝 [LINE] Split into {len(chunks)} chunks")
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
             elif zh_content and not just_translated:
                 # Show only Chinese content for initial generation or modification
+                print(f"📝 [LINE] Adding Chinese content: {len(zh_content)} chars")
                 chunks = split_long_text(zh_content, "📄 原文：\n", available_bubbles, remaining_char_budget)
+                print(f"📝 [LINE] Split into {len(chunks)} chunks")
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
     
@@ -324,7 +335,8 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
         new_bubbles.append(main_reply)
         bubbles = new_bubbles
         
-        print(f"✅ [LINE] Adjusted to {len(bubbles)} bubbles, {calculate_total_characters(bubbles)} chars")
+        final_total = calculate_total_characters(bubbles)
+        print(f"✅ [LINE] Adjusted to {len(bubbles)} bubbles, {final_total} chars")
     
     return bubbles
 

@@ -186,13 +186,10 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
         session["zh_output"] = zh_content
         session["last_topic"] = text[:30]
         
-        # Get references
+        # Get references (replace, don't accumulate)
         refs = get_references()
         if refs:
-            if session.get("references"):
-                session["references"].extend(refs)
-            else:
-                session["references"] = refs
+            session["references"] = refs
         
         quick_reply = {"items": create_quick_reply_items([
             ("✏️ 修改", "modify"),
@@ -219,13 +216,10 @@ def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, 
     session["zh_output"] = new_content
     session["awaiting_modify"] = False
     
-    # Update references
+    # Update references (replace, don't accumulate)
     refs = get_references()
     if refs:
-        if session.get("references"):
-            session["references"].extend(refs)
-        else:
-            session["references"] = refs
+        session["references"] = refs
     
     quick_reply = {"items": create_quick_reply_items([
         ("✏️ 修改", "modify"),
@@ -253,13 +247,10 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
     translated = call_translate(session["zh_output"], language)
     gemini_called = True
     
-    # Update references only for Gemini calls
+    # Update references only for Gemini calls (replace, don't accumulate)
     refs = get_references()
     if refs:
-        if session.get("references"):
-            session["references"].extend(refs)
-        else:
-            session["references"] = refs
+        session["references"] = refs
     
     session["translated_output"] = translated
     session["translated"] = True
