@@ -55,7 +55,7 @@ def _call_genai(user_text: str, sys_prompt: Optional[str] = None, temp: float = 
     
     config = types.GenerateContentConfig(
         temperature=temp,
-        max_output_tokens=2000,
+        max_output_tokens=5000,
         tools=_tools,
         response_mime_type="text/plain",
         system_instruction=system_instructions
