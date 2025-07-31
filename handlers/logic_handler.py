@@ -210,8 +210,14 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
 
 def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, Optional[Dict]]:
     """Process content modification"""
-    prompt = f"User instruction:\n{instruction}\n\nOriginal content:\n{session['zh_output']}"
+    original_content = session.get('zh_output', '')
+    print(f"✏️ [MODIFY] Original content length: {len(original_content)}")
+    
+    prompt = f"User instruction:\n{instruction}\n\nOriginal content:\n{original_content}"
     new_content = call_zh(prompt, system_prompt=modify_prompt)
+    
+    print(f"✏️ [MODIFY] New content length: {len(new_content)}")
+    print(f"✏️ [MODIFY] First 200 chars of new content: {new_content[:200]}")
     
     session["zh_output"] = new_content
     session["awaiting_modify"] = False
