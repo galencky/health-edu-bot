@@ -20,7 +20,7 @@ class SessionBase(BaseModel):
     mode: Optional[Literal["edu", "chat"]] = None
     
     # Previous mode memory
-    _prev_mode: Optional[Literal["edu", "chat"]] = Field(None, alias="_prev_mode")
+    prev_mode: Optional[Literal["edu", "chat"]] = None
     
     class Config:
         # Allow population by field name or alias
