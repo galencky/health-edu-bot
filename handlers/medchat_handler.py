@@ -88,7 +88,7 @@ def handle_medchat(user_id: str, raw: str, session: dict) -> tuple[str, bool, di
     session["last_translation_lang"] = target_lang  # Store for TTS
 
     reply_text = (
-        "您是否想表達：\n"
+        f"您是否想表達（{target_lang}）：\n"
         f"{plain_zh}\n\n"
         f"{translated}"
 )

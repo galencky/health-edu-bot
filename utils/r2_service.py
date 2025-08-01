@@ -147,6 +147,16 @@ Gemini zh_output:
 Translated Output ({translation_lang}):
 {translated_output}"""
         
+        # Add references if available
+        references = session_data.get('references', [])
+        if references:
+            text_content += "\n\n參考來源："
+            for i, ref in enumerate(references):
+                if isinstance(ref, dict):
+                    title = ref.get('title', '')
+                    url = ref.get('url', '')
+                    text_content += f"\n{i+1}. {title}: {url}"
+        
         # Upload to R2 - matching existing format
         # Format: text/{user_id}/{user_id}-{timestamp}.txt
         filename = f"{user_id}-{timestamp}.txt"
