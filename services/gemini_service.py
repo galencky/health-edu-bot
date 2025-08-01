@@ -124,7 +124,9 @@ def plainify(text: str) -> str:
 def confirm_translate(plain_zh: str, target_lang: str) -> str:
     """Translate simplified Chinese text"""
     sys_prompt = confirm_translate_prompt.format(lang=target_lang)
-    return _call_genai(plain_zh, sys_prompt=sys_prompt, temp=0.2)
+    # Add prefix to prevent AI self-referential responses
+    user_input = f"Please translate for the patient: {plain_zh}"
+    return _call_genai(user_input, sys_prompt=sys_prompt, temp=0.2)
 
 def get_references() -> List[Dict[str, str]]:
     """Extract references from last Gemini response"""
