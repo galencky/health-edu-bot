@@ -118,7 +118,9 @@ def call_translate(zh_text: str, target_lang: str) -> str:
 @rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def plainify(text: str) -> str:
     """Simplify text to plain language"""
-    return _call_genai(text, sys_prompt=f'Please translate for the patient: {plainify_prompt}', temp=0.25)
+    # Add prefix to prevent AI self-referential responses
+    user_input = f"Please translate for the patient: {text}"
+    return _call_genai(user_input, sys_prompt=plainify_prompt, temp=0.25)
 
 @rate_limit(gemini_limiter, key_func=lambda *args, **kwargs: "global")
 def confirm_translate(plain_zh: str, target_lang: str) -> str:
