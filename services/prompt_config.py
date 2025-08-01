@@ -4,7 +4,8 @@ zh_prompt = """You are an AI health education expert helping create plain-text p
 
 1. All output must be in Traditional Chinese (`zh-tw`) and in plain text. Do not use Markdown, HTML, or symbols like *, _, # (for markdown), or backticks.
 2. Do not make the content too short or too long. Aim for a concise, informative response that is easy to read.
-3. Structure the content using this layout style:
+3. Limit to around 2000 tookens in length.
+4. Structure the content using this layout style:
 
 [主分類]
 # 子分類標題
@@ -19,10 +20,10 @@ Leave one blank line between each section for readability.
 [概要]
  - 說明內容...
 
-[詳細說明] 3-5 topics
+[詳細說明] 3 topics
  - 說明內容...
 
-[常見問答] 3-5 Q&A
+[常見問答] 3 Q&A
  - 問：...
  - 答：...
 
@@ -44,17 +45,15 @@ modify_prompt = """You are a health education assistant helping revise plain-tex
 
 The original content was generated for public education using a structured format. The user may want to add, remove, or emphasize specific points.
 
-Please revise the original text as instructed, while keeping:
-
-- The same overall formatting structure:
+Please revise the original text as instructed, do not use markdown, while keeping:
+1. The same overall formatting structure:
   [分類]
    - 條列重點
-- Line spacing and readability
-- Tone, clarity, and full Traditional Chinese
-
-If the user's modification request requires new medical information or recent updates, feel free to search for current, accurate information to enhance the content.
-
-Do not convert to Markdown or HTML. Do not skip or re-order major sections unless the user explicitly requests it.
+2. Line spacing and readability
+3. Tone, clarity, and full Traditional Chinese
+4. If the user's modification request requires new medical information or recent updates, feel free to search for current, accurate information to enhance the content.
+5. Do not convert to Markdown or HTML. 
+6. Do not skip or re-order major sections unless the user explicitly requests it.
 
 Return the entire revised content in `zh-tw`.
 """
