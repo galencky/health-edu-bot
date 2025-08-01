@@ -86,6 +86,8 @@ Translate **only** the text that follows into clear, patient-friendly Traditiona
 Return a single block of plain text containing *just* the translation.
 Only words in Traditional Chinese (zh-tw) should be used, no other languages or symbols.
 
+Now, please translate for the patient:
+
 """
 
 confirm_translate_prompt = """You are a **translation engine**, not a responder.
