@@ -117,27 +117,9 @@ def handle_audio_message(event: MessageEvent) -> None:
     
     # Only allow audio in chat mode after language is selected
     if session.get("mode") != "chat" or not session.get("chat_target_lang"):
-        # Provide appropriate message based on current state
-        if not session.get("started"):
-            message = "請先點擊【開始】選擇功能："
-            options = [("🆕 開始", "new")]
-        elif session.get("mode") == "edu":
-            message = "衛教模式不支援語音功能。請切換至醫療翻譯模式："
-            options = [("🆕 新對話", "new")]
-        elif session.get("mode") == "chat" and session.get("awaiting_chat_language"):
-            message = "請先選擇翻譯語言後，才能使用語音功能："
-            options = []  # Will show language options
-        else:
-            message = "語音功能僅在醫療翻譯模式中可用。請先選擇功能："
-            options = MODE_SELECTION_OPTIONS
-        
-        reply_msg = TextSendMessage(text=message)
-        if options:
-            reply_msg.quick_reply = QuickReply(items=create_quick_reply_items(options))
-        elif session.get("awaiting_chat_language"):
-            reply_msg.quick_reply = QuickReply(items=create_quick_reply_items(COMMON_LANGUAGES))
-            
-        line_bot_api.reply_message(event.reply_token, reply_msg)
+        # Define state-based responses
+        audio_rejection_response = _get_audio_rejection_response(session)
+        line_bot_api.reply_message(event.reply_token, audio_rejection_response)
         return
     
     try:
@@ -344,6 +326,26 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
         print(f"✅ [LINE] Adjusted to {len(bubbles)} bubbles, {final_total} chars")
     
     return bubbles
+
+def _get_audio_rejection_response(session: dict) -> TextSendMessage:
+    """Get appropriate response for audio rejection based on session state"""
+    if not session.get("started"):
+        message = "請先點擊【開始】選擇功能："
+        options = [("🆕 開始", "new")]
+    elif session.get("mode") == "edu":
+        message = "衛教模式不支援語音功能。請切換至醫療翻譯模式："
+        options = [("🆕 新對話", "new")]
+    elif session.get("mode") == "chat" and session.get("awaiting_chat_language"):
+        message = "請先選擇翻譯語言後，才能使用語音功能："
+        options = COMMON_LANGUAGES
+    else:
+        message = "語音功能僅在醫療翻譯模式中可用。請先選擇功能："
+        options = MODE_SELECTION_OPTIONS
+    
+    reply_msg = TextSendMessage(text=message)
+    reply_msg.quick_reply = QuickReply(items=create_quick_reply_items(options))
+    return reply_msg
+
 
 def save_audio_file(user_id: str, audio_content) -> Optional[Path]:
     """Save audio content to file"""

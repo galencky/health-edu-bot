@@ -1,6 +1,7 @@
 from utils.email_service import send_email
 from utils.r2_service import get_r2_service
 from datetime import datetime
+from models.email_log import EmailLog
 
 def send_last_txt_email(user_id: str, to_email: str, session: dict) -> tuple[bool, str]:
     zh = session.get("zh_output")
@@ -42,29 +43,22 @@ def send_last_txt_email(user_id: str, to_email: str, session: dict) -> tuple[boo
         r2_service = get_r2_service()
         print(f"📧 [Email] R2 service available: {r2_service is not None}")
         if r2_service:
-            # Create timestamp for filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Create structured email log
+            email_log = EmailLog.create(
+                user_id=user_id,
+                to_email=to_email,
+                subject=subject,
+                content=content,
+                topic=topic,
+                zh=zh,
+                translated=translated,
+                translated_lang=translated_lang,
+                references=references
+            )
             
-            # Create email log content with metadata
-            email_log_content = f"""Email Log
-========================================
-Timestamp: {timestamp}
-User ID: {user_id}
-Recipient: {to_email}
-Subject: {subject}
-Topic: {topic}
-Language: {translated_lang or 'Chinese only'}
-
-Email Content:
-========================================
-{content}
-
-Metadata:
-========================================
-Original content length: {len(zh) if zh else 0} characters
-Translated content length: {len(translated) if translated else 0} characters
-References count: {len(references)}
-"""
+            # Convert to text format for upload
+            email_log_content = email_log.to_text()
+            timestamp = email_log.timestamp
             
             # Upload to R2 with email indicator in filename
             filename = f"{user_id}-email-{timestamp}.txt"

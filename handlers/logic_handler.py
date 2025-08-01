@@ -22,6 +22,7 @@ from utils.command_sets import (
     COMMON_LANGUAGES, EDU_LANGUAGES, COMMON_DISEASES, TTS_OPTIONS,
     CHAT_CONTINUE_OPTIONS
 )
+from utils.quick_reply_templates import QuickReplyTemplates
 
 # ============================================================
 # MAIN HANDLER
@@ -52,7 +53,7 @@ def handle_user_message(
     
     # Handle unstarted session
     if not session.get("started"):
-        quick_reply = {"items": create_quick_reply_items([("🆕 開始", "new")])}
+        quick_reply = QuickReplyTemplates.create('START')
         return "歡迎使用 MedEdBot！請點擊【開始】按鈕開始使用：", False, quick_reply
     
     # Handle mode selection
@@ -67,7 +68,7 @@ def handle_user_message(
         if text_lower in chat_commands:
             session["mode"] = "chat"
             session["awaiting_chat_language"] = True
-            quick_reply = {"items": create_quick_reply_items(COMMON_LANGUAGES)}
+            quick_reply = QuickReplyTemplates.create_languages('COMMON')
             return "💬 進入對話模式。請選擇或輸入您需要的翻譯語言：", False, quick_reply
         
         # Default
@@ -94,7 +95,7 @@ def handle_new_command(session: Dict) -> Tuple[str, bool, Optional[Dict]]:
     """Reset session and start over"""
     session.clear()
     session["started"] = True
-    quick_reply = {"items": create_quick_reply_items(MODE_SELECTION_OPTIONS)}
+    quick_reply = QuickReplyTemplates.create_custom(MODE_SELECTION_OPTIONS)
     return "請選擇您需要的功能：", False, quick_reply
 
 def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Optional[Dict]]:
@@ -196,12 +197,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
         if refs:
             session["references"] = refs
         
-        quick_reply = {"items": create_quick_reply_items([
-            ("✏️ 修改", "modify"),
-            ("🌐 翻譯", "translate"),
-            ("📧 寄送", "mail"),
-            ("🆕 新對話", "new")
-        ])}
+        quick_reply = QuickReplyTemplates.create('EDU_ACTIONS')
         return "✅ 中文版衛教內容已生成。", True, quick_reply
     
     # Fallback
@@ -238,12 +234,7 @@ def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, 
     if refs:
         session["references"] = refs
     
-    quick_reply = {"items": create_quick_reply_items([
-        ("✏️ 修改", "modify"),
-        ("🌐 翻譯", "translate"),
-        ("📧 寄送", "mail"),
-        ("🆕 新對話", "new")
-    ])}
+    quick_reply = QuickReplyTemplates.create('EDU_ACTIONS')
     return "✅ 內容已根據您的要求修改。", True, quick_reply
 
 def handle_translate_response(session: Dict, language: str, user_id: str = "unknown") -> Tuple[str, bool, Optional[Dict]]:
@@ -275,11 +266,7 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
     session["last_translation_lang"] = language
     session["just_translated"] = True
     
-    quick_reply = {"items": create_quick_reply_items([
-        ("🌐 翻譯", "translate"),
-        ("📧 寄送", "mail"),
-        ("🆕 新對話", "new")
-    ])}
+    quick_reply = QuickReplyTemplates.create('EDU_ACTIONS_NO_MODIFY')
     return f"🌐 翻譯完成（目標語言：{language}）。", gemini_called, quick_reply
 
 def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -> Tuple[str, bool, Optional[Dict]]:
@@ -306,11 +293,7 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
         print(f"📧 [LOGIC] Stored email R2 URL in session: {r2_url}")
     
     if success:
-        quick_reply = {"items": create_quick_reply_items([
-            ("📧 寄送", "mail"),
-            ("🌐 翻譯", "translate"),
-            ("🆕 新對話", "new")
-        ])}
+        quick_reply = QuickReplyTemplates.create('EDU_ACTIONS_NO_MODIFY')
         return f"✅ 已成功寄出衛教內容至 {validated_email}", False, quick_reply
     else:
         return "郵件寄送失敗。請檢查網路連線後再試一次。", False, None
