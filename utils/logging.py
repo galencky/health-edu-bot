@@ -134,6 +134,7 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
             print(f"[TTS] Failed to delete local file: {e}")
     elif web_link and upload_status == "success":
         # Local file kept for serving in local storage mode
+        pass
 
 
 def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
@@ -161,6 +162,7 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         # Debug: log memory storage state for Taigi files
         if "_taigi_" in filename:
             # Debug logging for memory storage removed
+            pass
         
         result = memory_storage.get(filename)
         if not result:
@@ -236,6 +238,7 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
                 print(f"[UPLOAD] Voicemail uploaded and local file deleted")
         except Exception as e:
             # Failed to delete local file - non-critical
+            pass
         
         return web_link
         
@@ -277,6 +280,7 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
             
             if success:
                 # Chat logging completed
+                pass
             else:
                 print(f"[LOG] Chat logging failed")
         except Exception as e:

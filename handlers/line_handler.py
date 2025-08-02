@@ -82,6 +82,7 @@ def handle_line_message(event: MessageEvent) -> None:
                 email_r2_url = session.pop("email_r2_url", None)
                 if email_r2_url:
                     # Found email R2 URL for logging
+                    pass
             
             if gemini_called:
                 action_type = "Gemini reply"
@@ -251,6 +252,7 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
                     bubbles.append(TextSendMessage(text=chunk))
             else:
                 # No content added - may be empty response
+                pass
     
     # Add references only when showing edu content (new generation, modify, or translate)
     if session.get("mode") == "edu" and gemini_called:
