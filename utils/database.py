@@ -164,7 +164,7 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
         action_type = validate_action_type(action_type)
         gemini_output_url = sanitize_text(gemini_output_url, max_length=500) if gemini_output_url else None
         
-        print(f"🔍 [DB] About to log - Action: '{action_type}', Gemini: {gemini_call}")
+        print(f"[DB] About to log - Action: '{action_type}', Gemini: {gemini_call}")
         
         async with get_async_db_session() as session:
             log = ChatLog(
@@ -175,16 +175,17 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
                 gemini_call=bool(gemini_call),
                 gemini_output_url=gemini_output_url
             )
-            print(f"🔍 [DB] Created ChatLog object with action_type='{log.action_type}'")
+            print(f"[DB] Created ChatLog object with action_type='{log.action_type}'")
             session.add(log)
             await session.commit()
-            print(f"✅ [DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}, Saved action: {log.action_type}")
+            url_info = f", URL: {gemini_output_url[:50]}..." if gemini_output_url else ""
+            print(f"[DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}, Saved action: {log.action_type}{url_info}")
             return True
     except ValueError as e:
-        print(f"❌ [DB] Validation error: {e}")
+        print(f"[DB] Validation error: {e}")
         return False
     except Exception as e:
-        print(f"❌ [DB] Failed to log chat to Neon database: {e}")
+        print(f"[DB] Failed to log chat to Neon database: {e}")
         return False
 
 async def log_tts_to_db(user_id, text, audio_filename, audio_url, drive_link=None, status="success"):
@@ -205,10 +206,11 @@ async def log_tts_to_db(user_id, text, audio_filename, audio_url, drive_link=Non
             )
             session.add(log)
             await session.commit()
-            print(f"✅ [DB] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}")
+            drive_info = f", Drive: {drive_link[:50]}..." if drive_link else ""
+            print(f"[DB] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}{drive_info}")
             return True
     except Exception as e:
-        print(f"❌ [DB] Failed to log TTS to Neon database: {e}")
+        print(f"[DB] Failed to log TTS to Neon database: {e}")
         return False
 
 async def log_voicemail_to_db(user_id, audio_filename, transcription, translation, drive_link=None):
@@ -228,10 +230,11 @@ async def log_voicemail_to_db(user_id, audio_filename, transcription, translatio
             )
             session.add(log)
             await session.commit()
-            print(f"✅ [DB] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}")
+            drive_info = f", Drive: {drive_link[:50]}..." if drive_link else ""
+            print(f"[DB] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}{drive_info}")
             return True
     except Exception as e:
-        print(f"❌ [DB] Failed to log voicemail to Neon database: {e}")
+        print(f"[DB] Failed to log voicemail to Neon database: {e}")
         return False
 
 # Sync fallback functions
@@ -243,10 +246,18 @@ def _create_log_entry(log_class, log_type, **kwargs):
             session.add(log)
             user_id = kwargs.get('user_id', 'unknown')
             identifier = kwargs.get('audio_filename', kwargs.get('action_type', 'entry'))
-            print(f"✅ [DB-SYNC] {log_type} log saved - User: {user_id[:8]}..., ID: {identifier}")
+            # Check for URL info
+            url_info = ""
+            drive_link = kwargs.get('drive_link')
+            gemini_output_url = kwargs.get('gemini_output_url')
+            if drive_link:
+                url_info = f", Drive: {drive_link[:50]}..."
+            elif gemini_output_url:
+                url_info = f", URL: {gemini_output_url[:50]}..."
+            print(f"[DB-SYNC] {log_type} log saved - User: {user_id[:8]}..., ID: {identifier}{url_info}")
             return True
     except Exception as e:
-        print(f"❌ [DB-SYNC] Failed to log {log_type} to database: {e}")
+        print(f"[DB-SYNC] Failed to log {log_type} to database: {e}")
         return False
 
 def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=False, gemini_output_url=None):
@@ -266,7 +277,7 @@ def _log_chat_to_db_sync(user_id, message, reply, action_type=None, gemini_call=
             gemini_output_url=gemini_output_url
         )
     except ValueError as e:
-        print(f"❌ [DB-SYNC] Validation error: {e}")
+        print(f"[DB-SYNC] Validation error: {e}")
         return False
 
 def _log_tts_to_db_sync(user_id, text, audio_filename, audio_url, drive_link=None, status="success"):
@@ -308,13 +319,13 @@ async def update_voicemail_translation(user_id, audio_filename, translation):
             if voicemail_log:
                 voicemail_log.translation = translation
                 await session.commit()
-                print(f"✅ [DB] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
+                print(f"[DB] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
                 return True
             else:
-                print(f"⚠️ [DB] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
+                print(f"[DB] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
                 return False
     except Exception as e:
-        print(f"❌ [DB] Failed to update voicemail translation: {e}")
+        print(f"[DB] Failed to update voicemail translation: {e}")
         return False
 
 def _update_voicemail_translation_sync(user_id, audio_filename, translation):
@@ -330,13 +341,13 @@ def _update_voicemail_translation_sync(user_id, audio_filename, translation):
             
             if voicemail_log:
                 voicemail_log.translation = translation
-                print(f"✅ [DB-SYNC] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
+                print(f"[DB-SYNC] Updated voicemail translation - User: {user_id[:8]}..., File: {audio_filename}")
                 return True
             else:
-                print(f"⚠️ [DB-SYNC] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
+                print(f"[DB-SYNC] No voicemail log found to update - User: {user_id[:8]}..., File: {audio_filename}")
                 return False
     except Exception as e:
-        print(f"❌ [DB-SYNC] Failed to update voicemail translation: {e}")
+        print(f"[DB-SYNC] Failed to update voicemail translation: {e}")
         return False
 
 # Backward compatibility: sync wrapper functions

@@ -192,7 +192,7 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
             session.pop("translated_output", None)
             session.pop("last_translation_lang", None)
         
-        # Get references (replace, don't accumulate)
+        # Get initial references for new content
         refs = get_references()
         if refs:
             session["references"] = refs
@@ -228,10 +228,19 @@ def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, 
         session.pop("last_translation_lang", None)
         # Previous translation cleared after modification
     
-    # Update references (replace, don't accumulate)
-    refs = get_references()
-    if refs:
-        session["references"] = refs
+    # Append new references to existing ones
+    new_refs = get_references()
+    if new_refs:
+        existing_refs = session.get("references", [])
+        # Combine existing and new references, removing duplicates based on URL
+        combined_refs = existing_refs.copy()
+        
+        for new_ref in new_refs:
+            # Check if this reference already exists (by URL)
+            if not any(existing_ref.get("url") == new_ref.get("url") for existing_ref in combined_refs):
+                combined_refs.append(new_ref)
+        
+        session["references"] = combined_refs
     
     quick_reply = QuickReplyTemplates.create('EDU_ACTIONS')
     return "✅ 內容已根據您的要求修改。", True, quick_reply
@@ -254,10 +263,19 @@ def handle_translate_response(session: Dict, language: str, user_id: str = "unkn
     translated = call_translate(session["zh_output"], language)
     gemini_called = True
     
-    # Update references only for Gemini calls (replace, don't accumulate)
-    refs = get_references()
-    if refs:
-        session["references"] = refs
+    # Append new references to existing ones for Gemini calls
+    new_refs = get_references()
+    if new_refs:
+        existing_refs = session.get("references", [])
+        # Combine existing and new references, removing duplicates based on URL
+        combined_refs = existing_refs.copy()
+        
+        for new_ref in new_refs:
+            # Check if this reference already exists (by URL)
+            if not any(existing_ref.get("url") == new_ref.get("url") for existing_ref in combined_refs):
+                combined_refs.append(new_ref)
+        
+        session["references"] = combined_refs
     
     session["translated_output"] = translated
     session["translated"] = True
