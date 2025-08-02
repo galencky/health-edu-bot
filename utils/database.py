@@ -178,7 +178,7 @@ async def log_chat_to_db(user_id, message, reply, action_type=None, gemini_call=
             print(f"[DB] Created ChatLog object with action_type='{log.action_type}'")
             session.add(log)
             await session.commit()
-            url_info = f", URL: {gemini_output_url[:50]}..." if gemini_output_url else ""
+            url_info = f", URL: {gemini_output_url}" if gemini_output_url else ""
             print(f"[DB] Chat log saved - User: {user_id[:8]}..., Action: {action_type or 'chat'}, Saved action: {log.action_type}{url_info}")
             return True
     except ValueError as e:
@@ -206,7 +206,7 @@ async def log_tts_to_db(user_id, text, audio_filename, audio_url, drive_link=Non
             )
             session.add(log)
             await session.commit()
-            drive_info = f", Drive: {drive_link[:50]}..." if drive_link else ""
+            drive_info = f", Drive: {drive_link}" if drive_link else ""
             print(f"[DB] TTS log saved - User: {user_id[:8]}..., File: {audio_filename}{drive_info}")
             return True
     except Exception as e:
@@ -230,7 +230,7 @@ async def log_voicemail_to_db(user_id, audio_filename, transcription, translatio
             )
             session.add(log)
             await session.commit()
-            drive_info = f", Drive: {drive_link[:50]}..." if drive_link else ""
+            drive_info = f", Drive: {drive_link}" if drive_link else ""
             print(f"[DB] Voicemail log saved - User: {user_id[:8]}..., File: {audio_filename}{drive_info}")
             return True
     except Exception as e:
@@ -251,9 +251,9 @@ def _create_log_entry(log_class, log_type, **kwargs):
             drive_link = kwargs.get('drive_link')
             gemini_output_url = kwargs.get('gemini_output_url')
             if drive_link:
-                url_info = f", Drive: {drive_link[:50]}..."
+                url_info = f", Drive: {drive_link}"
             elif gemini_output_url:
-                url_info = f", URL: {gemini_output_url[:50]}..."
+                url_info = f", URL: {gemini_output_url}"
             print(f"[DB-SYNC] {log_type} log saved - User: {user_id[:8]}..., ID: {identifier}{url_info}")
             return True
     except Exception as e:
