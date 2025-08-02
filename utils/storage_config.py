@@ -33,7 +33,7 @@ def get_storage_backend() -> StorageBackend:
     # TEMP: Force memory storage for debugging
     port = os.getenv("PORT")
     if port and port != "10001":  # Render typically assigns different ports
-        print(f"🚨 [STORAGE] Detected cloud deployment (PORT={port}), forcing memory storage")
+        print(f"[STORAGE] Detected cloud deployment (PORT={port}), forcing memory storage")
         return StorageBackend.MEMORY
     
     if is_cloud:

@@ -22,13 +22,12 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     Log chat interaction to database asynchronously.
     If gemini_call is "yes", also uploads detailed log to Drive.
     """
-    print(f"🔍 [LOGGING] _async_log_chat called with action_type='{action_type}', gemini_call='{gemini_call}', gemini_output_url='{gemini_output_url}'")
+    # Debug logging removed - redundant with DB logging below
     drive_url = gemini_output_url  # Use provided URL if available
     
     # Log language choice if present
     language = session.get("last_translation_lang") or session.get("chat_target_lang")
-    if language:
-        print(f"🌍 [LOGGING] Language choice: {language}")
+    # Language logging removed - included in DB log
     
     # Only upload to R2 if no URL was provided
     if not drive_url and (gemini_call == "yes" or (language and language in ["台語", "臺語", "taiwanese", "taigi"])):
@@ -47,7 +46,7 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
     
     # Log to database asynchronously
     try:
-        print(f"🔍 [LOGGING] Logging to DB with drive_url: {drive_url}")
+        # DB logging handled by database module
         db_success = await log_chat_to_db(
             user_id=user_id,
             message=message,
@@ -57,11 +56,11 @@ async def _async_log_chat(user_id, message, reply, session, action_type=None, ge
             gemini_output_url=drive_url
         )
         if not db_success:
-            print(f"⚠️ [LOGGING] Chat log failed to save to database")
+            print(f"[LOG] Chat log failed to save to database")
             return False
         return True
     except Exception as e:
-        print(f"❌ [LOGGING] Database logging failed: {e}")
+        print(f"[LOG] Database logging failed: {e}")
         return False
 
 
@@ -118,9 +117,9 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
             status=upload_status
         )
         if not db_success:
-            print(f"⚠️ [TTS] Database logging failed but no exception thrown")
+            print(f"[TTS] Database logging failed")
     except Exception as db_error:
-        print(f"❌ [TTS] Failed to log to database: {db_error}")
+        print(f"[TTS] Failed to log to database: {db_error}")
     
     # Delete local file after successful Drive upload ONLY if using memory storage
     # If using local storage, we need to keep the files to serve them!
@@ -130,11 +129,11 @@ async def _log_tts_internal(user_id, text, audio_path, audio_url):
         try:
             if os.path.exists(audio_path):
                 os.remove(audio_path)
-                print(f"🗑️ [TTS] Deleted local file after Drive upload (memory storage mode): {os.path.basename(audio_path)}")
+                print(f"[TTS] Deleted local file after upload (memory storage): {os.path.basename(audio_path)}")
         except Exception as e:
-            print(f"⚠️ [TTS] Failed to delete local file: {e}")
+            print(f"[TTS] Failed to delete local file: {e}")
     elif web_link and upload_status == "success":
-        print(f"📁 [TTS] Keeping local file for serving (local storage mode): {os.path.basename(audio_path)}")
+        # Local file kept for serving in local storage mode
 
 
 def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
@@ -149,7 +148,7 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
     
     # Log Taigi files specifically
     if "_taigi_" in filename:
-        print(f"🇹🇼 [{log_prefix}] Uploading Taigi audio file: {filename}")
+        print(f"[{log_prefix}] Uploading Taigi audio: {filename}")
     
     # Get user_id from filename (format: U{user_id}_{rest})
     user_id = filename.split('_')[0] if '_' in filename else 'unknown'
@@ -161,8 +160,7 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
         
         # Debug: log memory storage state for Taigi files
         if "_taigi_" in filename:
-            print(f"🔍 [TAIGI Upload] Looking for {filename} in memory storage")
-            print(f"🔍 [TAIGI Upload] Memory storage keys: {list(memory_storage.files.keys())}")
+            # Debug logging for memory storage removed
         
         result = memory_storage.get(filename)
         if not result:
@@ -197,7 +195,7 @@ def _upload_audio_file(audio_path: str, log_prefix: str = "Audio Upload"):
     # Upload to R2
     try:
         result = service.upload_audio_file(audio_data, filename, folder=folder)
-        print(f"[{log_prefix}] Upload completed successfully, URL: {result.get('webViewLink')}")
+        print(f"[{log_prefix}] Upload completed successfully")
         return result
         
     except Exception as e:
@@ -235,9 +233,9 @@ async def _async_upload_voicemail(local_path: str, user_id: str, transcription: 
         try:
             if os.path.exists(local_path):
                 os.remove(local_path)
-                print(f"🗑️ [Voicemail] Deleted local file after Drive upload: {os.path.basename(local_path)}")
+                print(f"[UPLOAD] Voicemail uploaded and local file deleted")
         except Exception as e:
-            print(f"⚠️ [Voicemail] Failed to delete local file: {e}")
+            # Failed to delete local file - non-critical
         
         return web_link
         
@@ -256,17 +254,17 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
     Synchronous wrapper for log_chat for use in sync contexts.
     Handles both cases: with and without existing event loop.
     """
-    print(f"🔍 [LOGGING] log_chat_sync called with action_type='{action_type}', gemini_call='{gemini_call}'")
+    # Sync wrapper for log_chat
     
     def _worker():
         try:
-            print(f"🔄 [LOGGING] Starting async chat log for user {user_id[:10]}...")
+            # Starting async chat log
             # Try to get existing event loop
             try:
                 loop = asyncio.get_running_loop()
                 # If we're here, we're in an async context but called from sync code
                 # This shouldn't happen with our current fix, but handle it anyway
-                print(f"⚠️ [LOGGING] Unexpected: sync function called with active event loop")
+                # Sync function called with active event loop
                 # Create task in existing loop
                 future = asyncio.run_coroutine_threadsafe(
                     _async_log_chat(user_id, message, reply, session, action_type, gemini_call, gemini_output_url),
@@ -278,11 +276,11 @@ def log_chat_sync(user_id, message, reply, session, action_type=None, gemini_cal
                 success = asyncio.run(_async_log_chat(user_id, message, reply, session, action_type, gemini_call, gemini_output_url))
             
             if success:
-                print(f"✅ [LOGGING] Chat logging completed successfully")
+                # Chat logging completed
             else:
-                print(f"❌ [LOGGING] Chat logging failed")
+                print(f"[LOG] Chat logging failed")
         except Exception as e:
-            print(f"❌ [LOGGING] Chat logging thread failed: {e}")
+            print(f"[LOG] Chat logging thread failed: {e}")
             import traceback
             traceback.print_exc()
     
@@ -295,15 +293,15 @@ def log_tts_async(user_id, text, audio_path, audio_url):
     Fire-and-forget async logging for TTS generation with Drive upload.
     Handles both cases: with and without existing event loop.
     """
-    print(f"🔍 [TTS LOG] Starting TTS logging for user {user_id[:10]}..., file: {os.path.basename(audio_path) if '/' in str(audio_path) else audio_path}")
+    # Fire-and-forget TTS logging
     
     def _worker():
         try:
-            print(f"🔄 [TTS] Starting TTS logging and Drive upload for user {user_id[:10]}...")
+            # Starting TTS logging and upload
             # Try to get existing event loop
             try:
                 loop = asyncio.get_running_loop()
-                print(f"⚠️ [TTS] Unexpected: sync function called with active event loop")
+                # Sync function called with active event loop
                 # Create task in existing loop
                 future = asyncio.run_coroutine_threadsafe(
                     _log_tts_internal(user_id, text, audio_path, audio_url),
@@ -313,9 +311,9 @@ def log_tts_async(user_id, text, audio_path, audio_url):
             except RuntimeError:
                 # No event loop, create one
                 asyncio.run(_log_tts_internal(user_id, text, audio_path, audio_url))
-            print(f"✅ [TTS] TTS logging thread completed")
+            # TTS logging completed
         except Exception as e:
-            print(f"❌ [TTS] TTS logging thread failed: {e}")
+            print(f"[TTS] Logging thread failed: {e}")
             import traceback
             traceback.print_exc()
     
@@ -358,7 +356,7 @@ def log_chat(user_id, message, reply, session, action_type=None, gemini_call=Non
             try:
                 task.result()
             except Exception as e:
-                print(f"❌ [LOGGING] Async task failed: {e}")
+                print(f"[LOG] Async task failed: {e}")
         task.add_done_callback(_handle_task_error)
     except RuntimeError:
         # We're in sync context, use the sync wrapper

@@ -141,7 +141,7 @@ def handle_speak_command(session: Dict, user_id: str) -> Tuple[str, bool, Option
             quick_reply = {"items": create_quick_reply_items([("🆕 新對話", "new")])}
         return "🔊 語音檔已生成", False, quick_reply
     except Exception as e:
-        print(f"[TTS ERROR] {e}")
+        print(f"[TTS] Error during synthesis: {e}")
         return "語音合成時發生錯誤，請稍後再試。", False, None
 
 
@@ -212,13 +212,12 @@ def handle_education_mode(session: Dict, text: str, text_lower: str, user_id: st
 def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, Optional[Dict]]:
     """Process content modification"""
     original_content = session.get('zh_output', '')
-    print(f"✏️ [MODIFY] Original content length: {len(original_content)}")
+    # Processing content modification
     
     prompt = f"User instruction:\n{instruction}\n\nOriginal content:\n{original_content}"
     new_content = call_zh(prompt, system_prompt=modify_prompt)
     
-    print(f"✏️ [MODIFY] New content length: {len(new_content)}")
-    print(f"✏️ [MODIFY] First 200 chars of new content: {new_content[:200]}")
+    # Content modified successfully
     
     session["zh_output"] = new_content
     session["awaiting_modify"] = False
@@ -227,7 +226,7 @@ def handle_modify_response(session: Dict, instruction: str) -> Tuple[str, bool, 
     if "translated_output" in session:
         session.pop("translated_output", None)
         session.pop("last_translation_lang", None)
-        print(f"✏️ [MODIFY] Cleared previous translation as original was modified")
+        # Previous translation cleared after modification
     
     # Update references (replace, don't accumulate)
     refs = get_references()
@@ -290,7 +289,7 @@ def handle_email_response(session: Dict, email: str, user_id: str = "unknown") -
     # Store R2 URL in session for logging
     if r2_url:
         session["email_r2_url"] = r2_url
-        print(f"📧 [LOGIC] Stored email R2 URL in session: {r2_url}")
+        # Email R2 URL stored for logging
     
     if success:
         quick_reply = QuickReplyTemplates.create('EDU_ACTIONS_NO_MODIFY')

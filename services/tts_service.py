@@ -52,7 +52,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     # Limit text length to prevent API errors (5000 chars is a safe limit)
     MAX_TTS_LENGTH = 5000
     if len(text) > MAX_TTS_LENGTH:
-        print(f"[TTS WARNING] Text too long ({len(text)} chars), truncating to {MAX_TTS_LENGTH}")
+        print(f"[TTS] Text too long ({len(text)} chars), truncating to {MAX_TTS_LENGTH}")
         text = text[:MAX_TTS_LENGTH] + "..."
     
     # Validate user_id to prevent path traversal
@@ -75,7 +75,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         # Generate audio using Gemini
         # BUG FIX: Use the correct Gemini 2.5 Flash Preview TTS model name from documentation
         tts_model = "gemini-2.5-flash-preview-tts"  # Dedicated TTS model
-        #print(f"[TTS DEBUG] Using model: {tts_model}, Voice: {voice_name}")
+        # Using Gemini TTS model
         
         resp = client.models.generate_content(
             model=tts_model,
@@ -97,15 +97,15 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
     # BUG FIX: Add proper error handling for TTS response
     # Previously: AttributeError when response has no candidates or parts
     if not resp or not resp.candidates:
-        print(f"[TTS DEBUG] Empty response. Text length: {len(text)}, Text preview: {text[:100]}...")
+        print(f"[TTS] Empty response from API")
         raise ValueError("TTS service returned empty response")
     
     if not resp.candidates[0].content or not resp.candidates[0].content.parts:
-        print(f"[TTS DEBUG] No content/parts. Candidate: {resp.candidates[0]}")
+        print(f"[TTS] No audio content in response")
         raise ValueError("TTS response has no audio content")
     
     if not resp.candidates[0].content.parts[0].inline_data:
-        print(f"[TTS DEBUG] No inline data. Parts: {resp.candidates[0].content.parts}")
+        print(f"[TTS] No inline audio data in response")
         raise ValueError("TTS response has no inline audio data")
     
     # Extract audio and save as .wav
@@ -118,7 +118,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
 
     # Save based on storage backend
     if TTS_USE_MEMORY:
-        print(f"🔍 [TTS] Using memory storage for {safe_fn}")
+        # Using memory storage for audio
         # Convert PCM to WAV in memory
         import io
         wav_buffer = io.BytesIO()
@@ -135,7 +135,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         base = os.getenv("BASE_URL")
         if not base:
             # Graceful fallback - use local URL or skip TTS
-            print("[TTS WARNING] BASE_URL not set, using relative URL")
+            # BASE_URL not set, using relative URL
             url = f"/audio/{safe_fn}"
         else:
             url = f"{base}/audio/{safe_fn}"
@@ -151,7 +151,7 @@ def synthesize(text: str, user_id: str, voice_name: str = "Kore") -> tuple[str, 
         base = os.getenv("BASE_URL")
         if not base or "YOUR_DOMAIN" in base:
             # Graceful fallback - use relative URL
-            print("[TTS WARNING] BASE_URL not set correctly, using relative URL")
+            # BASE_URL not configured, using relative URL
             url = f"/static/{safe_fn}"
         else:
             url = f"{base}/static/{safe_fn}"

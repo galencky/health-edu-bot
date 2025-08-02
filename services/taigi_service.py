@@ -72,7 +72,7 @@ def taigi_tts(
             if not tlpa:
                 raise RuntimeError("Server returned empty TLPA string")
         except requests.exceptions.Timeout:
-            print(f"[TAIGI] Translation timeout after 30s")
+            print(f"[TAIGI] Translation timeout")
             raise RuntimeError("台語翻譯服務逾時，請稍後再試")
         except requests.exceptions.RequestException as e:
             print(f"[TAIGI] Translation request failed: {e}")
@@ -84,17 +84,17 @@ def taigi_tts(
         "gender": _GENDER_MAP[gender],
         "accent": _ACCENT_MAP[accent],
     }
-    print(f"[TAIGI TTS] Synthesizing TLPA: {tlpa[:50]}...")
+    # Synthesizing TLPA to audio
     try:
         r = requests.get(f"{base}{end_tlpa2wav}", params=params, timeout=60)  # Reduced timeout
         r.raise_for_status()
         wav = r.content
-        print(f"[TAIGI TTS] Generated {len(wav)} bytes of audio")
+        # Audio generation successful
     except requests.exceptions.Timeout:
-        print(f"[TAIGI TTS] Synthesis timeout after 60s")
+        print(f"[TAIGI] Synthesis timeout")
         raise RuntimeError("台語語音合成逾時，請稍後再試")
     except requests.exceptions.RequestException as e:
-        print(f"[TAIGI TTS] Request failed: {e}")
+        print(f"[TAIGI] Synthesis failed: {e}")
         raise RuntimeError(f"台語語音合成失敗：{str(e)}")
 
     if outfile:
@@ -120,7 +120,7 @@ def translate_to_taigi(text: str) -> str:
         base = "http://tts001.iptcloud.net:8804"
         end_cn2tlpa = "/html_taigi_zh_tw_py"
         
-        print(f"[TAIGI] Translating text: {text[:50]}...")
+        # Translating Chinese to TLPA
         r = requests.get(
             f"{base}{end_cn2tlpa}",
             params={"text0": text},
@@ -129,7 +129,7 @@ def translate_to_taigi(text: str) -> str:
         r.raise_for_status()
         
         tlpa = r.text.strip()
-        print(f"[TAIGI] Translation result: {tlpa[:50]}...")
+        # Translation successful
         
         if not tlpa:
             raise RuntimeError("Server returned empty TLPA string")
@@ -137,10 +137,10 @@ def translate_to_taigi(text: str) -> str:
         return tlpa
         
     except requests.exceptions.Timeout:
-        print(f"[TAIGI] Translation timeout after 20s")
+        print(f"[TAIGI] Translation timeout")
         return "⚠️ 台語翻譯服務逾時，請稍後再試。"
     except requests.exceptions.ConnectionError:
-        print(f"[TAIGI] Connection failed to Taigi service")
+        print(f"[TAIGI] Connection failed")
         return "⚠️ 無法連接台語服務，請檢查網路連線。"
     except Exception as e:
         print(f"[TAIGI] Translation error: {e}")
@@ -164,11 +164,11 @@ def synthesize_taigi(text: str, user_id: str) -> Tuple[str, int]:
         user_id = sanitize_user_id(user_id)
         
         # Debug logging
-        print(f"[TAIGI TTS] Input text: {text[:100]}...")
+        # Processing Taigi TTS request
         
         # First get TLPA
         tlpa = translate_to_taigi(text)
-        print(f"[TAIGI TTS] TLPA result: {tlpa[:100]}...")
+        # TLPA translation obtained
         
         if tlpa.startswith("⚠️"):
             raise ValueError(tlpa)
@@ -205,14 +205,14 @@ def synthesize_taigi(text: str, user_id: str) -> Tuple[str, int]:
         
         # Save based on storage backend
         if TTS_USE_MEMORY:
-            print(f"🔍 [TAIGI] Using memory storage for {safe_fn}")
+            # Using memory storage for Taigi audio
             # Store in memory
             memory_storage.save(safe_fn, wav_bytes, "audio/wav")
             
             # For memory storage, use audio endpoint
             base_url = os.getenv("BASE_URL", "")
             if not base_url:
-                print("[TAIGI WARNING] BASE_URL not set, using relative URL")
+                # BASE_URL not set, using relative URL
                 url = f"/audio/{safe_fn}"
             else:
                 url = f"{base_url}/audio/{safe_fn}"

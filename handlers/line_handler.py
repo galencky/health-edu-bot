@@ -51,12 +51,12 @@ def handle_line_message(event: MessageEvent) -> None:
             # Final safety check
             final_chars = calculate_total_characters(bubbles)
             if final_chars > MAX_TOTAL_CHARS:
-                print(f"❌ [LINE] CRITICAL: Total chars ({final_chars}) still exceeds limit! Sending anyway...")
+                print(f"[LINE] ERROR: Total chars ({final_chars}) still exceeds limit")
             
             try:
                 line_bot_api.reply_message(event.reply_token, bubbles)
             except LineBotApiError as e:
-                print(f"❌ [LINE] API Error: {e}")
+                print(f"[LINE] API Error: {e}")
                 # If we hit an error, try sending just a simple error message
                 line_bot_api.reply_message(
                     event.reply_token,
@@ -81,7 +81,7 @@ def handle_line_message(event: MessageEvent) -> None:
                 # Check if we have R2 URL from email upload
                 email_r2_url = session.pop("email_r2_url", None)
                 if email_r2_url:
-                    print(f"📧 [LINE] Found email R2 URL: {email_r2_url}")
+                    # Found email R2 URL for logging
             
             if gemini_called:
                 action_type = "Gemini reply"
@@ -90,7 +90,7 @@ def handle_line_message(event: MessageEvent) -> None:
             gemini_url = None
             if email_r2_url:
                 gemini_url = email_r2_url
-                print(f"📧 [LINE] Using email R2 URL for logging: {gemini_url}")
+                # Using email R2 URL for logging
                 
             log_chat(
                 user_id,
@@ -103,7 +103,7 @@ def handle_line_message(event: MessageEvent) -> None:
             )
     
     except Exception as e:
-        print(f"[LINE ERROR] {e}")
+        print(f"[LINE] Error handling message: {e}")
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="系統發生錯誤，請稍後再試。")
@@ -158,7 +158,7 @@ def handle_audio_message(event: MessageEvent) -> None:
             line_bot_api.reply_message(event.reply_token, bubbles)
             
     except Exception as e:
-        print(f"[Audio] Error: {e}")
+        print(f"[AUDIO] Error handling audio message: {e}")
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="語音處理失敗。")
@@ -169,7 +169,7 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     bubbles = []
     
     # Debug: Log that we're starting fresh
-    print(f"📱 [LINE] Creating new message bubbles - Mode: {session.get('mode')}, Gemini: {gemini_called}")
+    # Creating message bubbles based on mode and content
     
     # Check if we need to show Taigi credit with audio
     show_taigi_credit = session.pop("show_taigi_credit", False)
@@ -202,31 +202,31 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
         
         # Education mode content - only show when Gemini was actually called
         elif session.get("mode") == "edu" and gemini_called:
-            print(f"📚 [LINE] Entering education mode content section")
+            # Education mode - handling content sections
             # Only show content bubbles when new content is generated
             zh_content = session.get("zh_output", "")
             translated_content = session.get("translated_output", "")
             just_translated = session.pop("just_translated", False)
             
-            print(f"📋 [LINE] Content check - zh_content length: {len(zh_content)}, translated length: {len(translated_content)}, just_translated: {just_translated}")
+            # Content check for translation handling
             
             # Pre-calculate character usage from other elements
             char_usage = 0
             
             # Estimate main reply text size
             char_usage += len(reply_text)
-            print(f"📊 [LINE] Reply text chars: {len(reply_text)}")
+            # Calculating character usage
             
             # Estimate references size if they exist
             if session.get("references", []):
                 # Rough estimate: 200 chars per reference
                 ref_chars = len(session.get("references", [])) * 200
                 char_usage += ref_chars
-                print(f"📊 [LINE] References chars (estimated): {ref_chars}")
+                # References character count
             
             # Calculate remaining character budget for content
             remaining_char_budget = MAX_TOTAL_CHARS - char_usage - 200  # 200 char safety buffer
-            print(f"📊 [LINE] Character budget - Used: {char_usage}, Remaining: {remaining_char_budget}, Total: {MAX_TOTAL_CHARS}")
+            # Character budget calculation
             
             # Calculate bubble budget
             has_references = bool(session.get("references", []))
@@ -237,20 +237,20 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             # Add content based on what action was performed
             if just_translated and translated_content:
                 # Show only translated content after translation
-                print(f"📝 [LINE] Adding translated content: {len(translated_content)} chars")
+                print(f"[LINE] Adding translated content: {len(translated_content)} chars")
                 chunks = split_long_text(translated_content, "🌐 譯文：\n", available_bubbles, remaining_char_budget)
-                print(f"📝 [LINE] Split into {len(chunks)} chunks")
+                print(f"[LINE] Content split into {len(chunks)} chunks")
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
             elif zh_content and not just_translated:
                 # Show only Chinese content for initial generation or modification
-                print(f"📝 [LINE] Adding Chinese content: {len(zh_content)} chars")
+                print(f"[LINE] Adding Chinese content: {len(zh_content)} chars")
                 chunks = split_long_text(zh_content, "📄 原文：\n", available_bubbles, remaining_char_budget)
-                print(f"📝 [LINE] Split into {len(chunks)} chunks")
+                print(f"[LINE] Content split into {len(chunks)} chunks")
                 for chunk in chunks:
                     bubbles.append(TextSendMessage(text=chunk))
             else:
-                print(f"⚠️ [LINE] No content added - zh_content: {bool(zh_content)}, just_translated: {just_translated}")
+                # No content added - may be empty response
     
     # Add references only when showing edu content (new generation, modify, or translate)
     if session.get("mode") == "edu" and gemini_called:
@@ -276,7 +276,7 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
     total_chars = calculate_total_characters(bubbles)
     
     if len(bubbles) > MAX_BUBBLE_COUNT or total_chars > MAX_TOTAL_CHARS:
-        print(f"⚠️ [LINE] Limits exceeded - Bubbles: {len(bubbles)}/{MAX_BUBBLE_COUNT}, Chars: {total_chars}/{MAX_TOTAL_CHARS}")
+        print(f"[LINE] Message limits exceeded - Bubbles: {len(bubbles)}/{MAX_BUBBLE_COUNT}, Chars: {total_chars}/{MAX_TOTAL_CHARS}")
         
         # We need to reorganize to fit within limits
         # Priority: 1) Main reply (required), 2) Audio, 3) References, 4) Content
@@ -323,7 +323,7 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
         bubbles = new_bubbles
         
         final_total = calculate_total_characters(bubbles)
-        print(f"✅ [LINE] Adjusted to {len(bubbles)} bubbles, {final_total} chars")
+        print(f"[LINE] Adjusted message: {len(bubbles)} bubbles, {final_total} chars")
     
     return bubbles
 
@@ -372,5 +372,5 @@ def save_audio_file(user_id: str, audio_content) -> Optional[Path]:
         return filepath
     
     except Exception as e:
-        print(f"[Audio] Save failed: {e}")
+        print(f"[AUDIO] Failed to save audio file: {e}")
         return None

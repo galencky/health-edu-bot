@@ -31,14 +31,14 @@ def cleanup_old_tts_files(directory: Path, max_age_hours: int = 24):
                     try:
                         file_path.unlink()
                         deleted_count += 1
-                        print(f"🗑️ [CLEANUP] Deleted old TTS file: {file_path.name}")
+                        print(f"[CLEANUP] Deleted old TTS file: {file_path.name}")
                     except Exception as e:
-                        print(f"⚠️ [CLEANUP] Failed to delete {file_path.name}: {e}")
+                        print(f"[CLEANUP] Failed to delete {file_path.name}: {e}")
     except Exception as e:
-        print(f"❌ [CLEANUP] Error during TTS cleanup: {e}")
+        print(f"[CLEANUP] Error during TTS cleanup: {e}")
     
     if deleted_count > 0:
-        print(f"✅ [CLEANUP] Deleted {deleted_count} old TTS files")
+        print(f"[CLEANUP] Deleted {deleted_count} old TTS files")
     
     return deleted_count
 
@@ -58,7 +58,7 @@ def get_directory_size(directory: Path) -> tuple[int, int]:
                 total_size += file_path.stat().st_size
                 file_count += 1
     except Exception as e:
-        print(f"⚠️ [CLEANUP] Error calculating directory size: {e}")
+        print(f"[CLEANUP] Error calculating directory size: {e}")
     
     return total_size, file_count
 
@@ -90,7 +90,7 @@ def cleanup_tts_directory_by_size(directory: Path, max_size_mb: int = 500):
                 stat = file_path.stat()
                 files.append((file_path, stat.st_mtime, stat.st_size))
     except Exception as e:
-        print(f"❌ [CLEANUP] Error listing files: {e}")
+        print(f"[CLEANUP] Error listing files: {e}")
         return 0
     
     # Sort by modification time (oldest first)
@@ -108,11 +108,11 @@ def cleanup_tts_directory_by_size(directory: Path, max_size_mb: int = 500):
             file_path.unlink()
             deleted_count += 1
             deleted_size += size
-            print(f"🗑️ [CLEANUP] Deleted TTS file for size limit: {file_path.name}")
+            print(f"[CLEANUP] Deleted TTS file for size limit: {file_path.name}")
         except Exception as e:
             print(f"⚠️ [CLEANUP] Failed to delete {file_path.name}: {e}")
     
     if deleted_count > 0:
-        print(f"✅ [CLEANUP] Deleted {deleted_count} files ({deleted_size / 1024 / 1024:.1f} MB) to stay under {max_size_mb} MB limit")
+        print(f"[CLEANUP] Deleted {deleted_count} files ({deleted_size / 1024 / 1024:.1f} MB) to stay under {max_size_mb} MB limit")
     
     return deleted_count
