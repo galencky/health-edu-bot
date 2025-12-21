@@ -117,7 +117,7 @@ def translate_to_taigi(text: str) -> str:
         TLPA romanization of the Taiwanese translation
     """
     try:
-        base = "http://tts001.iptcloud.net:8804"
+        base = "http://tts001.ivoice.tw:8804"
         end_cn2tlpa = "/html_taigi_zh_tw_py"
         
         # Translating Chinese to TLPA
@@ -251,3 +251,4 @@ if __name__ == "__main__":
     )
 
     print(f"Generated {len(wav_bytes)} bytes")
+
