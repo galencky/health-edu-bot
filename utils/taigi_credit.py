@@ -24,7 +24,7 @@ def create_taigi_credit_bubble():
                     "color": "#3366CC",
                     "action": {
                         "type": "uri",
-                        "uri": "http://tts001.iptcloud.net:8804/"
+                        "uri": "http://tts001.ivoice.tw:8804/"
                     },
                     "margin": "sm",
                     "decoration": "underline"
@@ -38,4 +38,5 @@ def create_taigi_credit_bubble():
                 "backgroundColor": "#F0F0F0"
             }
         }
+
     }
