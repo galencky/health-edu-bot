@@ -29,7 +29,7 @@ def taigi_tts(
     *,
     mandarin: Optional[str] = None,
     tlpa: Optional[str] = None,
-    base: str = "http://tts001.iptcloud.net:8804",
+    base: str = "http://tts001.ivoice.tw:8804/",
     gender: str = "female",            # "female" or "male"
     accent: str = "strong",            # "strong" (Kaohsiung) or "second" (Taipei)
     outfile: Optional[Union[str, pathlib.Path]] = None,
@@ -249,4 +249,5 @@ if __name__ == "__main__":
         accent="strong",
         outfile="test_taigi.wav"
     )
+
     print(f"Generated {len(wav_bytes)} bytes")
