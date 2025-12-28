@@ -317,7 +317,7 @@ def create_message_bubbles(session: dict, reply_text: str, quick_reply_data: Opt
             else:
                 # Can't fit more content, add truncation notice to main reply
                 if hasattr(main_reply, 'text') and "⚠️ 內容因超過 LINE 限制已截斷" not in main_reply.text:
-                    main_reply.text += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+                    main_reply.text += "\n\n⚠️ 內容因超過 LINE 限制已截斷\n請使用寄送功能寄至電子郵件觀看全文"
                 break
         
         # Add main reply last

@@ -48,7 +48,7 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
     # If text fits in one bubble, return as is
     if len(text) <= available_length:
         if truncated:
-            return [prefix + text + "\n\n⚠️ 內容因超過 LINE 限制已截斷"]
+            return [prefix + text + "\n\n⚠️ 內容因超過 LINE 限制已截斷\n請使用寄送功能寄至電子郵件觀看全文"]
         return [prefix + text]
     
     chunks = []
@@ -63,7 +63,7 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
             # Take whatever remains
             chunk = remaining_text
             if truncated:
-                chunk += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+                chunk += "\n\n⚠️ 內容因超過 LINE 限制已截斷\n請使用寄送功能寄至電子郵件觀看全文"
             chunks.append(prefix + chunk)
             break
         
@@ -105,7 +105,7 @@ def split_long_text(text: str, prefix: str = "", max_bubbles: int = MAX_CONTENT_
     if remaining_text and not truncated:
         # Text was split across max bubbles but more remains
         if chunks:
-            chunks[-1] += "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+            chunks[-1] += "\n\n⚠️ 內容因超過 LINE 限制已截斷\n請使用寄送功能寄至電子郵件觀看全文"
     
     return chunks
 
@@ -124,7 +124,7 @@ def truncate_for_line(text: str, max_length: int = MAX_CHARS_PER_BUBBLE) -> str:
         return text
     
     # Truncate with notice
-    truncation_notice = "\n\n⚠️ 內容因超過 LINE 限制已截斷"
+    truncation_notice = "\n\n⚠️ 內容因超過 LINE 限制已截斷\n請使用寄送功能寄至電子郵件觀看全文"
     return text[:max_length - len(truncation_notice)] + truncation_notice
 
 def calculate_total_characters(bubbles: List) -> int:
